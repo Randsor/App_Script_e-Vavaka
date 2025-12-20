@@ -1,7 +1,7 @@
 <script>
 /**
  * MOTEUR DE RENDU UNIFIÉ & LOGIQUE PARTAGÉE
- * Version Sécurisée (Concaténation stricte)
+ * Version Notion-Like & Mobile Absolute Fix
  */
 
 function getActiveDataArray() { return (APP_CONTEXT === 'TEMPLATE') ? DATA_TEMPLATE_BLOCKS : DATA_PROGRAMME_BLOCKS; }
@@ -149,7 +149,8 @@ function renderSharedBlocks(containerId, blocks, context) {
 
         // --- TYPE: CHANT ---
         if (block.type === 'CHANT') {
-             let titleRow = '<div class="d-flex align-items-baseline gap-2 w-100 flex-wrap">';
+             // Ligne de titre pour le chant AVEC PADDING DROIT POUR EVITER LE BADGE ABSOLU
+             let titleRow = '<div class="d-flex align-items-baseline gap-2 w-100 flex-wrap" style="padding-right: 70px;">';
              titleRow += '<input type="text" class="form-control doc-input input-mg p-0" style="width: auto;" value="' + block.label_mg + '" placeholder="TITRE MG" onchange="updateBlockField(' + index + ', \'label_mg\', this.value)">';
              titleRow += '<input type="text" class="form-control doc-input input-fr p-0" style="width: auto;" value="' + block.label_fr + '" placeholder="Titre FR" onchange="updateBlockField(' + index + ', \'label_fr\', this.value)">';
              titleRow += '</div>';
@@ -200,7 +201,9 @@ function renderSharedBlocks(containerId, blocks, context) {
                      songInfo += '<div class="small fw-bold text-dark">' + block.data.titre + '</div>';
                      songInfo += tonaliteHtml + tradBadge;
                      songInfo += '</div>';
-                     songInfo += '<button class="btn btn-sm btn-light border py-0" style="font-size:10px;" onclick="openSongSelector(' + index + ')">Changer</button>';
+                     
+                     // Bouton Changer style Notion
+                     songInfo += '<button class="btn btn-sm bg-white border text-secondary shadow-sm py-0 px-2" style="font-size:11px; border-color:#e1e1e1 !important;" onclick="openSongSelector(' + index + ')">Changer</button>';
                      songInfo += '</div>';
                  }
                  
@@ -212,9 +215,23 @@ function renderSharedBlocks(containerId, blocks, context) {
              } 
              else {
                  if (isProg) {
+                     // STYLE NOTION POUR LES BOUTONS
                      content = '<div class="d-grid gap-2 d-md-flex mt-2">';
-                     content += '<button class="btn btn-sm btn-outline-primary shadow-sm" onclick="openSongSelector(' + index + ')"><i class="bi bi-search me-2"></i>Choisir dans la liste</button>';
-                     content += '<button class="btn btn-sm btn-outline-secondary shadow-sm" onclick="updateBlockDataField(' + index + ', \'mode\', \'fixe\')"><i class="bi bi-pencil-square me-2"></i>Saisie libre</button>';
+                     
+                     // Bouton 1 : Choisir dans la liste
+                     content += `<button class="btn btn-sm bg-white text-dark shadow-sm d-flex align-items-center gap-2 px-3" 
+                                   style="border: 1px solid #E1E1E1; color: #37352F;"
+                                   onclick="openSongSelector(${index})">
+                                   <i class="bi bi-search" style="color:#999;"></i> Choisir dans la liste
+                                 </button>`;
+                     
+                     // Bouton 2 : Saisie libre
+                     content += `<button class="btn btn-sm bg-white text-dark shadow-sm d-flex align-items-center gap-2 px-3"
+                                   style="border: 1px solid #E1E1E1; color: #37352F;"
+                                   onclick="updateBlockDataField(${index}, 'mode', 'fixe')">
+                                   <i class="bi bi-pencil-square" style="color:#999;"></i> Saisie libre
+                                 </button>`;
+                                 
                      content += '</div>';
                  } else {
                      content = '<div class="text-muted small fst-italic mt-1 ms-1"><i class="bi bi-search me-1"></i>Recherche biblio (Mode Programme)</div>';
@@ -268,18 +285,27 @@ function renderSharedBlocks(containerId, blocks, context) {
             resetBtn = '<i class="bi bi-arrow-counterclockwise text-secondary opacity-50 hover-opacity-100 cursor-pointer small ms-2" onclick="resetSongBlock(' + index + ')" title="Réinitialiser le chant"></i>';
         }
 
+        /* 
+           FIX MOBILE ABSOLU :
+           1. Le container des actions (Badge, Reset, Delete) est positionné en absolu TOP RIGHT.
+           2. On ajoute un z-index pour être sûr qu'il est au-dessus.
+        */
         container.innerHTML += '<div class="item-wrapper group-bloc position-relative hover-bg" data-index="' + index + '" style="display: block !important; margin-bottom: 13px !important; border-bottom: none !important;">' +
+            
+            // BLOC ACTIONS FLOTTANT (Absolu)
+            '<div class="position-absolute top-0 end-0 mt-2 me-2 d-flex align-items-center" style="z-index: 5;">' +
+                roleHTML +
+                '<span class="badge rounded-1 fw-normal border ' + badgeClass + '" style="font-size:9px; padding: 2px 4px;">' + block.type + '</span>' +
+                resetBtn +
+                '<i class="bi bi-x-lg text-danger opacity-0 hover-opacity-100 cursor-pointer small ms-2 no-print" onclick="removeBlock(' + index + ')" title="Supprimer"></i>' +
+            '</div>' +
+
             '<div class="d-flex align-items-start gap-2 ps-0 pe-2 w-100 py-1">' +
               '<div class="drag-handle pt-1 no-print" style="width: 30px; cursor: grab;" title="Déplacer"><i class="bi bi-grip-vertical"></i></div>' +
               '<div class="flex-grow-1" style="min-width: 0;">' +
-                 '<div class="d-flex justify-content-between align-items-start mb-0">' +
-                    '<div class="flex-grow-1">' + mainContent + '</div>' +
-                    '<div class="d-flex align-items-center ms-3 pt-1">' +
-                        roleHTML +
-                        '<span class="badge rounded-1 fw-normal border ' + badgeClass + '" style="font-size:9px; padding: 2px 4px;">' + block.type + '</span>' +
-                        resetBtn +
-                        '<i class="bi bi-x-lg text-danger opacity-0 hover-opacity-100 cursor-pointer small ms-2 no-print" onclick="removeBlock(' + index + ')" title="Supprimer"></i>' +
-                    '</div>' +
+                 // Note: Pour les blocs non-CHANT, on applique aussi un padding-right au contenu principal pour éviter la collision
+                 '<div style="' + (block.type !== 'CHANT' ? 'padding-right: 70px;' : '') + '">' +
+                    mainContent +
                  '</div>' +
                  bottomContent +
               '</div>' +

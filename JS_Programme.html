@@ -159,7 +159,7 @@
   function selectSongForConfig(song) {
       showMobileSongConfig();
       const mobileTitle = document.getElementById('mobileConfigTitle');
-      if(mobileTitle) mobileTitle.innerText = song.titre; // Titre complet ici aussi
+      if(mobileTitle) mobileTitle.innerText = song.titre;
 
       document.getElementById('songSelectorPreviewPanel').innerHTML = '<div class="h-100 d-flex align-items-center justify-content-center"><div class="spinner-border text-secondary"></div></div>';
       google.script.run.withSuccessHandler(fullSong => {

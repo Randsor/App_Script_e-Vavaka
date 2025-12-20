@@ -1,5 +1,5 @@
 <style>
-  /* --- LAYOUT GLOBAL & HERO (Code existant conservé) --- */
+  /* --- LAYOUT GLOBAL & HERO --- */
   .hero-container { padding: 20px 30px; background: #fff; border-bottom: 1px solid #e1e1e1; }
   .hero-card { background: white; border: 1px solid #e1e1e1; border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); display: flex; overflow: hidden; position: relative; transition: transform 0.2s; }
   .hero-card:hover { transform: translateY(-2px); box-shadow: 0 6px 15px rgba(0,0,0,0.08); }
@@ -32,7 +32,8 @@
   .ev-time { font-size: 11px; color: #787774; font-weight: 500; }
   .ev-title { font-size: 12px; font-weight: 600; color: #37352F; line-height: 1.3; }
   
-  /* Status indicators - Notion Colors */
+  /* STATUS INDICATORS - NOTION COLORS */
+  /* Border-left par défaut en desktop */
   .bg-missing { background-color: #fff9f9 !important; border-left: 3px solid #EB5757; }
   .bg-draft { background-color: #fffcf5 !important; border-left: 3px solid #F2994A; }
   .bg-final { background-color: #f7fdf9 !important; border-left: 3px solid #27AE60; }
@@ -50,100 +51,52 @@
   .time-switch-btn:hover { color: #37352F; background: #f7f7f5; }
   .time-switch-btn.active { background: #37352F; color: #fff; border-color: #37352F; }
 
-  /* --- STYLE SÉLECTEUR DE CHANT (NOTION STYLE) --- */
-  
-  /* Modal Overlay & Dialog - Refonte pour Pop-up Mobile */
+  /* --- STYLE SÉLECTEUR DE CHANT --- */
   .notion-dialog-wrapper {
-      position: fixed; top: 50%; left: 50%; 
-      transform: translate(-50%, -50%); 
-      width: 750px; 
-      max-width: 90vw; 
-      /* Max-height dynamique pour gérer l'orientation */
-      max-height: 85dvh; 
-      height: 600px;
-      background: white; 
-      border-radius: 8px; 
-      box-shadow: 0 8px 30px rgba(0,0,0,0.12); 
-      z-index: 1100; 
-      display: flex; flex-direction: column; 
-      border: 1px solid #e1e1e1; 
-      font-family: 'Inter', sans-serif;
+      position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); 
+      width: 750px; max-width: 90vw; max-height: 85dvh; height: 600px;
+      background: white; border-radius: 8px; box-shadow: 0 8px 30px rgba(0,0,0,0.12); 
+      z-index: 1100; display: flex; flex-direction: column; border: 1px solid #e1e1e1; font-family: 'Inter', sans-serif;
   }
-
-  /* Header Modal */
-  .modal-notion-header {
-      padding: 12px 16px;
-      border-bottom: 1px solid #f0f0f0;
-      display: flex; justify-content: space-between; align-items: center;
-      background: white; border-radius: 8px 8px 0 0;
-  }
+  .modal-notion-header { padding: 12px 16px; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center; background: white; border-radius: 8px 8px 0 0; }
   .modal-title-wrap { display: flex; align-items: center; gap: 8px; color: #37352F; font-weight: 600; font-size: 14px; }
   .modal-icon-box { display: flex; align-items: center; justify-content: center; color: #787774; }
 
-  /* Boutons Notion */
   .btn-notion-black { background: #2f2f2f; color: white; border: 1px solid #2f2f2f; font-size: 12px; font-weight: 500; padding: 4px 12px; border-radius: 4px; transition: 0.1s; }
   .btn-notion-black:hover { background: #1f1f1f; }
   .btn-notion-black:disabled { background: #e0e0e0; border-color: #e0e0e0; color: #999; }
-  
   .btn-notion-text { background: transparent; color: #787774; border: 1px solid transparent; font-size: 12px; padding: 4px 8px; border-radius: 4px; }
   .btn-notion-text:hover { background: #f0f0f0; color: #37352F; }
-
   .btn-notion-outline { background: white; border: 1px solid #e1e1e1; color: #37352F; font-size: 11px; padding: 2px 8px; border-radius: 4px; }
   .btn-notion-outline:hover { background: #f7f7f5; }
 
-  /* 1. Navigation "Pills" */
   .pills-container { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 0; }
-  .nav-pill {
-      white-space: nowrap; padding: 2px 8px; border-radius: 4px;
-      background-color: #f2f2f0; color: #787774;
-      font-size: 12px; font-weight: 400; border: none; cursor: pointer; transition: all 0.1s;
-  }
+  .nav-pill { white-space: nowrap; padding: 2px 8px; border-radius: 4px; background-color: #f2f2f0; color: #787774; font-size: 12px; font-weight: 400; border: none; cursor: pointer; transition: all 0.1s; }
   .nav-pill:hover { background-color: #e3e3e0; color: #37352F; }
   .nav-pill.active { background-color: #2383E2; color: white; }
 
-  /* 2. Barre de Recherche Clean */
   .search-wrapper { position: relative; width: 100%; margin-bottom: 8px; }
   .search-wrapper i { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: #9B9A97; font-size: 14px; }
-  .search-input-modern {
-      width: 100%; padding: 6px 12px 6px 32px; border-radius: 4px;
-      border: 1px solid #e1e1e1; background-color: #fff;
-      font-size: 13px; outline: none; transition: all 0.1s; box-shadow: 0 1px 2px rgba(0,0,0,0.03);
-  }
+  .search-input-modern { width: 100%; padding: 6px 12px 6px 32px; border-radius: 4px; border: 1px solid #e1e1e1; background-color: #fff; font-size: 13px; outline: none; transition: all 0.1s; box-shadow: 0 1px 2px rgba(0,0,0,0.03); }
   .search-input-modern:focus { border-color: #2383E2; box-shadow: 0 0 0 2px rgba(35, 131, 226, 0.1); }
 
-  /* 3. Liste Résultats */
-  .song-item { 
-      padding: 8px 12px; border-bottom: 1px solid #f7f7f5; cursor: pointer; transition: background 0.1s; 
-      display: flex; justify-content: space-between; align-items: center;
-  }
+  .song-item { padding: 8px 12px; border-bottom: 1px solid #f7f7f5; cursor: pointer; transition: background 0.1s; display: flex; justify-content: space-between; align-items: center; }
   .song-item:hover { background-color: #f7f7f5; }
   .song-item.active { background-color: #edf5fd; }
-  
   .song-ref { font-size: 10px; color: #9B9A97; text-transform: uppercase; letter-spacing: 0.5px; border: 1px solid #e1e1e1; padding: 1px 4px; border-radius: 3px; margin-right: 6px; }
 
-  /* 4. Cartes Strophes (Cards) */
-  .stanza-card {
-      border: 1px solid #e1e1e1; border-radius: 6px; padding: 0;
-      margin-bottom: 10px; cursor: pointer; transition: all 0.15s ease;
-      background: white; position: relative; overflow: hidden;
-  }
+  .stanza-card { border: 1px solid #e1e1e1; border-radius: 6px; padding: 0; margin-bottom: 10px; cursor: pointer; transition: all 0.15s ease; background: white; position: relative; overflow: hidden; }
   .stanza-card:hover { border-color: #d0d0d0; box-shadow: 0 2px 5px rgba(0,0,0,0.03); }
-  
-  /* État Sélectionné */
   .stanza-card.selected { border: 1px solid #2383E2; box-shadow: 0 0 0 1px #2383E2; }
   .stanza-card.selected .card-check { background: #2383E2; border-color: #2383E2; color: white; }
   .stanza-card.selected .card-header-area { background: #f7fbff; border-bottom: 1px solid #e8f3ff; }
   
   .card-header-area { padding: 8px 12px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #f9f9f9; }
-  .card-check { 
-      width: 16px; height: 16px; border-radius: 50%; border: 1px solid #ccc; 
-      display: flex; align-items: center; justify-content: center; font-size: 10px; transition: 0.1s;
-  }
+  .card-check { width: 16px; height: 16px; border-radius: 50%; border: 1px solid #ccc; display: flex; align-items: center; justify-content: center; font-size: 10px; transition: 0.1s; }
   .card-body-area { padding: 10px 12px; font-size: 13px; color: #37352F; line-height: 1.5; }
-  
   .refrain-mini { font-size: 11px; color: #787774; font-style: italic; margin-top: 6px; border-left: 2px solid #27AE60; padding-left: 8px; }
 
-  /* Mobile Tweaks */
+  /* --- MOBILE TWEAKS (FIXED REGRESSION) --- */
   @media (max-width: 768px) {
       .hero-container { padding: 12px; }
       .hero-card { flex-direction: column; }
@@ -155,19 +108,23 @@
       .calendar-container { padding: 10px; }
       .cal-headers { display: none; }
       .full-calendar-grid { display: flex; flex-direction: column; border: none; gap: 8px; background: transparent; }
+      
+      /* FIX 1: HIDING EMPTY DAYS */
+      .cal-cell-wrapper.is-empty:not(.keep-visible) { display: none !important; }
+
       .cal-cell-wrapper { min-height: auto; border: 1px solid #e1e1e1; border-radius: 8px; flex-direction: row; align-items: center; padding: 12px; gap: 15px; background: white !important; }
       
+      /* FIX 2: RESTORING COLOR CODES (Force Border Left Priority) */
+      .cal-cell-wrapper.bg-missing { border-left: 5px solid #EB5757 !important; }
+      .cal-cell-wrapper.bg-draft { border-left: 5px solid #F2994A !important; }
+      .cal-cell-wrapper.bg-final { border-left: 5px solid #27AE60 !important; }
+
       /* Popup Responsive Mobile */
-      .notion-dialog-wrapper {
-          width: 95vw; height: auto; max-height: 85dvh;
-          border-radius: 12px; 
-      }
+      .notion-dialog-wrapper { width: 95vw; height: auto; max-height: 85dvh; border-radius: 12px; }
       .modal-notion-header { padding: 10px 14px; }
       .modal-title-wrap { font-size: 13px; }
-      
       .mobile-stack { flex-direction: column; }
       .mobile-hidden { display: none !important; }
-      
       #songSelectorResults { max-height: 200px; flex-shrink: 0; }
   }
 </style>
@@ -232,7 +189,6 @@
       </div>
   </div>
 
-  <!-- MODALES STANDARD (Creation, Security, Delete) - Conservées Simplifiées -->
   <div id="creationModal" class="notion-dialog" style="display:none; padding: 25px; width: 400px; max-width: 90vw; flex-direction: column;">
       <div class="d-flex justify-content-between align-items-center mb-4">
           <h6 class="fw-bold m-0"><i class="bi bi-calendar-plus me-2"></i>Nouveau Programme</h6>
@@ -297,10 +253,9 @@
       </div>
   </div>
   
-  <!-- === NOUVEAU SÉLECTEUR DE CHANT (NOTION STYLE) === -->
+  <!-- === SÉLECTEUR DE CHANT === -->
   <div id="songSelectorModal" class="notion-dialog-wrapper" style="display:none;">
       
-      <!-- HEADER -->
       <div class="modal-notion-header">
           <div class="modal-title-wrap">
               <div class="modal-icon-box"><i class="bi bi-music-note-beamed"></i></div>
@@ -309,10 +264,7 @@
           <button class="btn-close small" aria-label="Close" onclick="closeAllModals()"></button>
       </div>
 
-      <!-- BODY GRID (Split View Desktop / Switch View Mobile) -->
       <div class="row g-0 flex-grow-1 overflow-hidden" style="height: 100%;">
-          
-          <!-- GAUCHE : RECHERCHE -->
           <div id="colSearch" class="col-12 col-md-5 border-end d-flex flex-column h-100 bg-white">
               <div class="p-3 border-bottom bg-white">
                   <div id="recueilPillsContainer" class="pills-container"></div>
@@ -326,15 +278,11 @@
               </div>
           </div>
 
-          <!-- DROITE : CONFIGURATION -->
           <div id="colConfig" class="col-12 col-md-7 d-none d-md-flex flex-column h-100 bg-white">
-              
-              <!-- HEADER MOBILE (Navigation Retour) -->
               <div class="d-md-none p-2 border-bottom bg-white d-flex align-items-center gap-2">
                   <button class="btn btn-sm btn-white border shadow-sm" onclick="showMobileSongList()"><i class="bi bi-arrow-left"></i></button>
                   <span class="fw-bold small text-truncate flex-grow-1" id="mobileConfigTitle">Configuration</span>
               </div>
-
               <div id="songSelectorPreviewPanel" class="flex-grow-1 overflow-hidden d-flex flex-column">
                   <div class="h-100 d-flex align-items-center justify-content-center text-muted small fst-italic">
                       Sélectionnez un chant à gauche.
@@ -343,7 +291,6 @@
           </div>
       </div>
 
-      <!-- FOOTER -->
       <div class="p-3 border-top bg-white d-flex justify-content-between align-items-center">
           <span class="small text-muted" id="songSelectorStatus"></span>
           <div class="d-flex gap-2">
@@ -351,7 +298,6 @@
               <button class="btn-notion-black" id="btnConfirmSong" disabled onclick="confirmSongSelection()">Insérer</button>
           </div>
       </div>
-
   </div>
 
   <div id="progCreatorOverlay" style="position:fixed; inset:0; background:rgba(0,0,0,0.3); z-index:1090; display:none; backdrop-filter:blur(2px);" onclick="closeAllModals()"></div>
