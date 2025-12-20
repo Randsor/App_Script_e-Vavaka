@@ -32,12 +32,10 @@
   .ev-time { font-size: 11px; color: #787774; font-weight: 500; }
   .ev-title { font-size: 12px; font-weight: 600; color: #37352F; line-height: 1.3; }
   
-  /* STATUS INDICATORS - NOTION COLORS */
-  /* Border-left par défaut en desktop */
+  /* STATUS INDICATORS */
   .bg-missing { background-color: #fff9f9 !important; border-left: 3px solid #EB5757; }
   .bg-draft { background-color: #fffcf5 !important; border-left: 3px solid #F2994A; }
   .bg-final { background-color: #f7fdf9 !important; border-left: 3px solid #27AE60; }
-  
   .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right:5px; }
   .dot-red { background-color: #EB5757; } .dot-orange { background-color: #F2994A; } .dot-green { background-color: #27AE60; }
 
@@ -51,13 +49,15 @@
   .time-switch-btn:hover { color: #37352F; background: #f7f7f5; }
   .time-switch-btn.active { background: #37352F; color: #fff; border-color: #37352F; }
 
-  /* --- STYLE SÉLECTEUR DE CHANT --- */
+  /* --- STYLE SÉLECTEUR DE CHANT & FANEKENA --- */
   .notion-dialog-wrapper {
       position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); 
       width: 750px; max-width: 90vw; max-height: 85dvh; height: 600px;
       background: white; border-radius: 8px; box-shadow: 0 8px 30px rgba(0,0,0,0.12); 
       z-index: 1100; display: flex; flex-direction: column; border: 1px solid #e1e1e1; font-family: 'Inter', sans-serif;
   }
+  .notion-dialog-simple { height: auto !important; width: 400px; }
+
   .modal-notion-header { padding: 12px 16px; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center; background: white; border-radius: 8px 8px 0 0; }
   .modal-title-wrap { display: flex; align-items: center; gap: 8px; color: #37352F; font-weight: 600; font-size: 14px; }
   .modal-icon-box { display: flex; align-items: center; justify-content: center; color: #787774; }
@@ -96,7 +96,7 @@
   .card-body-area { padding: 10px 12px; font-size: 13px; color: #37352F; line-height: 1.5; }
   .refrain-mini { font-size: 11px; color: #787774; font-style: italic; margin-top: 6px; border-left: 2px solid #27AE60; padding-left: 8px; }
 
-  /* --- MOBILE TWEAKS (FIXED REGRESSION) --- */
+  /* --- MOBILE TWEAKS --- */
   @media (max-width: 768px) {
       .hero-container { padding: 12px; }
       .hero-card { flex-direction: column; }
@@ -109,18 +109,15 @@
       .cal-headers { display: none; }
       .full-calendar-grid { display: flex; flex-direction: column; border: none; gap: 8px; background: transparent; }
       
-      /* FIX 1: HIDING EMPTY DAYS */
       .cal-cell-wrapper.is-empty:not(.keep-visible) { display: none !important; }
-
       .cal-cell-wrapper { min-height: auto; border: 1px solid #e1e1e1; border-radius: 8px; flex-direction: row; align-items: center; padding: 12px; gap: 15px; background: white !important; }
       
-      /* FIX 2: RESTORING COLOR CODES (Force Border Left Priority) */
       .cal-cell-wrapper.bg-missing { border-left: 5px solid #EB5757 !important; }
       .cal-cell-wrapper.bg-draft { border-left: 5px solid #F2994A !important; }
       .cal-cell-wrapper.bg-final { border-left: 5px solid #27AE60 !important; }
 
-      /* Popup Responsive Mobile */
       .notion-dialog-wrapper { width: 95vw; height: auto; max-height: 85dvh; border-radius: 12px; }
+      .notion-dialog-simple { width: 95vw; }
       .modal-notion-header { padding: 10px 14px; }
       .modal-title-wrap { font-size: 13px; }
       .mobile-stack { flex-direction: column; }
@@ -189,6 +186,7 @@
       </div>
   </div>
 
+  <!-- MODALES STANDARD -->
   <div id="creationModal" class="notion-dialog" style="display:none; padding: 25px; width: 400px; max-width: 90vw; flex-direction: column;">
       <div class="d-flex justify-content-between align-items-center mb-4">
           <h6 class="fw-bold m-0"><i class="bi bi-calendar-plus me-2"></i>Nouveau Programme</h6>
@@ -219,6 +217,8 @@
           <div id="duplicateResults" class="bg-white border rounded custom-scrollbar" style="max-height: 120px; overflow-y: auto;"></div>
           <input type="hidden" id="selectedDuplicateId">
       </div>
+      <div id="zoneBlank" class="mb-3 text-muted small fst-italic ps-1"><i class="bi bi-info-circle me-1"></i>Crée une structure vierge avec l'équipe du planning.</div>
+      
       <div class="d-grid mt-2"><button class="btn btn-dark" onclick="submitCreationForm()">Créer</button></div>
   </div>
 
@@ -253,50 +253,45 @@
       </div>
   </div>
   
-  <!-- === SÉLECTEUR DE CHANT === -->
+  <!-- SÉLECTEUR DE CHANT -->
   <div id="songSelectorModal" class="notion-dialog-wrapper" style="display:none;">
-      
       <div class="modal-notion-header">
-          <div class="modal-title-wrap">
-              <div class="modal-icon-box"><i class="bi bi-music-note-beamed"></i></div>
-              <span>Sélectionner un chant</span>
-          </div>
+          <div class="modal-title-wrap"><div class="modal-icon-box"><i class="bi bi-music-note-beamed"></i></div><span>Sélectionner un chant</span></div>
           <button class="btn-close small" aria-label="Close" onclick="closeAllModals()"></button>
       </div>
-
       <div class="row g-0 flex-grow-1 overflow-hidden" style="height: 100%;">
           <div id="colSearch" class="col-12 col-md-5 border-end d-flex flex-column h-100 bg-white">
               <div class="p-3 border-bottom bg-white">
                   <div id="recueilPillsContainer" class="pills-container"></div>
-                  <div class="search-wrapper m-0">
-                      <i class="bi bi-search"></i>
-                      <input type="text" id="songSelectorSearch" class="search-input-modern" placeholder="Rechercher..." onkeyup="searchSongsForSelector(this.value)">
-                  </div>
+                  <div class="search-wrapper m-0"><i class="bi bi-search"></i><input type="text" id="songSelectorSearch" class="search-input-modern" placeholder="Rechercher..." onkeyup="searchSongsForSelector(this.value)"></div>
               </div>
-              <div id="songSelectorResults" class="flex-grow-1 overflow-auto custom-scrollbar">
-                  <div class="text-center py-4 text-muted small fst-italic">Recherchez un chant...</div>
-              </div>
+              <div id="songSelectorResults" class="flex-grow-1 overflow-auto custom-scrollbar"><div class="text-center py-4 text-muted small fst-italic">Recherchez un chant...</div></div>
           </div>
-
           <div id="colConfig" class="col-12 col-md-7 d-none d-md-flex flex-column h-100 bg-white">
               <div class="d-md-none p-2 border-bottom bg-white d-flex align-items-center gap-2">
                   <button class="btn btn-sm btn-white border shadow-sm" onclick="showMobileSongList()"><i class="bi bi-arrow-left"></i></button>
                   <span class="fw-bold small text-truncate flex-grow-1" id="mobileConfigTitle">Configuration</span>
               </div>
-              <div id="songSelectorPreviewPanel" class="flex-grow-1 overflow-hidden d-flex flex-column">
-                  <div class="h-100 d-flex align-items-center justify-content-center text-muted small fst-italic">
-                      Sélectionnez un chant à gauche.
-                  </div>
-              </div>
+              <div id="songSelectorPreviewPanel" class="flex-grow-1 overflow-hidden d-flex flex-column"><div class="h-100 d-flex align-items-center justify-content-center text-muted small fst-italic">Sélectionnez un chant à gauche.</div></div>
           </div>
       </div>
-
       <div class="p-3 border-top bg-white d-flex justify-content-between align-items-center">
           <span class="small text-muted" id="songSelectorStatus"></span>
           <div class="d-flex gap-2">
               <button class="btn-notion-text" onclick="closeAllModals()">Annuler</button>
               <button class="btn-notion-black" id="btnConfirmSong" disabled onclick="confirmSongSelection()">Insérer</button>
           </div>
+      </div>
+  </div>
+
+  <!-- SÉLECTEUR DE FANEKENA -->
+  <div id="fanekenaSelectorModal" class="notion-dialog-wrapper notion-dialog-simple" style="display:none; width: 400px; height: 500px;">
+      <div class="modal-notion-header">
+          <div class="modal-title-wrap"><div class="modal-icon-box"><i class="bi bi-journal-text"></i></div><span>Confessions de foi</span></div>
+          <button class="btn-close small" aria-label="Close" onclick="closeAllModals()"></button>
+      </div>
+      <div class="p-2 flex-grow-1 overflow-auto custom-scrollbar bg-light" id="fanekenaSelectList">
+          <div class="text-center py-4 text-muted"><div class="spinner-border spinner-border-sm"></div></div>
       </div>
   </div>
 

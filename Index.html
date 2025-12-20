@@ -34,6 +34,9 @@
       <div class="nav-link active" onclick="navTo('chants')">
         <i class="bi bi-music-note-list"></i> Chants
       </div>
+      <div class="nav-link" onclick="navTo('fanekena')">
+        <i class="bi bi-journal-text"></i> Fanekem-pinoana
+      </div>
       <div class="nav-link" onclick="navTo('planning')">
         <i class="bi bi-people"></i> Planning & Équipes
       </div>
@@ -55,6 +58,9 @@
       <div id="view-chants" class="view-section">
         <?!= include('View_Chants'); ?>
       </div>
+      <div id="view-fanekena" class="view-section hidden">
+        <?!= include('View_Fanekena'); ?>
+      </div>
       <div id="view-planning" class="view-section hidden">
         <?!= include('View_Planning'); ?>
       </div>
@@ -75,6 +81,7 @@
   <?!= include('Shared_BlockRenderer'); ?>
   
   <?!= include('JS_Chants'); ?>
+  <?!= include('JS_Fanekena'); ?>
   <?!= include('JS_Programme'); ?>
   <?!= include('JS_Templates'); ?>
   <?!= include('JS_Planning'); ?>
@@ -86,7 +93,6 @@
       const sharedHeader = document.getElementById('sharedHeaderRoot');
       const dock = document.getElementById('headerDock');
       
-      // RESET IMPÉRATIF POUR ÉVITER LE DATA LEAK
       if(typeof resetSharedHeader === 'function') resetSharedHeader();
 
       if(sharedHeader && dock) {
@@ -108,13 +114,11 @@
           if (viewName === 'programme') {
              const place = document.getElementById('programmeHeaderPlaceholder');
              if(place && sharedHeader) place.appendChild(sharedHeader);
-             // On demande au programme de remettre ses données s'il en a
              if(typeof restoreProgrammeHeader === 'function') restoreProgrammeHeader();
              
           } else if (viewName === 'templates') {
              const place = document.getElementById('templateHeaderPlaceholder');
              if(place && sharedHeader) place.appendChild(sharedHeader);
-             // On demande au template de remettre ses données s'il en a
              if(typeof restoreTemplateHeader === 'function') restoreTemplateHeader();
           }
       }, 50);
@@ -123,6 +127,7 @@
       if(viewName === 'planning' && typeof initPlanningView === 'function') initPlanningView();
       if(viewName === 'config' && typeof initConfigView === 'function') initConfigView();
       if(viewName === 'programme' && typeof initProgrammeView === 'function') initProgrammeView();
+      if(viewName === 'fanekena' && typeof initFanekenaView === 'function') initFanekenaView();
     }
 
     function toggleSidebar() { document.getElementById('sidebar').classList.toggle('open'); }

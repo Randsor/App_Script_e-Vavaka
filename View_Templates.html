@@ -30,15 +30,6 @@
 
     <div class="flex-grow-1 px-5 py-4 overflow-auto custom-scrollbar">
       
-      <!-- INJECTION DU HEADER PARTAGÉ -->
-      <!-- Le code HTML est dans Component_LiturgyHeader.html mais le script peut le déplacer ici si besoin. 
-           Comme il est inclus dans Index, il est dans le flux. 
-           Pour simplifier, on va utiliser la structure du Component directement via JS ou inclusion.
-           ATTENTION : Comme Component_LiturgyHeader.html est inclus dans le Body global, 
-           on doit le déplacer ici dynamiquement quand la vue est active, OU on l'inclus directement ici.
-           Pour éviter les doublons d'ID, on ne l'inclus pas deux fois.
-           ASTUCE : On va laisser un conteneur vide ici et déplacer le contenu du Component dedans via JS.
-      -->
       <div id="templateHeaderPlaceholder"></div>
 
       <div id="blocksContainer" class="d-flex flex-column pb-2 w-100 mx-auto" style="max-width: 900px;"></div>
@@ -59,6 +50,7 @@
   <div class="dropdown-divider my-1 opacity-50"></div>
   <h6 class="dropdown-header">CONTENU</h6>
   <button class="dropdown-item" onclick="insertBlock('CHANT')">Chant / Hira</button>
+  <button class="dropdown-item" onclick="insertBlock('FANEKENA')">Confession de foi</button> <!-- NEW -->
   <button class="dropdown-item" onclick="insertBlock('LECTURE')">Lecture Biblique</button>
   <button class="dropdown-item" onclick="insertBlock('LITURGIE')">Texte Liturgique</button>
   <button class="dropdown-item" onclick="insertBlock('PREDICATION')">Prédication</button>
@@ -69,3 +61,14 @@
 </div>
 
 <div id="roleMenu" class="dropdown-menu custom-popup" style="display:none; position:absolute; z-index:1050; width: 180px;"></div>
+
+<!-- MODAL SÉLECTEUR FANEKENA (Dupliqué ici pour Template Context) -->
+<div id="fanekenaSelectorModalTpl" class="notion-dialog-wrapper notion-dialog-simple" style="display:none; width: 400px; height: 500px;">
+    <div class="modal-notion-header">
+        <div class="modal-title-wrap"><div class="modal-icon-box"><i class="bi bi-journal-text"></i></div><span>Confessions de foi</span></div>
+        <button class="btn-close small" aria-label="Close" onclick="closeAllModalsTpl()"></button>
+    </div>
+    <div class="p-2 flex-grow-1 overflow-auto custom-scrollbar bg-light" id="fanekenaSelectListTpl">
+        <div class="text-center py-4 text-muted"><div class="spinner-border spinner-border-sm"></div></div>
+    </div>
+</div>

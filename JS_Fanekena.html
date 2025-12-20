@@ -1,0 +1,202 @@
+<script>
+  let FNK_IS_DIRTY = false;
+  let FNK_PENDING_ACTION = null;
+
+  function initFanekenaView() {
+      loadFanekenaList();
+  }
+
+  // --- MOBILE NAVIGATION HELPERS ---
+  function showFnkMobileEditor() {
+      if (window.innerWidth < 768) {
+          document.getElementById('fnk-panel-list').classList.add('d-none');
+          document.getElementById('fnk-panel-editor').classList.remove('d-none');
+          document.getElementById('fnk-panel-editor').classList.add('d-flex');
+      }
+  }
+
+  function showFnkMobileList() {
+      if (window.innerWidth < 768) {
+          document.getElementById('fnk-panel-list').classList.remove('d-none');
+          document.getElementById('fnk-panel-editor').classList.add('d-none');
+          document.getElementById('fnk-panel-editor').classList.remove('d-flex');
+      }
+  }
+
+  // --- DIRTY STATE & NAVIGATION MANAGER ---
+  function markFnkDirty() {
+      if(!FNK_IS_DIRTY) {
+          FNK_IS_DIRTY = true;
+          document.getElementById('fnk-panel-editor').classList.add('is-dirty');
+          const btn = document.getElementById('btnSaveFnk');
+          if(btn) {
+              btn.innerText = "Enregistrer ●";
+              btn.classList.add('save-btn-dirty');
+          }
+      }
+  }
+
+  function resetFnkDirty() {
+      FNK_IS_DIRTY = false;
+      document.getElementById('fnk-panel-editor').classList.remove('is-dirty');
+      const btn = document.getElementById('btnSaveFnk');
+      if(btn) {
+          btn.innerText = "Enregistrer";
+          btn.classList.remove('save-btn-dirty');
+      }
+  }
+
+  function handleFnkNavigation(action, payload) {
+      // Si on veut juste revenir à la liste sur mobile et qu'il n'y a pas de modif, on y va direct
+      if (action === 'BACK_LIST' && !FNK_IS_DIRTY) {
+          showFnkMobileList();
+          return;
+      }
+
+      if (FNK_IS_DIRTY) {
+          FNK_PENDING_ACTION = { type: action, payload: payload };
+          document.getElementById('discardChangesModal').style.display = 'block';
+          document.getElementById('fnkOverlay').style.display = 'block';
+      } else {
+          executeFnkNavigation(action, payload);
+      }
+  }
+
+  function executeFnkNavigation(action, payload) {
+      if (action === 'NEW') {
+          createNewFanekena();
+          showFnkMobileEditor();
+      } else if (action === 'LOAD') {
+          loadFanekenaDetails(payload.id, payload.el);
+          showFnkMobileEditor();
+      } else if (action === 'BACK_LIST') {
+          showFnkMobileList();
+          // Optionnel : on peut reset l'éditeur si on revient
+          resetFnkDirty();
+      }
+  }
+
+  function confirmFnkDiscard() {
+      document.getElementById('discardChangesModal').style.display = 'none';
+      document.getElementById('fnkOverlay').style.display = 'none';
+      resetFnkDirty();
+      if (FNK_PENDING_ACTION) {
+          executeFnkNavigation(FNK_PENDING_ACTION.type, FNK_PENDING_ACTION.payload);
+          FNK_PENDING_ACTION = null;
+      }
+  }
+
+  function cancelFnkNavigation() {
+      document.getElementById('discardChangesModal').style.display = 'none';
+      document.getElementById('fnkOverlay').style.display = 'none';
+      FNK_PENDING_ACTION = null;
+  }
+
+  // --- LOGIQUE METIER ---
+
+  function loadFanekenaList() {
+      const container = document.getElementById('fanekenaListContainer');
+      container.innerHTML = '<div class="text-center py-4 text-muted"><div class="spinner-border spinner-border-sm"></div></div>';
+      
+      google.script.run.withSuccessHandler(list => {
+          container.innerHTML = "";
+          if(list.length === 0) {
+              container.innerHTML = '<div class="p-3 text-muted small text-center">Aucun texte enregistré.</div>';
+              return;
+          }
+          list.forEach(item => {
+              const div = document.createElement('div');
+              div.className = "list-item-f";
+              div.innerText = item.titre || "(Sans titre)";
+              div.onclick = () => handleFnkNavigation('LOAD', { id: item.id, el: div });
+              container.appendChild(div);
+          });
+      }).getFanekenaList();
+  }
+
+  function loadFanekenaDetails(id, itemEl) {
+      document.querySelectorAll('.list-item-f').forEach(el => el.classList.remove('active'));
+      if(itemEl) itemEl.classList.add('active');
+
+      document.getElementById('emptyStateFnk').classList.add('d-none');
+      document.getElementById('editorContent').classList.remove('d-none');
+      document.getElementById('editorActions').classList.remove('d-none');
+      document.getElementById('editorActions').classList.add('d-flex');
+      
+      document.getElementById('editFnkTitre').value = "Chargement...";
+      
+      google.script.run.withSuccessHandler(data => {
+          document.getElementById('editFnkId').value = data.id;
+          document.getElementById('editFnkRow').value = data.rowIndex;
+          document.getElementById('editFnkTitre').value = data.titre;
+          
+          const mgArea = document.getElementById('editFnkMG');
+          const frArea = document.getElementById('editFnkFR');
+          mgArea.value = data.contenu_mg;
+          frArea.value = data.contenu_fr;
+          
+          resetFnkDirty();
+          setTimeout(() => { autoResize(mgArea); autoResize(frArea); }, 50);
+          
+      }).getFanekenaDetails(id);
+  }
+
+  function createNewFanekena() {
+      document.querySelectorAll('.list-item-f').forEach(el => el.classList.remove('active'));
+      document.getElementById('emptyStateFnk').classList.add('d-none');
+      document.getElementById('editorContent').classList.remove('d-none');
+      document.getElementById('editorActions').classList.remove('d-none');
+      document.getElementById('editorActions').classList.add('d-flex');
+      
+      document.getElementById('editFnkId').value = "";
+      document.getElementById('editFnkRow').value = "";
+      document.getElementById('editFnkTitre').value = "";
+      
+      const mgArea = document.getElementById('editFnkMG');
+      const frArea = document.getElementById('editFnkFR');
+      mgArea.value = "";
+      frArea.value = "";
+      mgArea.style.height = 'auto';
+      frArea.style.height = 'auto';
+      
+      resetFnkDirty();
+      document.getElementById('editFnkTitre').focus();
+  }
+
+  function saveFanekena() {
+      const btn = document.getElementById('btnSaveFnk');
+      btn.innerText = "Sauvegarde..."; btn.disabled = true;
+      
+      const form = {
+          rowIndex: document.getElementById('editFnkRow').value,
+          titre: document.getElementById('editFnkTitre').value,
+          contenu_mg: document.getElementById('editFnkMG').value,
+          contenu_fr: document.getElementById('editFnkFR').value
+      };
+      
+      google.script.run.withSuccessHandler(msg => {
+          btn.innerText = "Enregistrer"; btn.disabled = false;
+          resetFnkDirty();
+          loadFanekenaList();
+      }).saveFanekenaBackend(form);
+  }
+
+  function deleteFanekena() {
+      if(!confirm("Supprimer ce texte ?")) return;
+      const id = document.getElementById('editFnkId').value;
+      if(!id) { createNewFanekena(); return; } 
+      
+      google.script.run.withSuccessHandler(() => {
+          createNewFanekena();
+          loadFanekenaList();
+          if(window.innerWidth < 768) showFnkMobileList(); // Retour liste auto sur mobile
+          else {
+              document.getElementById('editorContent').classList.add('d-none');
+              document.getElementById('editorActions').classList.remove('d-flex');
+              document.getElementById('editorActions').classList.add('d-none');
+              document.getElementById('emptyStateFnk').classList.remove('d-none');
+          }
+          resetFnkDirty();
+      }).deleteFanekenaBackend(id);
+  }
+</script>
