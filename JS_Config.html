@@ -1,0 +1,238 @@
+<script>
+  let IS_ADMIN_MODE = false;
+  let ADMIN_CODE_SESSION = ""; 
+  let CONFIG_CACHE = null;
+
+  function initConfigView() {
+      loadConfigData();
+  }
+
+  function loadConfigData() {
+      const loaders = ['rolesContainer', 'nomsContainer', 'valideursContainer'];
+      loaders.forEach(id => {
+          const el = document.getElementById(id);
+          if(el) el.innerHTML = '<div class="text-center py-5 opacity-25"><div class="spinner-border spinner-border-sm"></div></div>';
+      });
+      
+      google.script.run.withSuccessHandler(data => {
+          CONFIG_CACHE = data;
+          renderAll(data);
+          toggleAdminMode(false);
+      }).getConfigData();
+  }
+
+  // --- RENDU ---
+  
+  function renderAll(data) {
+      // Roles
+      const cRoles = document.getElementById('rolesContainer');
+      if(cRoles) {
+          cRoles.innerHTML = "";
+          data.roles.forEach(r => {
+              cRoles.innerHTML += `
+                <div class="cfg-item role-item">
+                    <input type="text" class="cfg-input fw-bold" value="${r.name}" placeholder="Nom rôle">
+                    <div class="vr mx-2 opacity-25"></div>
+                    <input type="text" class="cfg-input text-secondary text-end" value="${r.type}" placeholder="Type" style="width:60px; font-size:11px;">
+                    <i class="bi bi-x text-danger btn-delete btn-icon-hover ms-2" onclick="this.parentElement.remove()"></i>
+                </div>`;
+          });
+      }
+
+      // Noms
+      const cNoms = document.getElementById('nomsContainer');
+      if(cNoms) {
+          cNoms.innerHTML = "";
+          data.noms.forEach(n => {
+              cNoms.innerHTML += `
+                <div class="cfg-item nom-item">
+                    <i class="bi bi-person text-secondary small me-2 opacity-50"></i>
+                    <input type="text" class="cfg-input" value="${n}" placeholder="Nom Prénom">
+                    <i class="bi bi-x text-danger btn-delete btn-icon-hover ms-2" onclick="this.parentElement.remove()"></i>
+                </div>`;
+          });
+      }
+
+      // Sécurité
+      const inpResp = document.getElementById('respCodeInput');
+      if(inpResp) inpResp.value = data.respCode || "";
+      
+      const cVal = document.getElementById('valideursContainer');
+      if(cVal) {
+          cVal.innerHTML = "";
+          data.valideurs.forEach(v => {
+              // MODIFICATION ICI : type="password" pour masquer le code
+              cVal.innerHTML += `
+                <div class="cfg-item val-item mb-1">
+                    <input type="text" class="cfg-input fw-bold text-dark" value="${v.nom}" placeholder="Nom Valideur">
+                    <input type="password" class="cfg-input code-badge text-center text-danger mx-2" value="${v.code}" placeholder="Code" style="width:50px;">
+                    <i class="bi bi-trash text-danger btn-delete btn-icon-hover" onclick="this.parentElement.remove()"></i>
+                </div>`;
+          });
+      }
+  }
+
+  // --- UI UTILS ---
+  function togglePassVisibility(icon, inputId) {
+      const input = document.getElementById(inputId);
+      if (input.type === "password") {
+          input.type = "text";
+          icon.classList.remove("bi-eye-slash");
+          icon.classList.add("bi-eye");
+      } else {
+          input.type = "password";
+          icon.classList.remove("bi-eye");
+          icon.classList.add("bi-eye-slash");
+      }
+  }
+
+  // --- AJOUTS ---
+  function addRole() {
+      const div = document.createElement('div'); div.className = "cfg-item role-item";
+      div.innerHTML = `<input type="text" class="cfg-input fw-bold" placeholder="Rôle"><div class="vr mx-2 opacity-25"></div><input type="text" class="cfg-input text-secondary text-end" placeholder="Type" style="width:60px; font-size:11px;"><i class="bi bi-x text-danger btn-delete btn-icon-hover ms-2" onclick="this.parentElement.remove()"></i>`;
+      document.getElementById('rolesContainer').prepend(div);
+      div.querySelector('input').focus();
+  }
+  function addNom() {
+      const div = document.createElement('div'); div.className = "cfg-item nom-item";
+      div.innerHTML = `<i class="bi bi-person text-secondary small me-2 opacity-50"></i><input type="text" class="cfg-input" placeholder="Nouveau participant"><i class="bi bi-x text-danger btn-delete btn-icon-hover ms-2" onclick="this.parentElement.remove()"></i>`;
+      document.getElementById('nomsContainer').prepend(div);
+      div.querySelector('input').focus();
+  }
+  function addValideur() {
+      const div = document.createElement('div'); div.className = "cfg-item val-item mb-1";
+      // MODIFICATION ICI : type="password" pour les nouveaux ajouts
+      div.innerHTML = `<input type="text" class="cfg-input fw-bold text-dark" placeholder="Nom Valideur"><input type="password" class="cfg-input code-badge text-center text-danger mx-2" placeholder="Code" style="width:50px;"><i class="bi bi-trash text-danger btn-delete btn-icon-hover" onclick="this.parentElement.remove()"></i>`;
+      document.getElementById('valideursContainer').appendChild(div);
+      div.querySelector('input').focus();
+  }
+
+  // --- AUTH ADMIN ---
+  function askAdminCode() {
+      document.getElementById('adminAuthModal').style.display = 'block';
+      document.getElementById('configOverlay').style.display = 'block';
+      document.getElementById('adminCodeInput').value = "";
+      setTimeout(() => document.getElementById('adminCodeInput').focus(), 100);
+  }
+  
+  function closeAdminModal() {
+      document.getElementById('adminAuthModal').style.display = 'none';
+      document.getElementById('configOverlay').style.display = 'none';
+  }
+
+  function submitAdminAuth() {
+      const code = document.getElementById('adminCodeInput').value;
+      const btn = document.querySelector('#adminAuthModal .btn-dark');
+      const originalTxt = btn.innerText;
+      
+      btn.innerText = "..."; btn.disabled = true;
+
+      google.script.run.withSuccessHandler(isValid => {
+          btn.innerText = originalTxt; btn.disabled = false;
+          if (isValid) {
+              ADMIN_CODE_SESSION = code;
+              toggleAdminMode(true);
+              closeAdminModal();
+          } else {
+              const inp = document.getElementById('adminCodeInput');
+              inp.classList.add('is-invalid');
+              setTimeout(() => inp.classList.remove('is-invalid'), 500);
+          }
+      }).checkAdminCode(code);
+  }
+
+  function toggleAdminMode(isAdmin) {
+      IS_ADMIN_MODE = isAdmin;
+      const grid = document.getElementById('configGrid');
+      const status = document.getElementById('lockStatusText');
+      
+      if (isAdmin) {
+          grid.classList.remove('is-locked');
+          status.innerHTML = `<span class="text-success fw-bold"><i class="bi bi-unlock-fill me-1"></i>MODE ÉDITION</span>`;
+          document.getElementById('btnLock').classList.remove('hidden');
+          document.getElementById('btnSaveAll').classList.remove('hidden');
+          document.getElementById('btnUnlock').classList.add('hidden');
+      } else {
+          grid.classList.add('is-locked');
+          status.innerHTML = `<i class="bi bi-lock-fill me-1"></i>LECTURE SEULE`;
+          document.getElementById('btnLock').classList.add('hidden');
+          document.getElementById('btnSaveAll').classList.add('hidden');
+          document.getElementById('btnUnlock').classList.remove('hidden');
+          ADMIN_CODE_SESSION = ""; 
+          
+          // Re-masquer le mot de passe
+          const respInp = document.getElementById('respCodeInput');
+          if(respInp) {
+              respInp.type = "password";
+              const icon = respInp.parentElement.querySelector('i.pass-toggle');
+              if(icon) {
+                 icon.classList.remove("bi-eye");
+                 icon.classList.add("bi-eye-slash");
+              }
+          }
+      }
+  }
+
+  // --- SAUVEGARDE SECURISEE ---
+  function saveAllConfig() {
+      if(!IS_ADMIN_MODE || !ADMIN_CODE_SESSION) return;
+      
+      const btn = document.getElementById('btnSaveAll');
+      btn.innerText = "Sauvegarde..."; btn.disabled = true;
+
+      // 1. Collecte Roles (Avec sécurité anti-crash)
+      const roles = [];
+      document.querySelectorAll('.role-item').forEach(el => {
+          const inps = el.querySelectorAll('input');
+          // On vérifie que les inputs existent bien
+          if(inps.length > 0 && inps[0].value) {
+              const t = (inps.length > 1) ? inps[1].value : "";
+              roles.push({name: inps[0].value, type: t});
+          }
+      });
+
+      // 2. Collecte Noms
+      const noms = [];
+      document.querySelectorAll('.nom-item input').forEach(inp => {
+          if(inp && inp.value) noms.push(inp.value);
+      });
+
+      // 3. Collecte Valideurs (Avec sécurité)
+      const valideurs = [];
+      document.querySelectorAll('.val-item').forEach(el => {
+          const inps = el.querySelectorAll('input');
+          // On vérifie qu'on a bien Nom ET Code
+          if(inps.length > 1 && inps[0].value && inps[1].value) {
+              valideurs.push({nom: inps[0].value, code: inps[1].value});
+          }
+      });
+
+      // 4. Code Resp
+      const respInp = document.getElementById('respCodeInput');
+      const respCode = respInp ? respInp.value : "";
+
+      const payload = {
+          roles: roles,
+          noms: noms,
+          valideurs: valideurs,
+          respCode: respCode
+      };
+
+      google.script.run
+        .withSuccessHandler(msg => {
+            btn.innerHTML = `<i class="bi bi-check-lg me-1"></i>Enregistré`;
+            setTimeout(() => { 
+                btn.innerHTML = `<i class="bi bi-cloud-arrow-up-fill me-1"></i>Enregistrer`; 
+                btn.disabled = false;
+                toggleAdminMode(false); // Re-lock pour sécurité
+                loadConfigData(); // Reload pour être sûr
+            }, 1000);
+        })
+        .withFailureHandler(err => {
+            alert("Erreur: " + err.message);
+            btn.innerHTML = `<i class="bi bi-cloud-arrow-up-fill me-1"></i>Enregistrer`;
+            btn.disabled = false;
+        })
+        .saveConfigFull(ADMIN_CODE_SESSION, payload);
+  }
+</script>

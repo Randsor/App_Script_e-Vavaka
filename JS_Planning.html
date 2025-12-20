@@ -1,0 +1,807 @@
+<script>
+// --- CONFIG & ETAT ---
+var VIEW_MODE = 'cards'; 
+
+var START_DATE_INDEX = 0;
+var VISIBLE_DATE_COUNT = 5; 
+
+// RETOUR DE LA PAGINATION POUR LA VUE LISTE
+var START_ROLE_INDEX = 0;
+var VISIBLE_ROLE_COUNT = 5;
+
+// CONFIG DIMENSIONS
+var COL_WIDTH_DATE = 180;  
+var COL_WIDTH_ROLE = 110;  
+var LEFT_HEADER_WIDTH_CARDS = 250; 
+var LEFT_HEADER_WIDTH_LIST = 180;
+
+// CONSTANTES GRID (Vue Liste)
+var GRID_COL_DATE_PX = 170; // Ajusté pour compacité
+var GRID_COL_ROLE_PX = 140; // Colonnes rôles
+
+var ALL_EVENTS = [];
+var NAMES_LIST = []; 
+var ROLES_CONFIG_FULL = []; 
+var ROLES_CONFIG_MAP = {}; 
+var CONFIG_GROUPS = []; 
+var ACTIVE_FILTERS = []; 
+
+var TIME_PRESETS = ["08:30", "09:30", "10:00", "10:30", "11:00", "14:30", "15:00", "15:30"];
+var NEXT_EVENT_INDEX = -1;
+var IS_DATA_LOADED = false;
+var BACKGROUND_LOAD_STARTED = false;
+
+// ETAT SELECTION (Logiciel type Excel)
+var SELECTED_CELLS = []; 
+var LAST_SELECTED_COORD = null; 
+var SELECTION_ANCHOR = null; 
+
+function initPlanningView() {
+  movePopupsToBody();
+  if (!IS_DATA_LOADED || ALL_EVENTS.length === 0) {
+      var loader = document.getElementById('planning-loader');
+      if(loader) loader.classList.remove('hidden');
+  }
+  
+  if (IS_DATA_LOADED && ALL_EVENTS.length > 0) return;
+  
+  calculateVisibleCount();
+  google.script.run
+    .withSuccessHandler(onPlanningDataReceived)
+    .withFailureHandler(e => { if(loader) loader.classList.add('hidden'); alert("Erreur chargement: " + e.message); })
+    .getPlanningMatrixData(-30, 90);
+    
+  document.addEventListener('keydown', handleGlobalKeydown);
+}
+
+function movePopupsToBody() {
+    var ids = ['namePopup', 'timePopup', 'titlePopup', 'addEventPopup', 'filterMenu', 'popupOverlay'];
+    ids.forEach(function(id) {
+        var el = document.getElementById(id);
+        if(el && el.parentElement && el.parentElement !== document.body) {
+            document.body.appendChild(el);
+        }
+    });
+}
+
+function onPlanningDataReceived(response) {
+  IS_DATA_LOADED = true;
+  var configRoles = response.roles || [];
+  ROLES_CONFIG_FULL = configRoles; 
+  NAMES_LIST = response.noms || []; 
+  ROLES_CONFIG_MAP = {};
+  
+  var groupsSet = new Set();
+  configRoles.forEach(r => { 
+      var type = r.type || "Autre";
+      groupsSet.add(type);
+      ROLES_CONFIG_MAP[r.name] = type;
+  });
+  CONFIG_GROUPS = Array.from(groupsSet);
+  ACTIVE_FILTERS = [...CONFIG_GROUPS]; 
+  
+  var rawEvents = response.events || [];
+  ALL_EVENTS = rawEvents.filter(evt => evt.date !== "INVALID" && evt.dateObj);
+  
+  updateIndices();
+  calculateVisibleCount();
+  renderMatrix();
+  
+  var loader = document.getElementById('planning-loader');
+  if(loader) loader.classList.add('hidden');
+  
+  if(!BACKGROUND_LOAD_STARTED) {
+      BACKGROUND_LOAD_STARTED = true;
+      setTimeout(() => {
+          google.script.run.withSuccessHandler(onBackgroundDataReceived).getPlanningMatrixData(-2000, 2000);
+      }, 1000);
+  }
+}
+
+function onBackgroundDataReceived(response) {
+    var newEvents = response.events || [];
+    if(newEvents.length > 0) {
+        var existingKeys = new Set(ALL_EVENTS.map(e => e.key));
+        var uniqueNewEvents = newEvents.filter(evt => 
+            evt.date !== "INVALID" && evt.dateObj && !existingKeys.has(evt.key)
+        );
+        if (uniqueNewEvents.length > 0) {
+            ALL_EVENTS = ALL_EVENTS.concat(uniqueNewEvents);
+            ALL_EVENTS.sort((a,b) => a.dateObj - b.dateObj);
+            updateIndices(); 
+            renderMatrix(); 
+        }
+    }
+}
+
+function updateIndices() {
+    try {
+      var todayTs = new Date().setHours(0,0,0,0);
+      var foundIndex = ALL_EVENTS.findIndex(e => { return e.dateObj >= todayTs; });
+      NEXT_EVENT_INDEX = foundIndex !== -1 ? foundIndex : -1;
+      if(START_DATE_INDEX === 0 && foundIndex !== -1 && !BACKGROUND_LOAD_STARTED) { START_DATE_INDEX = foundIndex; }
+    } catch(e) {}
+}
+
+function switchView(mode) {
+    VIEW_MODE = mode;
+    document.getElementById('btn-view-cards').classList.toggle('active', mode === 'cards');
+    document.getElementById('btn-view-list').classList.toggle('active', mode === 'list');
+    calculateVisibleCount();
+    renderMatrix();
+}
+
+function calculateVisibleCount() {
+    var container = document.getElementById('matrixContainer');
+    if(!container) return; 
+    var containerWidth = container.clientWidth;
+    var availableWidth = containerWidth - (VIEW_MODE === 'cards' ? LEFT_HEADER_WIDTH_CARDS : LEFT_HEADER_WIDTH_LIST);
+    if (availableWidth < 100) availableWidth = 300; 
+
+    if (VIEW_MODE === 'cards') {
+        var count = Math.floor(availableWidth / COL_WIDTH_DATE);
+        VISIBLE_DATE_COUNT = Math.max(1, count);
+    } else {
+        var count = Math.floor(availableWidth / GRID_COL_ROLE_PX);
+        VISIBLE_ROLE_COUNT = Math.max(1, count);
+    }
+}
+
+window.addEventListener('resize', function() {
+    clearTimeout(window.resizeTimer);
+    window.resizeTimer = setTimeout(function() {
+        calculateVisibleCount();
+        renderMatrix();
+    }, 100);
+});
+
+function planningNav(delta) {
+    if (VIEW_MODE === 'cards') {
+        var newIndex = START_DATE_INDEX + (delta * VISIBLE_DATE_COUNT);
+        if (newIndex < 0) newIndex = 0;
+        if (newIndex >= ALL_EVENTS.length) newIndex = Math.max(0, ALL_EVENTS.length - 1);
+        START_DATE_INDEX = newIndex;
+    } else {
+        var filteredRoles = getAllFlatRoles(); 
+        var newIndex = START_ROLE_INDEX + (delta * VISIBLE_ROLE_COUNT);
+        if (newIndex < 0) newIndex = 0;
+        if (newIndex >= filteredRoles.length) newIndex = Math.max(0, filteredRoles.length - 1);
+        START_ROLE_INDEX = newIndex;
+    }
+    renderMatrix();
+}
+
+function getGroupedRoles() {
+    var grouped = {};
+    CONFIG_GROUPS.forEach(g => {
+        if(ACTIVE_FILTERS.includes(g)) {
+            grouped[g] = ROLES_CONFIG_FULL
+                .filter(rConfig => (rConfig.type || "Autre") === g)
+                .map(rConfig => rConfig.name);
+        }
+    });
+    return grouped;
+}
+
+function getAllFlatRoles() {
+    var flat = [];
+    var grouped = getGroupedRoles();
+    CONFIG_GROUPS.forEach(g => {
+        if(grouped[g]) {
+            grouped[g].forEach(r => flat.push({name: r, group: g}));
+        }
+    });
+    return flat;
+}
+
+function getRoleColor(roleType) {
+    if (!roleType) return "#f8f9fa"; 
+    var t = roleType.toLowerCase();
+    if (t.includes("liturgie")) return "#e3f2fd"; 
+    if (t.includes("musicien")) return "#e8f5e9"; 
+    if (t.includes("technique")) return "#f5f5f5"; 
+    if (t.includes("accueil")) return "#fff3e0"; 
+    if (t.includes("son")) return "#e0f7fa"; 
+    if (t.includes("media") || t.includes("multi")) return "#f3e5f5"; 
+    if (t.includes("secr")) return "#fce4ec"; 
+    if (t.includes("trad")) return "#e8eaf6"; 
+    return "#f8f9fa";
+}
+
+function renderMatrix() {
+    try {
+        var btnPrev = document.getElementById('btn-prev');
+        var btnNext = document.getElementById('btn-next');
+        var container = document.getElementById('matrixContainer');
+
+        if(btnPrev) btnPrev.style.display = 'inline-block';
+        if(btnNext) btnNext.style.display = 'inline-block';
+
+        if (VIEW_MODE === 'list') {
+            container.innerHTML = "";
+            renderListView(container);
+            
+            var all = getAllFlatRoles();
+            if(btnPrev) btnPrev.disabled = (START_ROLE_INDEX <= 0);
+            if(btnNext) btnNext.disabled = (START_ROLE_INDEX >= all.length - VISIBLE_ROLE_COUNT);
+
+        } else {
+            container.innerHTML = "";
+            renderCardsView(container);
+            
+            if(btnPrev) btnPrev.disabled = (START_DATE_INDEX <= 0);
+            if(btnNext) btnNext.disabled = (START_DATE_INDEX >= ALL_EVENTS.length - 1);
+        }
+    } catch(e) { console.error("CRITICAL RENDER ERROR", e); }
+}
+
+// =========================================================================
+// RENDER 1 : VUE CARDS (TABLE) - CORRIGÉE (DELEGATION D'EVENEMENT)
+// =========================================================================
+function renderCardsView(container) {
+  SELECTED_CELLS = []; 
+  
+  var tableWrapper = document.createElement('div');
+  tableWrapper.className = "table-cards-container";
+  tableWrapper.innerHTML = `
+    <table class="matrix-table table-cards" id="mainTable">
+        <thead><tr id="matrix-header-row"></tr></thead>
+        <tbody id="matrix-body"></tbody>
+    </table>
+  `;
+  container.appendChild(tableWrapper);
+
+  var thead = document.getElementById('matrix-header-row');
+  var tbody = document.getElementById('matrix-body');
+  
+  var visibleEvents = ALL_EVENTS.slice(START_DATE_INDEX, START_DATE_INDEX + VISIBLE_DATE_COUNT);
+
+  var thCorner = document.createElement('th');
+  thCorner.className = "th-sticky-corner";
+  thead.appendChild(thCorner);
+
+  if(visibleEvents.length === 0) { 
+      var msg = IS_DATA_LOADED ? "Aucune donnée." : "Chargement en cours...";
+      thead.innerHTML += `<td style="padding:20px; font-style:italic; color:#999;">${msg}</td>`; 
+      return; 
+  }
+
+  // --- 1. Construction du Header (Dates) ---
+  visibleEvents.forEach(evt => {
+      var th = document.createElement('th');
+      var isNext = (ALL_EVENTS.indexOf(evt) === NEXT_EVENT_INDEX);
+      var isPast = (ALL_EVENTS.indexOf(evt) < NEXT_EVENT_INDEX);
+      th.className = "th-sticky-top" + (isNext ? " is-next" : "");
+      if(isPast) th.classList.add("past-event");
+
+      var d = new Date(evt.dateObj); 
+      var dayStr = !isNaN(d.getTime()) ? d.toLocaleDateString('fr-FR', {weekday:'long'}).toUpperCase() : "--";
+      var dateFull = !isNaN(d.getTime()) ? d.toLocaleDateString('fr-FR', {day:'numeric', month:'short', year:'2-digit'}) : "";
+      var displayTitle = evt.titre || '<span style="opacity:0.3; font-weight:normal;">(Sans titre)</span>';
+      var safeTitle = (evt.titre || "").replace(/"/g, "&quot;");
+
+      th.innerHTML = `
+        <div class="date-box">
+          <div class="d-day">${dayStr}</div>
+          <div class="d-datetime-col">
+             <div style="font-size:14px; font-weight:700;">${dateFull}</div>
+             <div class="meta-time" onclick="event.stopPropagation(); openTimePopup(this, '${evt.date}', '${evt.heure}')">${evt.heure}</div>
+          </div>
+          <div class="meta-title" onclick="event.stopPropagation(); openTitlePopup(this, '${evt.date}', '${evt.heure}', '${safeTitle}')">${displayTitle}</div>
+        </div>`;
+      thead.appendChild(th);
+  });
+  
+  // --- 2. Construction du Body (Rôles) ---
+  CONFIG_GROUPS.forEach(g => {
+      if(!ACTIVE_FILTERS.includes(g)) return; 
+      
+      var rolesInGroup = ROLES_CONFIG_FULL.filter(rConfig => (rConfig.type || "Autre") === g).map(r => r.name);
+      if(rolesInGroup.length === 0) return;
+
+      // En-tête de groupe
+      var trGroup = document.createElement('tr');
+      trGroup.className = "group-header-row";
+      trGroup.innerHTML = `<td class="td-group-header" colspan="${visibleEvents.length+1}">${g}</td>`;
+      tbody.appendChild(trGroup);
+      
+      rolesInGroup.forEach(r => {
+          var tr = document.createElement('tr');
+          tr.innerHTML = `<td class="td-sticky-left">${r}</td>`;
+          
+          visibleEvents.forEach(evt => {
+              var td = document.createElement('td');
+              td.className = "td-cell";
+              td.style.cursor = "pointer";
+              
+              var isPast = (ALL_EVENTS.indexOf(evt) < NEXT_EVENT_INDEX);
+              if(isPast) td.classList.add("past-event");
+              if (ALL_EVENTS.indexOf(evt) === NEXT_EVENT_INDEX) td.classList.add('is-next-column');
+              
+              var nom = evt.assignments[r] || "";
+              
+              // CRÉATION DE LA DIV CELLULE (Sans onclick inline)
+              var cellDiv = document.createElement('div');
+              cellDiv.className = "planning-card-cell"; // Classe repère pour la délégation
+              cellDiv.style.cssText = "width:100%; height:100%; display:flex; align-items:center; justify-content:center; cursor:pointer;";
+              
+              // INJECTION DES DONNÉES DANS LE DOM (DATASET)
+              // C'est la clé de la délégation : les données sont portées par l'élément
+              cellDiv.dataset.date = evt.date;
+              cellDiv.dataset.heure = evt.heure;
+              cellDiv.dataset.role = r;
+              cellDiv.dataset.nom = nom; // Snapshot de la valeur actuelle
+              
+              if(nom) {
+                  cellDiv.innerHTML = `<span class="role-badge" style="pointer-events:none;">${nom}</span>`; // pointer-events:none permet au clic de traverser vers le parent
+              } else {
+                  cellDiv.innerHTML = `<span class="cell-empty" style="font-size:18px; pointer-events:none;">+</span>`;
+              }
+              
+              td.appendChild(cellDiv);
+              tr.appendChild(td);
+          });
+          tbody.appendChild(tr);
+      });
+  });
+
+  // --- 3. DÉLÉGATION D'ÉVÉNEMENT SUR LE TBODY ---
+  // Un seul écouteur pour tout le tableau = Performance & Robustesse
+  tbody.onclick = function(e) {
+      // On cherche l'élément cliqué ou son parent le plus proche qui a la classe 'planning-card-cell'
+      var targetCell = e.target.closest('.planning-card-cell');
+      
+      if (targetCell) {
+          e.preventDefault();
+          e.stopPropagation();
+          
+          // Récupération propre des données depuis le DOM
+          var d = targetCell.dataset.date;
+          var h = targetCell.dataset.heure;
+          var r = targetCell.dataset.role;
+          var n = targetCell.dataset.nom;
+          
+          // Déclenchement
+          openNamePopup(targetCell, d, h, r, n);
+      }
+  };
+}
+
+// =========================================================================
+// RENDER 2 : VUE LISTE (GRID)
+// =========================================================================
+function renderListView(container) {
+  var allFlatRoles = getAllFlatRoles();
+  var visibleRoles = allFlatRoles.slice(START_ROLE_INDEX, START_ROLE_INDEX + VISIBLE_ROLE_COUNT);
+
+  var grid = document.createElement('div');
+  grid.className = "planning-grid-container";
+  
+  var colTemplate = `${GRID_COL_DATE_PX}px`;
+  for(var i=0; i<visibleRoles.length; i++) {
+      colTemplate += ` ${GRID_COL_ROLE_PX}px`;
+  }
+  grid.style.gridTemplateColumns = colTemplate;
+  container.appendChild(grid);
+
+  var corner = document.createElement('div');
+  corner.className = "pg-cell pg-corner";
+  grid.appendChild(corner);
+
+  visibleRoles.forEach(rObj => {
+      var header = document.createElement('div');
+      header.className = "pg-cell pg-header";
+      header.innerText = rObj.name;
+      header.title = rObj.name;
+      var roleType = ROLES_CONFIG_MAP[rObj.name];
+      header.style.backgroundColor = getRoleColor(roleType);
+      grid.appendChild(header);
+  });
+
+  if(ALL_EVENTS.length === 0) {
+      var msg = IS_DATA_LOADED ? "Aucune donnée." : "Chargement...";
+      var emptyRow = document.createElement('div');
+      emptyRow.style.gridColumn = "1 / -1";
+      emptyRow.style.padding = "20px";
+      emptyRow.style.color = "#999";
+      emptyRow.style.fontStyle = "italic";
+      emptyRow.style.textAlign = "center";
+      emptyRow.innerText = msg;
+      grid.appendChild(emptyRow);
+      return;
+  }
+
+  ALL_EVENTS.forEach((evt, rowIndex) => {
+      var isNext = (ALL_EVENTS.indexOf(evt) === NEXT_EVENT_INDEX);
+      var isPast = (ALL_EVENTS.indexOf(evt) < NEXT_EVENT_INDEX);
+      
+      var dateCell = document.createElement('div');
+      dateCell.className = "pg-cell pg-date-col" + (isNext ? " is-next" : "");
+      if(isPast) dateCell.classList.add("past-event");
+      
+      var d = new Date(evt.dateObj);
+      var dayNum = !isNaN(d.getTime()) ? d.getDate() : "--";
+      var monthStr = !isNaN(d.getTime()) ? d.toLocaleDateString('fr-FR', {month:'short'}).toUpperCase() : "";
+      var displayTitle = evt.titre || '<span style="opacity:0.5; font-style:italic;">(Sans titre)</span>';
+      var safeTitle = (evt.titre || "").replace(/"/g, "&quot;");
+
+      dateCell.innerHTML = `
+        <div style="width: 100%; height: 100%; display: flex; align-items: center; padding: 0 4px;">
+            <div style="text-align:center; min-width: 40px; line-height:1; margin-right: 8px; flex-shrink: 0;">
+                <div style="font-size:15px; font-weight:800; color:#334155;">${dayNum}</div>
+                <div style="font-size:10px; text-transform:uppercase; color:#94a3b8; font-weight:700;">${monthStr}</div>
+            </div>
+            <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; border-left: 2px solid #e2e8f0; padding-left: 8px; height: 80%;">
+                <div class="meta-time" style="font-size:11px; padding:1px 6px; margin-bottom:2px; display:inline-block; align-self: flex-start;" onclick="event.stopPropagation(); openTimePopup(this, '${evt.date}', '${evt.heure}')">${evt.heure}</div>
+                <div style="font-size:11px; color:#475569; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-weight:500; cursor:pointer;" onclick="event.stopPropagation(); openTitlePopup(this, '${evt.date}', '${evt.heure}', '${safeTitle}')">${displayTitle}</div>
+            </div>
+        </div>
+      `;
+      grid.appendChild(dateCell);
+
+      visibleRoles.forEach((rObj, colIndex) => {
+          var cell = document.createElement('div');
+          cell.className = "pg-cell";
+          if(isNext) cell.classList.add("is-next-column");
+          if(isPast) cell.classList.add("past-event");
+
+          var r = rObj.name;
+          var nom = evt.assignments[r] || "";
+          
+          cell.dataset.r = rowIndex;
+          cell.dataset.c = colIndex;
+          cell.dataset.date = evt.date;
+          cell.dataset.heure = evt.heure;
+          cell.dataset.role = r;
+          
+          cell.onclick = (e) => {
+              if (e.target.classList.contains('cell-empty')) {
+                  openNamePopup(cell, evt.date, evt.heure, r, nom);
+                  return;
+              }
+              handleGridClick(e, rowIndex, colIndex, evt, r, nom, cell);
+          };
+          cell.ondblclick = () => openNamePopup(cell, evt.date, evt.heure, r, nom);
+
+          var content = nom ? `<span class="role-badge">${nom}</span>` : `<span class="cell-empty">+</span>`;
+          cell.innerHTML = content;
+          grid.appendChild(cell);
+      });
+  });
+  
+  restoreSelectionVisuals();
+}
+
+// =========================================================================
+// GESTION SELECTION EXCEL & NAVIGATION (GRID)
+// =========================================================================
+
+function handleGridClick(e, rIndex, cIndex, evt, role, currentVal, cell) {
+    if (e.shiftKey && LAST_SELECTED_COORD) {
+        var anchor = SELECTION_ANCHOR || LAST_SELECTED_COORD;
+        selectRange(anchor.r, anchor.c, rIndex, cIndex);
+        LAST_SELECTED_COORD = { r: rIndex, c: cIndex }; 
+    } else if (e.ctrlKey || e.metaKey) {
+        toggleCellSelection(rIndex, cIndex, evt, role, currentVal, cell);
+        LAST_SELECTED_COORD = { r: rIndex, c: cIndex };
+        SELECTION_ANCHOR = { r: rIndex, c: cIndex }; 
+    } else {
+        clearSelection();
+        addToSelection(rIndex, cIndex, evt, role, currentVal, cell);
+        LAST_SELECTED_COORD = { r: rIndex, c: cIndex };
+        SELECTION_ANCHOR = { r: rIndex, c: cIndex }; 
+    }
+}
+
+function selectRange(r1, c1, r2, c2) {
+    clearSelection();
+    var rStart = Math.min(r1, r2);
+    var rEnd = Math.max(r1, r2);
+    var cStart = Math.min(c1, c2);
+    var cEnd = Math.max(c1, c2);
+    
+    var visibleRoles = getAllFlatRoles().slice(START_ROLE_INDEX, START_ROLE_INDEX + VISIBLE_ROLE_COUNT);
+    
+    for (var r = rStart; r <= rEnd; r++) {
+        for (var c = cStart; c <= cEnd; c++) {
+            var evt = ALL_EVENTS[r];
+            if (!evt) continue;
+            var roleObj = visibleRoles[c]; 
+            if (!roleObj) continue;
+            
+            var roleName = roleObj.name;
+            var nom = evt.assignments[roleName] || "";
+            
+            var el = document.querySelector(`.pg-cell[data-r="${r}"][data-c="${c}"]`);
+            if (el) {
+                addToSelection(r, c, evt, roleName, nom, el);
+            }
+        }
+    }
+}
+
+function addToSelection(r, c, evt, role, nom, el) {
+    if (SELECTED_CELLS.find(sc => sc.r === r && sc.c === c)) return;
+    SELECTED_CELLS.push({ r, c, date: evt.date, heure: evt.heure, role: role, nom: nom, el: el });
+    el.classList.add('selected');
+}
+
+function toggleCellSelection(r, c, evt, role, nom, el) {
+    var idx = SELECTED_CELLS.findIndex(sc => sc.r === r && sc.c === c);
+    if (idx > -1) {
+        SELECTED_CELLS.splice(idx, 1);
+        el.classList.remove('selected');
+    } else {
+        addToSelection(r, c, evt, role, nom, el);
+    }
+}
+
+function clearSelection() {
+    SELECTED_CELLS.forEach(item => { if(item.el) item.el.classList.remove('selected'); });
+    SELECTED_CELLS = [];
+}
+
+function restoreSelectionVisuals() {
+    SELECTED_CELLS.forEach(item => {
+        var el = document.querySelector(`.pg-cell[data-r="${item.r}"][data-c="${item.c}"]`);
+        if (el) {
+            item.el = el; 
+            el.classList.add('selected');
+        }
+    });
+}
+
+// --- GESTION CLAVIER (NAV + ACTIONS) ---
+
+function handleGlobalKeydown(e) { 
+    if (e.key === 'Escape') { 
+        closePopups(); 
+        document.getElementById('filterMenu').style.display='none'; 
+        clearSelection();
+        return; 
+    }
+    
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+        e.preventDefault();
+        navigateSelection(e.key, e.shiftKey);
+        return;
+    }
+
+    if (SELECTED_CELLS.length === 0) return;
+
+    if ((e.ctrlKey || e.metaKey) && e.key === 'c') { 
+        e.preventDefault(); 
+        var textToCopy = SELECTED_CELLS.map(c => c.nom).join("\n");
+        navigator.clipboard.writeText(textToCopy).then(() => {}); 
+    } 
+    
+    if ((e.ctrlKey || e.metaKey) && e.key === 'v') { 
+        e.preventDefault(); 
+        navigator.clipboard.readText().then(text => { if (text) applyBatchPaste(text); }); 
+    } 
+    
+    if (e.key === 'Delete' || e.key === 'Backspace') { 
+        e.preventDefault(); 
+        applyBatchPaste(""); 
+    } 
+    
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        var last = SELECTED_CELLS[SELECTED_CELLS.length-1];
+        if (last && last.el) openNamePopup(last.el, last.date, last.heure, last.role, last.nom);
+    }
+}
+
+function navigateSelection(key, isShift) {
+    if (VIEW_MODE !== 'list') return; 
+
+    if (!LAST_SELECTED_COORD) {
+        var firstEl = document.querySelector('.pg-cell[data-r="0"][data-c="0"]');
+        if (firstEl) firstEl.click();
+        return;
+    }
+
+    var currR = LAST_SELECTED_COORD.r;
+    var currC = LAST_SELECTED_COORD.c;
+    var newR = currR;
+    var newC = currC;
+    
+    var maxR = ALL_EVENTS.length - 1;
+    var maxC = VISIBLE_ROLE_COUNT - 1;
+
+    if (key === 'ArrowUp') newR = currR - 1;
+    if (key === 'ArrowDown') newR = currR + 1;
+    if (key === 'ArrowLeft') newC = currC - 1;
+    if (key === 'ArrowRight') newC = currC + 1;
+
+    if (newR < 0) newR = 0;
+    if (newR > maxR) newR = maxR;
+
+    if (newC < 0) {
+        if (START_ROLE_INDEX > 0) {
+            clearSelection(); 
+            planningNav(-1); 
+            newC = VISIBLE_ROLE_COUNT - 1; 
+            setTimeout(() => applyNavigationSelect(newR, newC, isShift), 50); 
+            return;
+        } else {
+            newC = 0; 
+        }
+    }
+    if (newC > maxC) {
+        var allRolesCount = getAllFlatRoles().length;
+        if (START_ROLE_INDEX + VISIBLE_ROLE_COUNT < allRolesCount) {
+            clearSelection(); 
+            planningNav(1); 
+            newC = 0; 
+            setTimeout(() => applyNavigationSelect(newR, newC, isShift), 50); 
+            return;
+        } else {
+            newC = maxC; 
+        }
+    }
+
+    applyNavigationSelect(newR, newC, isShift);
+}
+
+function applyNavigationSelect(r, c, isShift) {
+    var el = document.querySelector(`.pg-cell[data-r="${r}"][data-c="${c}"]`);
+    if (!el) return;
+
+    if (isShift) {
+        var anchor = SELECTION_ANCHOR || LAST_SELECTED_COORD;
+        selectRange(anchor.r, anchor.c, r, c);
+        LAST_SELECTED_COORD = { r: r, c: c };
+    } else {
+        clearSelection();
+        var evt = ALL_EVENTS[r];
+        var visibleRoles = getAllFlatRoles().slice(START_ROLE_INDEX, START_ROLE_INDEX + VISIBLE_ROLE_COUNT);
+        var roleObj = visibleRoles[c];
+        if(evt && roleObj) {
+            var role = roleObj.name;
+            var nom = evt.assignments[role] || "";
+            addToSelection(r, c, evt, role, nom, el);
+            LAST_SELECTED_COORD = { r: r, c: c };
+            SELECTION_ANCHOR = { r: r, c: c }; 
+        }
+    }
+
+    el.scrollIntoView({block: 'nearest', inline: 'nearest'});
+}
+
+function applyBatchPaste(text) { 
+    var cleanText = text.trim();
+    var updates = []; 
+    SELECTED_CELLS.forEach(cell => { 
+        var evt = ALL_EVENTS.find(e => e.date === cell.date && e.heure === cell.heure); 
+        if (evt) { 
+            if (!evt.assignments) evt.assignments = {}; 
+            evt.assignments[cell.role] = cleanText; 
+            if (cell.el) {
+                var content = cleanText ? `<span class="role-badge">${cleanText}</span>` : "";
+                cell.el.innerHTML = content;
+                cell.nom = cleanText; 
+            }
+        } 
+        updates.push({ date: cell.date, heure: cell.heure, role: cell.role, nom: cleanText }); 
+    }); 
+    
+    if (updates.length > 0) { 
+        google.script.run.withFailureHandler(e => { alert("Erreur sauvegarde: " + e); initPlanningView(); }).updatePlanningBatch(updates); 
+    } 
+}
+
+// --- GESTION DES ACTIONS ---
+function toggleFilterMenu(btn) {
+    var menu = document.getElementById('filterMenu');
+    var overlay = document.getElementById('popupOverlay');
+    var container = document.getElementById('filterListContainer');
+    var html = "";
+    CONFIG_GROUPS.forEach(g => {
+        var isActive = ACTIVE_FILTERS.includes(g);
+        html += `<div class="notion-item ${isActive?'selected':''}" onclick="toggleFilter('${g}')"><div><i class="bi bi-check-lg" style="opacity:${isActive?1:0}"></i> <span>${g}</span></div></div>`;
+    });
+    container.innerHTML = html;
+    menu.style.display = 'block'; overlay.style.display = 'block'; positionPopup(menu, btn);
+}
+
+function toggleFilter(group) {
+    if(ACTIVE_FILTERS.includes(group)) ACTIVE_FILTERS = ACTIVE_FILTERS.filter(x => x !== group);
+    else ACTIVE_FILTERS.push(group);
+    toggleFilterMenu(document.getElementById('btnFilter')); START_ROLE_INDEX = 0; renderMatrix();
+}
+
+function toggleAllFilters(state) {
+    if(state) ACTIVE_FILTERS = [...CONFIG_GROUPS]; else ACTIVE_FILTERS = [];
+    toggleFilterMenu(document.getElementById('btnFilter')); START_ROLE_INDEX = 0; renderMatrix();
+}
+
+function openNamePopup(element, date, heure, role, currentVal, initialSearch) { 
+    var popup = document.getElementById('namePopup'); var overlay = document.getElementById('popupOverlay'); var input = document.getElementById('namePopupSearch'); 
+    popup.dataset.ctx = JSON.stringify({date, heure, role}); 
+    input.value = initialSearch || ""; 
+    renderPopupList(NAMES_LIST, currentVal, input.value); 
+    popup.style.display = 'flex'; overlay.style.display = 'block'; positionPopup(popup, element); 
+    input.focus(); 
+    input.oninput = () => { renderPopupList(NAMES_LIST.filter(n => n.toLowerCase().includes(input.value.toLowerCase())), currentVal, input.value); }; 
+    input.onkeydown = (e) => { if(e.key === 'Enter') { var first = document.querySelector('.notion-item'); if(first) first.click(); } }; 
+}
+
+function renderPopupList(list, current, searchQuery) { 
+    var c = document.getElementById('namePopupList'); c.innerHTML = ""; 
+    
+    // 1. Option Vide
+    var empty = document.createElement('div'); 
+    empty.className = "notion-item"; 
+    empty.style.fontStyle = "italic"; 
+    empty.style.color = "#999"; 
+    empty.innerText = "(Vide)"; 
+    empty.onclick = () => selectName(""); 
+    c.appendChild(empty); 
+    
+    // 2. Liste filtrée
+    list.forEach(n => { 
+        var d = document.createElement('div'); 
+        d.className = "notion-item" + (n === current ? " selected" : ""); 
+        d.innerText = n; 
+        d.onclick = () => selectName(n); 
+        c.appendChild(d); 
+    });
+    
+    // 3. OPTION CREATION SI RECHERCHE
+    var inputVal = searchQuery ? searchQuery.trim() : "";
+    var matchExact = list.some(n => n.toLowerCase() === inputVal.toLowerCase());
+    
+    // Afficher Créer si recherche active et pas de match exact
+    if (inputVal && !matchExact) {
+        var createDiv = document.createElement('div');
+        createDiv.className = "notion-item border-top mt-1 pt-1 text-primary fw-bold";
+        createDiv.innerHTML = `<i class="bi bi-plus-circle me-2"></i> Créer "${inputVal}"`;
+        createDiv.onclick = () => createNewNameFromPlanning(inputVal);
+        c.appendChild(createDiv);
+    }
+}
+
+function createNewNameFromPlanning(newName) {
+    if(!newName) return;
+    
+    // 1. Ajouter localement à la liste pour usage immédiat
+    NAMES_LIST.push(newName);
+    NAMES_LIST.sort();
+    
+    // 2. Sélectionner immédiatement pour la cellule en cours
+    selectName(newName);
+    
+    // 3. Sauvegarder en background dans CONFIG
+    google.script.run.withFailureHandler(e => console.error("Erreur save new name", e))
+        .saveConfigNamesBackend(NAMES_LIST);
+}
+
+function selectName(nom) { 
+    var popup = document.getElementById('namePopup'); 
+    var ctx = JSON.parse(popup.dataset.ctx); 
+    closePopups(); 
+    
+    // Update local et distant
+    var evt = ALL_EVENTS.find(e => e.date === ctx.date && e.heure === ctx.heure); 
+    if(evt) { 
+        if(!evt.assignments) evt.assignments = {}; 
+        evt.assignments[ctx.role] = nom; 
+        renderMatrix(); // Redessine tout pour être propre
+    } 
+    google.script.run.updatePlanningCell(ctx.date, ctx.heure, ctx.role, nom); 
+}
+
+function positionPopup(popup, element) { var rect = element.getBoundingClientRect(); var pW = popup.offsetWidth || 220; var pH = popup.offsetHeight || 200; popup.style.top = (rect.bottom + 5) + 'px'; popup.style.left = rect.left + 'px'; if (rect.left + pW > window.innerWidth) popup.style.left = (rect.right - pW) + 'px'; if (rect.bottom + pH > window.innerHeight) popup.style.top = (rect.top - pH - 5) + 'px'; }
+function closePopups() { document.querySelectorAll('.notion-popup').forEach(el => el.style.display = 'none'); document.getElementById('popupOverlay').style.display = 'none'; }
+var EDIT_CONTEXT_HEADER = null;
+
+function openTimePopup(el,d,h) { closePopups(); EDIT_CONTEXT_HEADER={date:d, oldHeure:h, type:'TIME'}; var container = document.getElementById('timePresetsContainer'); container.innerHTML = ""; TIME_PRESETS.forEach(time => { var btn = document.createElement('div'); btn.className = "notion-chip" + (time === h ? " active" : ""); btn.innerText = time; btn.onclick = () => saveHeaderEdit(time); container.appendChild(btn); }); document.getElementById('customTimeInput').value = h; document.getElementById('timePopup').style.display='block'; document.getElementById('popupOverlay').style.display='block'; positionPopup(document.getElementById('timePopup'), el); }
+function openTitlePopup(el,d,h,t) { closePopups(); EDIT_CONTEXT_HEADER={date:d, oldHeure:h, type:'TITLE'}; var textarea = document.getElementById('titleInputEditor'); textarea.value = t; if(typeof autoResize === 'function') { textarea.oninput = function() { autoResize(this); }; setTimeout(() => autoResize(textarea), 10); } document.getElementById('titlePopup').style.display='block'; document.getElementById('popupOverlay').style.display='block'; positionPopup(document.getElementById('titlePopup'), el); setTimeout(() => textarea.focus(), 50); }
+function saveHeaderEdit(val) { if(!EDIT_CONTEXT_HEADER) return; var ctx=EDIT_CONTEXT_HEADER; closePopups(); var evt=ALL_EVENTS.find(e=>e.date===ctx.date && e.heure===ctx.oldHeure); if(evt){ if(ctx.type==='TIME') evt.heure=val; else evt.titre=val; renderMatrix(); google.script.run.updateEventHeader(ctx.date, ctx.oldHeure, ctx.type, val); } }
+function openAddEventPopup(el) { closePopups(); document.getElementById('addEventPopup').style.display='block'; document.getElementById('popupOverlay').style.display='block'; positionPopup(document.getElementById('addEventPopup'), el); var today = new Date().toISOString().split('T')[0]; document.getElementById('newEventDate').value = today; document.getElementById('newEventTime').value = "09:30"; }
+function submitNewEvent() { var d = document.getElementById('newEventDate').value; var t = document.getElementById('newEventTime').value; if(!d) { alert("Date requise"); return; } var parts = d.split('-'); if(parts.length === 3) { var dateFR = parts[2] + "/" + parts[1] + "/" + parts[0]; closePopups(); google.script.run.withSuccessHandler(() => { IS_DATA_LOADED = false; initPlanningView(); }).createPlanningEvent(dateFR, t); } else { alert("Format de date incorrect"); } }
+function saveTitleEdit() { saveHeaderEdit(document.getElementById('titleInputEditor').value); }
+</script>

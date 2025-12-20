@@ -1,0 +1,402 @@
+/* Controller_Programme.gs */
+
+var SHEET_NAME_PROGRAMMES = "DB_PROGRAMMES";
+var SHEET_NAME_PLANNING = "DB_PLANNING";
+var SHEET_NAME_TEMPLATES = "DB_TEMPLATES";
+
+// =========================================================
+//  1. LECTURE (CALENDRIER & WIDGET)
+// =========================================================
+
+function getMonthOverview(month, year) {
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sheetPlan = ss.getSheetByName(SHEET_NAME_PLANNING);
+    var sheetProg = ss.getSheetByName(SHEET_NAME_PROGRAMMES);
+    var mapByDate = {}; 
+
+    // Lecture Planning (Source de vérité Titres & Horaires)
+    if (sheetPlan && sheetPlan.getLastRow() > 1) {
+      var dataP = sheetPlan.getDataRange().getValues();
+      for (var i = 1; i < dataP.length; i++) {
+        var row = dataP[i];
+        if (!row[0]) continue;
+        var d = parseDate_Prog(row[0]); 
+        if (d && d.getMonth() === month && d.getFullYear() === year) {
+          var dateStr = formatDate_Prog(d);
+          var heureStr = formatTime_Prog(row[1]);
+          // Titre Planning prioritaire
+          var titrePlan = row[2] || "Culte"; 
+          
+          if (!mapByDate[dateStr]) {
+            mapByDate[dateStr] = { date: dateStr, dateObj: d.getTime(), horaires: [], titre: titrePlan, progId: null, status: 'missing' };
+          }
+          if (mapByDate[dateStr].horaires.indexOf(heureStr) === -1) { mapByDate[dateStr].horaires.push(heureStr); }
+          // On s'assure que le titre est bien celui du planning (cas où plusieurs lignes planning)
+          if (row[2]) mapByDate[dateStr].titre = row[2];
+        }
+      }
+    }
+    
+    // Lecture Programmes (Statuts & IDs)
+    if (sheetProg && sheetProg.getLastRow() > 1) {
+      var dataPr = sheetProg.getDataRange().getValues();
+      for (var j = 1; j < dataPr.length; j++) {
+         if(!dataPr[j][1]) continue;
+         var dProg = parseDate_Prog(dataPr[j][1]);
+         if (dProg && dProg.getMonth() === month && dProg.getFullYear() === year) {
+            var dateStrP = formatDate_Prog(dProg);
+            if (!mapByDate[dateStrP]) {
+               // Cas rare : Programme sans entrée planning (orphelin)
+               mapByDate[dateStrP] = { date: dateStrP, dateObj: dProg.getTime(), horaires: ["--:--"], titre: dataPr[j][2], progId: null, status: 'missing' };
+            }
+            mapByDate[dateStrP].progId = dataPr[j][0];
+            mapByDate[dateStrP].status = dataPr[j][7] || "draft";
+            // NOTE: On ne surcharge PAS le titre ici avec celui de DB_PROGRAMMES
+            // Le titre du planning reste maître s'il existe.
+         }
+      }
+    }
+    
+    var result = [];
+    for (var key in mapByDate) {
+      var item = mapByDate[key];
+      item.horaires.sort();
+      result.push({ date: item.date, dateObj: item.dateObj, horaires: item.horaires, titre: item.titre, progId: item.progId, status: item.status });
+    }
+    result.sort(function(a,b) { return a.dateObj - b.dateObj; });
+    return result;
+
+  } catch (e) { return [{ error: true, msg: e.toString() }]; }
+}
+
+function getNextComingCulte() {
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sheetPlan = ss.getSheetByName(SHEET_NAME_PLANNING);
+    var sheetProg = ss.getSheetByName(SHEET_NAME_PROGRAMMES);
+    var now = new Date(); now.setHours(0,0,0,0);
+    
+    if (!sheetPlan || sheetPlan.getLastRow() < 2) return { found: false, reason: "Planning vide" };
+
+    var dataP = sheetPlan.getDataRange().getValues();
+    var candidates = [];
+    for(var i=1; i<dataP.length; i++) {
+        var d = parseDate_Prog(dataP[i][0]);
+        if(d && d >= now) {
+            candidates.push({ dateObj: d, date: formatDate_Prog(d), heure: formatTime_Prog(dataP[i][1]), titre: dataP[i][2] || "Culte" });
+        }
+    }
+    if(candidates.length === 0) return { found: false };
+    candidates.sort(function(a,b) { return a.dateObj - b.dateObj; });
+    var first = candidates[0];
+    
+    var sameDay = candidates.filter(function(c) { return c.date === first.date; });
+    var allHeures = sameDay.map(function(c) { return c.heure; });
+    var uniqueHeures = allHeures.filter(function(item, pos) { return allHeures.indexOf(item) == pos; }).sort();
+    
+    var status = "missing"; var progId = null; var themeMG = ""; var themeFR = "";
+    
+    // [FIX] SOURCE DE VÉRITÉ = PLANNING
+    // On initialise le titre avec celui du Planning
+    var titreDef = first.titre;
+
+    if(sheetProg && sheetProg.getLastRow() > 1) {
+       var dataPr = sheetProg.getDataRange().getValues();
+       for(var j=1; j<dataPr.length; j++) {
+          if(dataPr[j][1] && formatDate_Prog(parseDate_Prog(dataPr[j][1])) === first.date) {
+              progId = dataPr[j][0];
+              
+              // [FIX] SUPPRESSION DE L'ÉCRASEMENT
+              // On ne lit plus le titre depuis DB_PROGRAMMES (colonne 2)
+              // if(dataPr[j][2]) titreDef = dataPr[j][2];  <-- SUPPRIMÉ
+              
+              themeMG = dataPr[j][3]; themeFR = dataPr[j][4]; 
+              status = dataPr[j][7] || "draft";
+              break;
+          }
+       }
+    }
+    return { found: true, date: first.date, titre: titreDef, theme_mg: themeMG, theme_fr: themeFR, horaires: uniqueHeures, status: status, progId: progId };
+  } catch(e) { return { found: false, error: e.toString() }; }
+}
+
+// =========================================================
+//  2. DETAILS (SINGLE SOURCE OF TRUTH APPLIED + DYNAMIC HYDRATION)
+// =========================================================
+function getProgrammeDetails(id) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheetProg = ss.getSheetByName(SHEET_NAME_PROGRAMMES);
+  var sheetPlan = ss.getSheetByName(SHEET_NAME_PLANNING);
+  
+  if (!sheetProg) return null;
+  var dataP = sheetProg.getDataRange().getValues();
+  var prog = null;
+  
+  // 1. Trouver le programme
+  for (var i = 1; i < dataP.length; i++) {
+    if (String(dataP[i][0]) === String(id)) {
+      var settings = {};
+      try { settings = JSON.parse(dataP[i][6]); } catch(e) {} 
+
+      var dateStr = formatDate_Prog(dataP[i][1]);
+      var liveTitle = getPlanningTitleForDate(dateStr) || dataP[i][2];
+
+      // --- HYDRATATION DYNAMIQUE DES CHANTS ---
+      // On charge le contenu JSON
+      var blocks = [];
+      try { blocks = JSON.parse(dataP[i][5]); } catch(e) { blocks = []; }
+
+      // A. Chargement de la DB_CHANTS en mémoire (Dictionnaire ID -> Data)
+      var sheetChants = ss.getSheetByName("DB_CHANTS");
+      var songMap = {};
+      if (sheetChants) {
+          var dataC = sheetChants.getDataRange().getValues();
+          for (var c = 1; c < dataC.length; c++) {
+              // Clé = ID du chant (colonne A)
+              songMap[String(dataC[c][0])] = {
+                  recueil: dataC[c][1],
+                  numero: dataC[c][2],
+                  titre: dataC[c][3],
+                  tonalite: dataC[c][4],
+                  paroles_mg: dataC[c][5],
+                  paroles_fr: dataC[c][6],
+                  structure: dataC[c][7],
+                  transStatus: (function(mg, fr){
+                      var nMg = (mg||"").split(" /// ").length;
+                      var nFr = (fr||"").split(" /// ").length;
+                      if(nMg > 1 && nFr <= 1) return 'none';
+                      if(nMg > nFr) return 'partial';
+                      return 'ok';
+                  })(dataC[c][5], dataC[c][6])
+              };
+          }
+      }
+
+      // B. Parcours et Mise à jour des blocs
+      blocks.forEach(function(block) {
+          // Si c'est un chant lié à la DB (mode 'fixe' avec un ID et une séquence définie)
+          if (block.type === 'CHANT' && block.data && block.data.id && songMap[block.data.id]) {
+              var freshSong = songMap[block.data.id];
+              
+              // Mise à jour des métadonnées
+              block.data.titre = freshSong.titre;
+              block.data.recueil = freshSong.recueil;
+              block.data.numero = freshSong.numero;
+              block.data.tonalite = freshSong.tonalite;
+              block.data.transStatus = freshSong.transStatus;
+
+              // RECONSTRUCTION DES PAROLES (Si une séquence est définie)
+              if (block.data.sequence && Array.isArray(block.data.sequence)) {
+                  var textMGArr = (freshSong.paroles_mg || "").split(" /// ");
+                  var textFRArr = (freshSong.paroles_fr || "").split(" /// ");
+                  var structArr = (freshSong.structure || "").split(",");
+                  
+                  var fullTextMG = "";
+                  var fullTextFR = "";
+                  
+                  // Calcul des labels (1., Ref., etc.) sur la structure fraîche
+                  var displayLabels = {};
+                  var cCount = 1;
+                  structArr.forEach(function(t, idx) {
+                      var type = t.trim().toUpperCase();
+                      if(type === 'C') displayLabels[idx] = cCount++ + ". ";
+                      else if(type === 'R') displayLabels[idx] = "Ref. ";
+                      else displayLabels[idx] = "";
+                  });
+
+                  // Assemblage
+                  block.data.sequence.forEach(function(idx, k) {
+                      // Sécurité : vérifier que l'index existe dans le chant frais
+                      if (textMGArr[idx] !== undefined) {
+                          var txtM = textMGArr[idx] || "";
+                          var txtF = textFRArr[idx] || "";
+                          var label = displayLabels[idx] || "";
+
+                          if (k > 0) { fullTextMG += "\n\n"; fullTextFR += "\n\n"; }
+                          
+                          fullTextMG += label + txtM;
+                          if (txtF.trim() !== "") { fullTextFR += label + txtF; }
+                      }
+                  });
+
+                  // Injection du texte frais
+                  block.data.paroles_fixe = fullTextMG;
+                  block.data.paroles_fr_fixe = fullTextFR;
+              }
+          }
+      });
+
+      // On remet le contenu hydraté dans l'objet (sous forme de string pour compatibilité front)
+      var hydratedContent = JSON.stringify(blocks);
+      // -------------------------------------------
+
+      prog = {
+        id: dataP[i][0], 
+        date: dateStr, 
+        titre: liveTitle, 
+        theme_mg: dataP[i][3], 
+        theme_fr: dataP[i][4], 
+        contenu: hydratedContent, // Contenu frais !
+        settings: settings,
+        status: dataP[i][7] || "draft", 
+        validatedBy: dataP[i][8] || "", 
+        rowIndex: i + 1
+      };
+      break;
+    }
+  }
+  if (!prog) return null;
+
+  var multiEquipe = {}; 
+  if (sheetPlan) {
+      var dataPlan = sheetPlan.getDataRange().getValues();
+      for(var k=1; k<dataPlan.length; k++) {
+          if(formatDate_Prog(dataPlan[k][0]) === prog.date) {
+              var h = formatTime_Prog(dataPlan[k][1]);
+              var role = String(dataPlan[k][4]).trim();
+              var nom = String(dataPlan[k][5]).trim();
+              if(!multiEquipe[h]) multiEquipe[h] = {};
+              if(role && role !== "_INIT_") multiEquipe[h][role] = nom;
+          }
+      }
+  }
+  prog.equipes = multiEquipe;
+  return prog;
+}
+
+// =========================================================
+//  3. CREATION & ECRITURE (SYNC)
+// =========================================================
+
+function createNewProgramme(params) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheetProg = ss.getSheetByName(SHEET_NAME_PROGRAMMES);
+  
+  var data = sheetProg.getDataRange().getValues();
+  for(var i=1; i<data.length; i++) {
+      if(formatDate_Prog(data[i][1]) === params.date) {
+          return { success: true, id: data[i][0], message: "Programme existant ouvert" };
+      }
+  }
+
+  var dateObj = parseDate_Prog(params.date);
+  var blocks = [];
+  var settings = { subTitle: "", requiredRoles: [] };
+
+  // A. RÉCUPÉRATION DU TITRE PLANNING (PRIORITÉ ABSOLUE)
+  var titreCulte = getPlanningTitleForDate(params.date) || "Culte";
+  
+  // B. LOGIQUE SOURCE (Template/Duplication)
+  if (params.method === 'template') {
+      var sheetTpl = ss.getSheetByName(SHEET_NAME_TEMPLATES);
+      var tplData = sheetTpl.getDataRange().getValues();
+      for(var i=1; i<tplData.length; i++) {
+        if(String(tplData[i][0]) === String(params.sourceId)) {
+            try { 
+                var struct = JSON.parse(tplData[i][2]);
+                blocks = struct.blocks || [];
+                if(struct.settings) {
+                    settings.subTitle = struct.settings.subTitle || "";
+                    settings.requiredRoles = struct.settings.requiredRoles || [];
+                }
+            } catch(e){}
+            break;
+        }
+      }
+  } else if (params.method === 'duplicate') {
+      for(var j=1; j<data.length; j++) {
+          if(String(data[j][0]) === String(params.sourceId)) {
+              try {
+                  blocks = JSON.parse(data[j][5]); 
+                  var oldSettings = {};
+                  try { oldSettings = JSON.parse(data[j][6]); } catch(e){}
+                  settings.subTitle = oldSettings.subTitle || "";
+                  settings.requiredRoles = oldSettings.requiredRoles || [];
+              } catch(e){}
+              break;
+          }
+      }
+  }
+  
+  // Si on crée le programme, on peut forcer un sync au cas où
+  syncTitleToPlanningFullDay(dateObj, titreCulte);
+  
+  var newId = "PROG_" + params.date.replace(/\//g,'') + "_" + new Date().getTime().toString().substr(-4);
+  
+  sheetProg.appendRow([
+      newId, dateObj, titreCulte, "", "", 
+      JSON.stringify(blocks), JSON.stringify(settings), "draft", ""
+  ]);
+  
+  return { success: true, id: newId };
+}
+
+// Helper pour lire le titre Planning
+function getPlanningTitleForDate(dateStr) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(SHEET_NAME_PLANNING);
+  if (!sheet) return null;
+  var data = sheet.getDataRange().getValues();
+  for(var i=1; i<data.length; i++) {
+      if(formatDate_Prog(data[i][0]) === dateStr) {
+          if(data[i][2] && data[i][2] !== "") return data[i][2]; 
+      }
+  }
+  return null;
+}
+
+function saveProgrammeBackend(form) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(SHEET_NAME_PROGRAMMES);
+  
+  if (form.rowIndex) {
+    var row = parseInt(form.rowIndex);
+    var newStatus = "draft"; 
+    
+    // On sauvegarde quand même dans DB_PROGRAMMES pour l'historique
+    sheet.getRange(row, 3).setValue(form.titre);
+    sheet.getRange(row, 4).setValue(form.theme_mg);
+    sheet.getRange(row, 5).setValue(form.theme_fr);
+    sheet.getRange(row, 6).setValue(form.contenu);
+    sheet.getRange(row, 7).setValue(form.settings); 
+    sheet.getRange(row, 8).setValue(newStatus); 
+    sheet.getRange(row, 9).clearContent(); 
+
+    // [FIX] SYNCHRONISATION INVERSE : PUSH VERS PLANNING
+    // Si on modifie le titre ici, on met à jour la source de vérité
+    var dateVal = sheet.getRange(row, 2).getValue();
+    syncTitleToPlanningFullDay(dateVal, form.titre);
+    
+    return { success: true, status: "draft" };
+  }
+  return { success: false, msg: "ID manquant" };
+}
+
+// Met à jour TOUTES les occurrences de cette date dans le planning avec le nouveau titre
+function syncTitleToPlanningFullDay(dateObj, newTitle) { 
+    if (!dateObj || !newTitle) return; 
+    var dateStr = formatDate_Prog(dateObj); 
+    var ss = SpreadsheetApp.getActiveSpreadsheet(); 
+    var sheetPlan = ss.getSheetByName(SHEET_NAME_PLANNING); 
+    if (!sheetPlan) return; 
+    var data = sheetPlan.getDataRange().getValues(); 
+    for(var i=1; i<data.length; i++) { 
+        if(formatDate_Prog(data[i][0]) === dateStr) { 
+            // Optimisation : on n'écrit que si ça a changé
+            if (data[i][2] !== newTitle) {
+                sheetPlan.getRange(i+1, 3).setValue(newTitle); 
+            }
+        } 
+    } 
+}
+
+function checkAuthForUnlock(authType, authName, inputCode) { if (authType === 'EQUIPE') return verifyResponsableCode(inputCode); else if (authType === 'VALIDEUR') return verifyValidatorCode(authName, inputCode); return false; }
+function validateProgrammeBackend(id, validName, validCode) { var isOk = verifyValidatorCode(validName, validCode); if (!isOk) throw new Error("Code de validation incorrect."); var ss = SpreadsheetApp.getActiveSpreadsheet(); var sheet = ss.getSheetByName(SHEET_NAME_PROGRAMMES); var data = sheet.getDataRange().getValues(); for(var i=1; i<data.length; i++) { if(String(data[i][0]) === String(id)) { sheet.getRange(i+1, 8).setValue("final"); sheet.getRange(i+1, 9).setValue(validName + " le " + formatDate_Prog(new Date())); return { success: true, status: "final" }; } } throw new Error("Programme introuvable."); }
+function deleteProgrammeBackend(id) { var ss = SpreadsheetApp.getActiveSpreadsheet(); var sheet = ss.getSheetByName(SHEET_NAME_PROGRAMMES); var data = sheet.getDataRange().getValues(); for(var i=1; i<data.length; i++) { if(String(data[i][0]) === String(id)) { sheet.deleteRow(i+1); return true; } } return false; }
+function getArchivedProgrammesList() { var ss = SpreadsheetApp.getActiveSpreadsheet(); var sheet = ss.getSheetByName(SHEET_NAME_PROGRAMMES); if (!sheet) return []; var data = sheet.getDataRange().getValues(); var list = []; for(var i=1; i<data.length; i++) { list.push({ id: data[i][0], date: formatDate_Prog(data[i][1]), titre: data[i][2], status: data[i][7] }); } return list.sort((a,b) => parseDate_Prog(b.date) - parseDate_Prog(a.date)); }
+function searchArchivedProgrammes(query) { var list = getArchivedProgrammesList(); if (!query) return list.slice(0, 10); var q = query.toLowerCase(); return list.filter(function(p) { return (p.date.indexOf(q) > -1) || (p.titre && p.titre.toLowerCase().indexOf(q) > -1); }).slice(0, 15); }
+function getSelectableTemplates() { var ss = SpreadsheetApp.getActiveSpreadsheet(); var sheet = ss.getSheetByName(SHEET_NAME_TEMPLATES); if (!sheet) return []; var data = sheet.getDataRange().getValues(); var list = []; for (var i = 1; i < data.length; i++) { if(data[i][0] && data[i][1]) { list.push({ id: data[i][0], titre: data[i][1], desc: "Template" }); } } return list; }
+function formatDate_Prog(val) { if (!val) return ""; if (val instanceof Date) return ("0" + val.getDate()).slice(-2) + "/" + ("0" + (val.getMonth() + 1)).slice(-2) + "/" + val.getFullYear(); return String(val); }
+function parseDate_Prog(val) { if (!val) return null; if (val instanceof Date) return val; if (typeof val === 'string') { var parts = val.split("/"); if (parts.length === 3) return new Date(parts[2], parts[1]-1, parts[0]); var d = new Date(val); if (!isNaN(d.getTime())) return d; } return null; }
+function formatTime_Prog(val) { if (val instanceof Date) return ("0" + val.getHours()).slice(-2) + ":" + ("0" + val.getMinutes()).slice(-2); var s = String(val).trim(); return s.length >= 5 ? s.substring(0, 5) : (s || "00:00"); }

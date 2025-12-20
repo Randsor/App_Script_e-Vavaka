@@ -1,0 +1,275 @@
+<style>
+  /* --- WRAPPER (Container App) --- */
+  .planning-wrapper {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    height: calc(100dvh - 70px); 
+    display: flex; flex-direction: column;
+    overflow: hidden; 
+    position: relative;
+    margin-bottom: 0; user-select: none;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  
+  /* HEADER */
+  .planning-header {
+    padding: 8px 16px;
+    border-bottom: 1px solid #e2e8f0;
+    display: flex; justify-content: space-between; align-items: center;
+    background: #fff;
+    flex-shrink: 0; z-index: 50;
+  }
+  .ph-title { font-weight: 600; color: #1e293b; display: flex; align-items: center; gap: 10px; font-size: 16px; } 
+  
+  /* BOUTONS VIEW SWITCHER */
+  .view-switcher { display: flex; background: #f1f5f9; padding: 2px; border-radius: 6px; gap: 2px; margin-left: 10px; }
+  .view-btn { border: none; background: transparent; padding: 4px 8px; border-radius: 4px; color: #64748b; font-size: 14px; cursor: pointer; transition: all 0.2s; }
+  .view-btn:hover { color: #334155; background: rgba(255,255,255,0.5); }
+  .view-btn.active { background: white; color: #2383E2; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+
+  /* BOUTONS ACTIONS */
+  .btn-filter { background: white; border: 1px solid #e2e8f0; color: #64748b; padding: 4px 12px; border-radius: 4px; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 6px; margin-right: 8px; }
+  .btn-filter:hover, .btn-filter.active { background: #f8fafc; color: #2383E2; border-color: #2383E2; }
+  .btn-notion-new { background-color: #2383E2; color: white; border: 1px solid transparent; font-size: 13px; font-weight: 500; padding: 4px 14px; border-radius: 4px; transition: all 0.1s ease; display: flex; align-items: center; gap: 6px; cursor: pointer; }
+  .btn-notion-new:hover { background-color: #1b6ec2; }
+
+  /* --- MATRIX CONTAINER --- */
+  .matrix-container { 
+    flex: 1; width: 100%; overflow: hidden; background: #fff; position: relative;
+  }
+  
+  /* ==========================================================
+     VUE CARDS (TABLE TRADITIONNELLE)
+     ========================================================== */
+  .table-cards-container {
+    width: 100%; height: 100%; overflow: auto; scroll-behavior: smooth;
+  }
+  .table-cards-container::-webkit-scrollbar { width: 10px; height: 10px; }
+  .table-cards-container::-webkit-scrollbar-track { background: #f1f5f9; }
+  .table-cards-container::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 5px; border: 2px solid #f1f5f9; }
+  
+  table.matrix-table { 
+    border-collapse: separate; border-spacing: 0; 
+    table-layout: fixed !important; 
+    width: max-content !important; 
+  }
+  
+  /* Entêtes */
+  .table-cards .th-sticky-corner { position: sticky; top: 0; left: 0; z-index: 40; background: #fff; width: 250px; min-width: 250px; border-bottom: 1px solid #e2e8f0; border-right: 1px solid #f1f5f9; }
+  .table-cards .th-sticky-top { position: sticky; top: 0; z-index: 30; background: #fff; width: 180px; min-width: 180px; border-bottom: 1px solid #e2e8f0; border-right: 1px solid #f1f5f9; vertical-align: top; padding: 0; }
+  
+  .table-cards .th-sticky-top.is-next { background: #f8fbff; border-bottom: 3px solid #2383E2; }
+
+  /* Colonne de Gauche (Rôles) */
+  .table-cards .td-sticky-left { position: sticky; left: 0; z-index: 20; background: #fff; width: 250px; min-width: 250px; border-right: 1px solid #e2e8f0; border-bottom: 1px solid #f1f5f9; padding: 4px 16px; font-size: 13px; font-weight: 600; color: #475569; height: 44px; box-shadow: 2px 0 5px rgba(0,0,0,0.02); display: flex; align-items: center; letter-spacing: 0.2px; }
+  
+  .table-cards .td-group-header { position: sticky; left: 0; z-index: 25; background-color: #f8fafc; color: #64748b; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; padding: 8px 16px; border-bottom: 1px solid #e2e8f0; text-align: left; }
+  
+  .table-cards .td-cell { border-bottom: 1px solid #f1f5f9; border-right: 1px solid #f1f5f9; padding: 0; height: 44px; vertical-align: middle; position: relative; transition: background 0.1s; }
+  .table-cards .td-cell:hover { background-color: #f8fafc; }
+  .table-cards .td-cell.is-next-column { background-color: rgba(35, 131, 226, 0.03); } 
+  .table-cards .past-event { opacity: 0.5; background-color: #fcfcfc; filter: grayscale(100%); }
+
+  /* ==========================================================
+     VUE LISTE (CSS GRID) - PAGINATION
+     ========================================================== */
+  .planning-grid-container {
+    display: grid;
+    /* grid-template-columns est injecté par JS */
+    grid-auto-rows: minmax(50px, auto); /* Compact : 50px min */
+    overflow: auto;
+    width: 100%;
+    height: 100%;
+    background: #fff;
+  }
+  .planning-grid-container::-webkit-scrollbar { width: 10px; height: 10px; }
+  .planning-grid-container::-webkit-scrollbar-track { background: #f8fafc; }
+  .planning-grid-container::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 5px; border: 2px solid #f8fafc; }
+
+  /* Cellules génériques */
+  .pg-cell {
+    background: white;
+    border-right: 1px solid #f1f5f9;
+    border-bottom: 1px solid #f1f5f9;
+    box-sizing: border-box;
+    display: flex; 
+    align-items: center; 
+    justify-content: center; 
+    padding: 0 4px;
+    font-size: 13px;
+    position: relative;
+    transition: background 0.1s;
+  }
+  
+  /* En-têtes (Ligne 1) */
+  .pg-header {
+    position: sticky; top: 0; z-index: 10;
+    background: #fff;
+    border-bottom: 1px solid #e2e8f0;
+    color: #475569;
+    font-weight: 700;
+    font-size: 12px;
+    text-align: center;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 8px;
+    line-height: 1.2;
+  }
+
+  /* Colonne Date (Colonne 1) */
+  .pg-date-col {
+    position: sticky; left: 0; z-index: 5;
+    background: #fff;
+    border-right: 2px solid #e2e8f0;
+    justify-content: flex-start !important;
+    padding: 0 !important;
+  }
+  .pg-date-col.is-next { border-left: 4px solid #2383E2; background: #f0f7ff; }
+  .pg-date-col.past-event { opacity: 0.6; background: #fafafa; }
+
+  /* Coin Haut-Gauche */
+  .pg-corner { position: sticky; top: 0; left: 0; z-index: 20; background: #fff; border-right: 2px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; }
+
+  /* Etats */
+  .pg-cell:hover { background-color: #f8fafc; }
+  .pg-cell.selected { background-color: rgba(35, 131, 226, 0.1) !important; border: 1px solid #2383E2; z-index: 2; }
+  .pg-cell.is-next-column { background-color: rgba(35, 131, 226, 0.03); }
+  .pg-cell.past-event { opacity: 0.5; background: #fcfcfc; }
+
+  /* ==========================================================
+     CONTENU & ESTHÉTIQUE
+     ========================================================== */
+  
+  /* DATE BOX (Design Unifié) */
+  .date-box { padding: 10px 4px; text-align: center; width: 100%; display: flex; flex-direction: column; gap: 4px; } 
+  .d-day { font-size: 11px; font-weight: 800; text-transform: uppercase; color: #64748b; letter-spacing: 1px; }
+  
+  /* Colonne Date+Heure (Vue Cards) */
+  .d-datetime-col { display: flex; flex-direction: column; align-items: center; gap: 2px; margin-bottom: 4px; }
+  
+  /* HEURE */
+  .meta-time { 
+    font-size: 14px; 
+    font-weight: 700; 
+    color: #0284c7; 
+    background: #e0f2fe; 
+    padding: 2px 8px; 
+    border-radius: 6px; 
+    cursor: pointer;
+    border: 1px solid transparent;
+  }
+  .meta-time:hover { background: #bae6fd; }
+  
+  /* TITRE CULTE */
+  .meta-title { font-size: 13px; color: #475569; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px; margin: 0 auto; cursor: pointer; padding: 2px 6px; border-radius: 4px; transition: background 0.1s; }
+  .meta-title:hover { background: #f1f5f9; color: #0f172a; }
+
+  /* NOMS (Cellules) */
+  .cell-content { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; } 
+  
+  .role-badge { 
+    font-size: 13px; /* Augmenté */
+    font-weight: 500;
+    color: #1e293b;
+    background: #fff;
+    border: 1px solid #cbd5e1;
+    padding: 4px 10px; 
+    border-radius: 14px; 
+    display: inline-block;
+    max-width: 95%;
+    white-space: nowrap; 
+    overflow: hidden; 
+    text-overflow: ellipsis;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    cursor: pointer;
+    transition: all 0.1s;
+  }
+  .role-badge:hover { border-color: #94a3b8; box-shadow: 0 2px 4px rgba(0,0,0,0.08); transform: translateY(-1px); }
+  
+  /* Style spécifique colonne active */
+  .is-next-column .role-badge { 
+    background: #fff; 
+    border-color: #93c5fd; 
+    color: #1d4ed8; 
+    font-weight: 600;
+    box-shadow: 0 1px 3px rgba(37, 99, 235, 0.1);
+  }
+
+  /* Bouton d'ajout (+) */
+  .cell-empty { opacity: 0; color: #cbd5e1; font-size: 18px; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: opacity 0.2s; }
+  .td-cell:hover .cell-empty, .pg-cell:hover .cell-empty { opacity: 1; }
+  .cell-empty:hover { color: #2383E2; transform: scale(1.2); }
+
+  @media (max-width: 768px) {
+    .planning-wrapper { height: calc(100dvh - 120px); } 
+    .planning-header { flex-direction: column; gap: 8px; align-items: flex-start; }
+    .ph-title { width: 100%; justify-content: space-between; }
+  }
+</style>
+
+<div class="container-fluid p-0 h-100">
+  <div class="planning-wrapper" id="planningWrapper" tabindex="0"> 
+    
+    <div class="planning-header">
+      <div class="ph-title">
+        Planning
+        <div class="view-switcher">
+           <button class="view-btn active" id="btn-view-cards" onclick="switchView('cards')"><i class="bi bi-layout-three-columns"></i></button>
+           <button class="view-btn" id="btn-view-list" onclick="switchView('list')"><i class="bi bi-table"></i></button>
+        </div>
+      </div>
+      <div class="d-flex align-items-center gap-2">
+         <button class="btn-filter" id="btnFilter" onclick="toggleFilterMenu(this)">
+            <i class="bi bi-funnel"></i> Filtre
+         </button>
+         <button class="btn-notion-new" id="btnAddDate" onclick="openAddEventPopup(this)">
+            <i class="bi bi-plus-lg"></i> Ajouter
+         </button>
+         <div class="d-flex gap-1 ms-2" id="navButtons">
+            <button class="btn btn-sm btn-light border-0" id="btn-prev" onclick="planningNav(-1)" style="padding: 2px 6px; color:#64748b;"><i class="bi bi-chevron-left"></i></button>
+            <button class="btn btn-sm btn-light border-0" id="btn-next" onclick="planningNav(1)" style="padding: 2px 6px; color:#64748b;"><i class="bi bi-chevron-right"></i></button>
+         </div>
+      </div>
+    </div>
+
+    <!-- CONTENEUR POLYMORPHE -->
+    <div class="matrix-container" id="matrixContainer">
+      <div id="planning-loader" class="loading-overlay hidden">
+        <div class="text-center">
+          <div class="spinner-border text-primary spinner-border-sm" role="status"></div>
+        </div>
+      </div>
+    </div>
+    
+  </div>
+</div>
+
+<!-- POPUPS -->
+<div id="namePopup" class="notion-popup" style="display:none; width: 220px;">
+    <div class="notion-popup-search"><input type="text" id="namePopupSearch" placeholder="Chercher une personne..." autocomplete="off"></div>
+    <div id="namePopupList" class="notion-list"></div>
+</div>
+<div id="timePopup" class="notion-popup" style="display:none; width: 240px; padding: 6px;">
+    <div class="notion-header">Horaires</div>
+    <div class="notion-grid" id="timePresetsContainer"></div>
+    <div class="notion-divider"></div>
+    <div class="d-flex align-items-center gap-2 p-2"><span class="small text-secondary">Manuel:</span><input type="time" id="customTimeInput" class="form-control form-control-sm border-0 bg-light" style="width: auto;" onchange="saveHeaderEdit(this.value)"></div>
+</div>
+<div id="titlePopup" class="notion-popup" style="display:none; width: 260px; padding: 10px;">
+    <div class="mb-2 small fw-bold text-secondary">Modifier le titre</div>
+    <textarea id="titleInputEditor" class="form-control doc-input small mb-2" rows="2" placeholder="Titre du culte..." onkeydown="if(event.key==='Enter'){event.preventDefault(); saveTitleEdit();}"></textarea>
+    <div class="text-end"><button class="btn btn-sm btn-dark py-0 px-2" style="font-size: 12px;" onclick="saveTitleEdit()">Valider</button></div>
+</div>
+<div id="addEventPopup" class="notion-popup" style="display:none; width: 240px; padding: 12px;">
+    <div class="mb-2 fw-bold small text-secondary">Nouvelle date</div>
+    <div class="mb-2"><input type="date" id="newEventDate" class="form-control form-control-sm border-0 bg-light"></div>
+    <div class="mb-3"><input type="time" id="newEventTime" class="form-control form-control-sm border-0 bg-light" value="09:30"></div>
+    <div class="text-end"><button class="btn btn-sm btn-primary-notion" onclick="submitNewEvent()">Créer</button></div>
+</div>
+<div id="filterMenu" class="notion-popup" style="display:none; width: 220px;">
+    <div class="p-2 border-bottom d-flex gap-1"><button class="btn btn-sm btn-light flex-fill" style="font-size: 10px;" onclick="toggleAllFilters(true)">Tout cocher</button><button class="btn btn-sm btn-light flex-fill" style="font-size: 10px;" onclick="toggleAllFilters(false)">Tout décocher</button></div>
+    <div id="filterListContainer" class="notion-list" style="max-height: 300px;"></div>
+</div>
+<div id="popupOverlay" style="display:none;" onclick="closePopups()"></div>

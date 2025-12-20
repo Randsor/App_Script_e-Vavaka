@@ -1,0 +1,19 @@
+<script>
+  // --- STATE MANAGEMENT GLOBAL ---
+  var APP_CONTEXT = ""; // 'TEMPLATE' ou 'PROGRAMME'
+  
+  // Données Globales exposées (pour que le SharedRenderer puisse les manipuler)
+  var DATA_TEMPLATE_BLOCKS = [];
+  var DATA_PROGRAMME_BLOCKS = [];
+
+  // Fonction pour agrandir les zones de texte automatiquement
+  function autoResize(textarea) {
+    textarea.style.height = 'auto';
+    textarea.style.height = (textarea.scrollHeight) + 'px';
+  }
+
+  // Appliquer autoResize sur tous les textareas existants au chargement
+  document.addEventListener("DOMContentLoaded", function() {
+     document.querySelectorAll('textarea').forEach(el => autoResize(el));
+  });
+</script>

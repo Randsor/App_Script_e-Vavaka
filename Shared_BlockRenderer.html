@@ -1,0 +1,293 @@
+<script>
+/**
+ * MOTEUR DE RENDU UNIFIÉ & LOGIQUE PARTAGÉE
+ * Version Sécurisée (Concaténation stricte)
+ */
+
+function getActiveDataArray() { return (APP_CONTEXT === 'TEMPLATE') ? DATA_TEMPLATE_BLOCKS : DATA_PROGRAMME_BLOCKS; }
+function getActiveContainerId() { return (APP_CONTEXT === 'TEMPLATE') ? 'blocksContainer' : 'docBlocksContainer'; }
+function refreshActiveView() { const data = getActiveDataArray(); const containerId = getActiveContainerId(); renderSharedBlocks(containerId, data, APP_CONTEXT); }
+
+// --- ACTIONS GLOBALES ---
+function removeBlock(index) { const data = getActiveDataArray(); data.splice(index, 1); refreshActiveView(); }
+function updateBlockField(index, field, value) { const data = getActiveDataArray(); if(data[index]) data[index][field] = value; }
+function updateBlockDataField(index, field, value) { const data = getActiveDataArray(); if(data[index]) { if(!data[index].data) data[index].data = {}; data[index].data[field] = value; } if(field === 'mode') refreshActiveView(); }
+
+// FONCTION DE RESET
+function resetSongBlock(index) {
+    const data = getActiveDataArray();
+    if(data[index]) {
+        data[index].data = { mode: 'recherche' }; 
+        refreshActiveView();
+    }
+}
+
+function insertBlock(type) {
+    if(typeof closeAllMenus === 'function') closeAllMenus();
+    else { 
+        const m = document.getElementById('insertMenu'); if(m) m.style.display = 'none'; 
+        const o = document.getElementById('menuOverlay'); if(o) o.style.display = 'none'; 
+    }
+    
+    const data = getActiveDataArray();
+    let insertIdx = (typeof window.insertIndex !== 'undefined') ? window.insertIndex : -1;
+    
+    let newBlock = { type: type, label_mg: "", label_fr: "", role: "", data: {} };
+    
+    if(type === 'TITRE') { newBlock.label_mg = "LOHATENIM-PIZARANA"; newBlock.label_fr = "Titre de section"; }
+    if(type === 'CHANT') { newBlock.label_mg = "HIRA"; newBlock.label_fr = "Chant"; newBlock.data.mode = 'recherche'; }
+    if(type === 'LECTURE') { newBlock.label_mg = "VAKITENY"; newBlock.label_fr = "Lecture Biblique"; }
+    if(type === 'LITURGIE') { newBlock.label_mg = "FIZARANA LITORJIKA"; newBlock.label_fr = "Rubrique liturgique"; }
+    if(type === 'PREDICATION') { newBlock.label_mg = "TORITENY"; newBlock.label_fr = "Prédication"; }
+    if(type === 'PRIERE') { newBlock.label_mg = "VAVAKA"; newBlock.label_fr = "Prière"; }
+    if(type === 'ANNONCE') { newBlock.label_mg = "FILAZAN-DRAHARAHA"; newBlock.label_fr = "Annonces"; }
+    if(type === 'LIBRE') { newBlock.label_mg = "INTERVENTION"; newBlock.label_fr = "Section libre"; }
+    if(type === 'TEXTE_LIBRE') { newBlock.label_mg = ""; newBlock.label_fr = ""; }
+    
+    if (insertIdx === -1) data.push(newBlock); else data.splice(insertIdx + 1, 0, newBlock);
+    refreshActiveView();
+}
+
+function openInsertMenu(index, btnElement) { window.insertIndex = index; openMenuAtElementGeneric('insertMenu', btnElement); }
+
+function openRoleMenu(index, btnElement) {
+    window.roleEditIndex = index;
+    let rawRoles = [];
+    if(APP_CONTEXT === 'TEMPLATE' && typeof rolesList !== 'undefined') rawRoles = rolesList;
+    else if(APP_CONTEXT === 'PROGRAMME' && typeof rolesListConfig !== 'undefined') rawRoles = rolesListConfig;
+    
+    const menu = document.getElementById('roleMenu'); 
+    menu.classList.add('scrollable-menu');
+    
+    const groups = {}; const noTypeKey = "AUTRES"; const seenNames = new Set();
+    const ALLOWED_TYPES = ['liturgie', 'secrétaire', 'secretaire', 'pasteur']; 
+    
+    rawRoles.forEach(r => {
+        if (!r.name || r.name.trim() === "") return;
+        if (seenNames.has(r.name)) return;
+        let typeClean = (r.type || "").toLowerCase().trim();
+        if (typeClean !== "" && !ALLOWED_TYPES.includes(typeClean)) return; 
+        seenNames.add(r.name);
+        const type = (r.type && r.type.trim() !== "") ? r.type : noTypeKey;
+        if(!groups[type]) groups[type] = [];
+        groups[type].push(r);
+    });
+    
+    let html = '<div class="dropdown-item text-muted fst-italic py-2 border-bottom" onclick="setSharedBlockRole(\'\')"><i class="bi bi-x-circle me-2"></i>(Aucun rôle)</div>';
+    
+    const sortedKeys = Object.keys(groups).sort();
+    if(sortedKeys.includes(noTypeKey)) { const idx = sortedKeys.indexOf(noTypeKey); sortedKeys.splice(idx, 1); sortedKeys.push(noTypeKey); }
+    
+    sortedKeys.forEach(groupName => {
+        html += '<h6 class="dropdown-header dropdown-header-sticky mt-2 mb-1 fw-bold bg-light text-uppercase" style="font-size:10px; letter-spacing:1px;">' + groupName + '</h6>';
+        groups[groupName].forEach(r => { html += '<div class="dropdown-item py-1" onclick="setSharedBlockRole(\'' + r.name + '\')" style="cursor:pointer;"><span style="font-size:13px;">' + r.name + '</span></div>'; });
+    });
+    
+    if (rawRoles.length === 0) html = '<div class="p-3 text-center text-muted small">Aucun rôle configuré.</div>';
+    menu.innerHTML = html;
+    openMenuAtElementGeneric('roleMenu', btnElement);
+}
+
+function setSharedBlockRole(roleName) { 
+    const data = getActiveDataArray(); 
+    const idx = window.roleEditIndex; 
+    if (idx > -1 && data[idx]) { data[idx].role = roleName; refreshActiveView(); } 
+    if(typeof closeAllMenus === 'function') closeAllMenus(); 
+}
+
+function openMenuAtElementGeneric(menuId, element) { 
+    if(typeof closeAllMenus === 'function') closeAllMenus(); 
+    const menu = document.getElementById(menuId); 
+    const overlay = document.getElementById('menuOverlay'); 
+    if(overlay) overlay.style.display = 'block'; 
+    if(menu) { 
+        menu.style.display = 'block'; 
+        menu.style.visibility = 'hidden'; 
+        const rect = element.getBoundingClientRect(); 
+        const menuHeight = menu.offsetHeight || 200; 
+        if (rect.bottom + menuHeight > window.innerHeight - 20) menu.style.top = (rect.top - menuHeight) + 'px'; 
+        else menu.style.top = rect.bottom + 'px'; 
+        menu.style.left = rect.left + 'px'; 
+        menu.style.position = 'fixed'; 
+        menu.style.visibility = 'visible'; 
+    } 
+}
+
+// --- RENDERER PRINCIPAL ---
+function renderSharedBlocks(containerId, blocks, context) {
+    const container = document.getElementById(containerId);
+    if(!container) return;
+    container.innerHTML = "";
+    
+    if (blocks.length === 0) {
+        if(context === 'TEMPLATE') { const msg = document.getElementById('emptyTplMsg'); if(msg) msg.classList.remove('hidden'); } 
+        else { container.innerHTML = '<div class="text-center text-muted fst-italic py-5">Aucun élément dans le programme.</div>'; }
+        return;
+    }
+    if(context === 'TEMPLATE') { const msg = document.getElementById('emptyTplMsg'); if(msg) msg.classList.add('hidden'); }
+
+    blocks.forEach((block, index) => {
+        let badgeClass = "bg-secondary-subtle text-secondary";
+        if (block.type === 'CHANT') badgeClass = "bg-primary-subtle text-primary";
+        if (block.type === 'LECTURE') badgeClass = "bg-success-subtle text-success";
+        if (block.type === 'PREDICATION') badgeClass = "bg-danger-subtle text-danger";
+        if (block.type === 'LITURGIE') badgeClass = "bg-warning-subtle text-warning-emphasis";
+        if (block.type === 'PRIERE') badgeClass = "bg-info-subtle text-info-emphasis";
+        if (block.type === 'ANNONCE') badgeClass = "bg-dark-subtle text-dark";
+        if (block.type === 'TITRE') badgeClass = "bg-light text-secondary border";
+
+        let roleHTML = "";
+        if (block.type !== 'TITRE' && block.type !== 'CHANT') {
+            let displayRole = block.role || "(Sans rôle)";
+            let roleClass = block.role ? "text-dark fw-medium" : "text-muted fst-italic";
+            roleHTML = '<div class="cursor-pointer ' + roleClass + ' me-2 d-flex align-items-center gap-1 small" onclick="openRoleMenu(' + index + ', this)" style="font-size:0.75rem; white-space:nowrap;">' + displayRole + ' <i class="bi bi-chevron-down opacity-50" style="font-size:8px;"></i></div>';
+        }
+
+        let extraFields = "";
+        let contentStyle = 'style="font-size:14px; resize:none; overflow-y:hidden;"';
+        let isProg = (context === 'PROGRAMME');
+
+        // --- TYPE: CHANT ---
+        if (block.type === 'CHANT') {
+             let titleRow = '<div class="d-flex align-items-baseline gap-2 w-100 flex-wrap">';
+             titleRow += '<input type="text" class="form-control doc-input input-mg p-0" style="width: auto;" value="' + block.label_mg + '" placeholder="TITRE MG" onchange="updateBlockField(' + index + ', \'label_mg\', this.value)">';
+             titleRow += '<input type="text" class="form-control doc-input input-fr p-0" style="width: auto;" value="' + block.label_fr + '" placeholder="Titre FR" onchange="updateBlockField(' + index + ', \'label_fr\', this.value)">';
+             titleRow += '</div>';
+             
+             let content = "";
+             let mode = block.data?.mode || "recherche";
+             
+             // CAS 1 : CHANT SÉLECTIONNÉ OU SAISIE LIBRE (Mode Fixe)
+             if (mode === 'fixe' || block.data?.paroles_fixe) {
+                 let songInfo = "";
+                 
+                 let isFromDB = !!block.data?.id;
+                 let readonlyAttr = isFromDB ? "readonly" : "";
+                 let bgClass = isFromDB ? "bg-light" : "bg-white";
+                 
+                 if(isFromDB && block.data?.recueil) {
+                     let numStr = block.data.numero;
+                     let rec = block.data.recueil;
+                     let formattedNum = numStr;
+                     if(rec === 'Fihirana') formattedNum = String(numStr).padStart(3, '0');
+                     else if(rec === 'Fihirana Fanampiny') formattedNum = 'FF ' + numStr;
+                     else if(rec === 'Antema') formattedNum = 'AN ' + numStr;
+                     else if(rec === 'Tsanta') formattedNum = 'TS ' + numStr;
+
+                     let tonaliteHtml = block.data.tonalite 
+                        ? '<span class="ms-2 border border-secondary text-secondary rounded fw-bold px-2" style="font-size:11px !important; padding-top:2px; padding-bottom:2px; background-color:#fff;">' + block.data.tonalite + '</span>' 
+                        : '';
+                     
+                     let tradBadge = "";
+                     if (block.data.transStatus && block.data.transStatus !== 'ok') {
+                         if(block.data.transStatus === 'partial') {
+                             tradBadge = '<span class="ms-1 border border-warning text-dark rounded fw-bold px-2 bg-warning bg-opacity-10" style="font-size:11px !important; padding-top:2px; padding-bottom:2px;">Trad. Partielle</span>';
+                         } else if(block.data.transStatus === 'none') {
+                             tradBadge = '<span class="ms-1 border border-danger text-danger rounded fw-bold px-2 bg-danger bg-opacity-10" style="font-size:11px !important; padding-top:2px; padding-bottom:2px;">Non traduit</span>';
+                         }
+                     }
+
+                     let stanzaDisplay = "";
+                     if (block.data.sequenceSummary && block.data.sequenceSummary !== 'Tout') {
+                         stanzaDisplay = '<span class="text-secondary ms-1" style="font-size:13px; font-weight:400;">: ' + block.data.sequenceSummary + '</span>';
+                     }
+
+                     songInfo = '<div class="mt-1 mb-1 d-flex align-items-center justify-content-between">';
+                     songInfo += '<div class="d-flex align-items-center gap-2 flex-wrap">';
+                     songInfo += '<span class="fw-bold text-primary" style="font-size:15px;">' + formattedNum + '</span>';
+                     songInfo += stanzaDisplay;
+                     songInfo += '<div class="vr mx-1 opacity-25"></div>';
+                     songInfo += '<div class="small fw-bold text-dark">' + block.data.titre + '</div>';
+                     songInfo += tonaliteHtml + tradBadge;
+                     songInfo += '</div>';
+                     songInfo += '<button class="btn btn-sm btn-light border py-0" style="font-size:10px;" onclick="openSongSelector(' + index + ')">Changer</button>';
+                     songInfo += '</div>';
+                 }
+                 
+                 content = songInfo;
+                 content += '<div class="row g-2 mt-1 border-start ps-2 ms-1">';
+                 content += '<div class="col-6"><textarea class="form-control doc-input ' + bgClass + '" rows="2" ' + contentStyle + ' ' + readonlyAttr + ' placeholder="Paroles MG..." oninput="autoResize(this)" onchange="updateBlockDataField(' + index + ', \'paroles_fixe\', this.value)">' + (block.data?.paroles_fixe || '') + '</textarea></div>';
+                 content += '<div class="col-6"><textarea class="form-control doc-input text-secondary ' + bgClass + '" rows="2" ' + contentStyle + ' ' + readonlyAttr + ' placeholder="Traduction..." oninput="autoResize(this)" onchange="updateBlockDataField(' + index + ', \'paroles_fr_fixe\', this.value)">' + (block.data?.paroles_fr_fixe || '') + '</textarea></div>';
+                 content += '</div>';
+             } 
+             else {
+                 if (isProg) {
+                     content = '<div class="d-grid gap-2 d-md-flex mt-2">';
+                     content += '<button class="btn btn-sm btn-outline-primary shadow-sm" onclick="openSongSelector(' + index + ')"><i class="bi bi-search me-2"></i>Choisir dans la liste</button>';
+                     content += '<button class="btn btn-sm btn-outline-secondary shadow-sm" onclick="updateBlockDataField(' + index + ', \'mode\', \'fixe\')"><i class="bi bi-pencil-square me-2"></i>Saisie libre</button>';
+                     content += '</div>';
+                 } else {
+                     content = '<div class="text-muted small fst-italic mt-1 ms-1"><i class="bi bi-search me-1"></i>Recherche biblio (Mode Programme)</div>';
+                 }
+             }
+             
+             let isManual = !block.data?.id;
+             let toggleLibre = '<div class="form-check form-switch mt-1 mb-0 no-print" style="font-size:0.65rem;"><input class="form-check-input" type="checkbox" style="width: 1.5em; height: 0.8em;" ' + (mode === 'fixe' && isManual ? 'checked' : '') + ' onchange="if(this.checked) { updateBlockDataField(' + index + ', \'id\', \'\'); updateBlockDataField(' + index + ', \'mode\', \'fixe\'); } else { updateBlockDataField(' + index + ', \'mode\', \'recherche\'); }"><label class="form-check-label text-muted">Chant libre (Saisie manuelle)</label></div>';
+
+             extraFields = '<div>' + titleRow + toggleLibre + content + '</div>';
+        }
+        // --- AUTRES TYPES ---
+        else if (block.type === 'LECTURE') {
+            extraFields = '<div class="row g-3 mt-1 border-start ps-2 ms-1">';
+            extraFields += '<div class="col-6"><input type="text" class="form-control doc-input fw-bold mb-1" ' + contentStyle + ' placeholder="Toko sy andininy" value="' + (block.data?.ref_mg || '') + '" onchange="updateBlockDataField(' + index + ', \'ref_mg\', this.value)">';
+            extraFields += isProg ? '<textarea class="form-control doc-input" rows="3" ' + contentStyle + ' placeholder="Texte Biblique MG..." oninput="autoResize(this)" onchange="updateBlockDataField(' + index + ', \'texte_mg\', this.value)">' + (block.data?.texte_mg || '') + '</textarea>' : '<textarea class="form-control doc-input text-muted" rows="1" disabled placeholder="(Texte Biblique MG)">' + (block.data?.texte_mg || '') + '</textarea>';
+            extraFields += '</div><div class="col-6"><input type="text" class="form-control doc-input fw-bold mb-1 text-secondary" ' + contentStyle + ' placeholder="Référence biblique" value="' + (block.data?.ref_fr || '') + '" onchange="updateBlockDataField(' + index + ', \'ref_fr\', this.value)">';
+            extraFields += isProg ? '<textarea class="form-control doc-input text-secondary" rows="3" ' + contentStyle + ' placeholder="Texte Biblique FR..." oninput="autoResize(this)" onchange="updateBlockDataField(' + index + ', \'texte_fr\', this.value)">' + (block.data?.texte_fr || '') + '</textarea>' : '<textarea class="form-control doc-input text-muted" rows="1" disabled placeholder="(Texte Biblique FR)">' + (block.data?.texte_fr || '') + '</textarea>';
+            extraFields += '</div></div>';
+        }
+        else if (['LITURGIE', 'LIBRE', 'PRIERE', 'TEXTE_LIBRE'].includes(block.type)) {
+            let versetInput = (block.type === 'LITURGIE') ? '<input type="text" class="form-control doc-input fw-bold text-primary mb-1" ' + contentStyle + ' placeholder="Verset..." value="' + (block.data?.verset || '') + '" onchange="updateBlockDataField(' + index + ', \'verset\', this.value)">' : '';
+            let rows = isProg ? '2' : '1';
+            let txtMG = '<textarea class="form-control doc-input" rows="' + rows + '" ' + contentStyle + ' placeholder="Texte MG..." oninput="autoResize(this)" onchange="updateBlockDataField(' + index + ', \'texte_mg\', this.value)">' + (block.data?.texte_mg || '') + '</textarea>';
+            let txtFR = '<textarea class="form-control doc-input text-secondary" rows="' + rows + '" ' + contentStyle + ' placeholder="Texte FR..." oninput="autoResize(this)" onchange="updateBlockDataField(' + index + ', \'texte_fr\', this.value)">' + (block.data?.texte_fr || '') + '</textarea>';
+            
+            extraFields = '<div class="mt-1 ps-3 border-start border-2 border-light">' + versetInput + '<div class="row g-2"><div class="col-6">' + txtMG + '</div><div class="col-6">' + txtFR + '</div></div></div>';
+            
+            if(block.type === 'TEXTE_LIBRE') {
+                extraFields = '<div class="row g-2"><div class="col-6">' + txtMG + '</div><div class="col-6">' + txtFR + '</div></div>';
+            }
+        }
+        else if (block.type === 'TITRE') {
+             extraFields = '<input type="text" class="form-control doc-input text-muted fst-italic mt-0" style="font-size:14px;" placeholder="Commentaire..." value="' + (block.data?.comment || '') + '" onchange="updateBlockDataField(' + index + ', \'comment\', this.value)">'; 
+        }
+        else if (block.type === 'PREDICATION') {
+             extraFields = '<div class="mt-1 d-flex gap-2 text-muted small"><span class="badge bg-light text-secondary border fw-normal">Lohateny</span><span class="badge bg-light text-secondary border fw-normal">Thème</span></div>'; 
+        }
+        else if (block.type === 'ANNONCE') {
+             extraFields = '<div class="mt-1 text-muted small fst-italic ms-1" style="font-size:12px;"><i class="bi bi-link-45deg me-1"></i>Lien automatique Module Nouvelles</div>'; 
+        }
+
+        const mainContent = (block.type === 'CHANT' || block.type === 'TEXTE_LIBRE') 
+            ? extraFields 
+            : '<input type="text" class="form-control doc-input input-mg p-0" value="' + block.label_mg + '" placeholder="TITRE MG" onchange="updateBlockField(' + index + ', \'label_mg\', this.value)"><input type="text" class="form-control doc-input input-fr p-0" value="' + block.label_fr + '" placeholder="Titre FR" onchange="updateBlockField(' + index + ', \'label_fr\', this.value)">';
+
+        const bottomContent = (block.type !== 'CHANT' && block.type !== 'TEXTE_LIBRE') ? '<div class="ps-1">' + extraFields + '</div>' : '';
+
+        let resetBtn = "";
+        if (block.type === 'CHANT' && (block.data?.id || block.data?.mode === 'fixe')) {
+            resetBtn = '<i class="bi bi-arrow-counterclockwise text-secondary opacity-50 hover-opacity-100 cursor-pointer small ms-2" onclick="resetSongBlock(' + index + ')" title="Réinitialiser le chant"></i>';
+        }
+
+        container.innerHTML += '<div class="item-wrapper group-bloc position-relative hover-bg" data-index="' + index + '" style="display: block !important; margin-bottom: 13px !important; border-bottom: none !important;">' +
+            '<div class="d-flex align-items-start gap-2 ps-0 pe-2 w-100 py-1">' +
+              '<div class="drag-handle pt-1 no-print" style="width: 30px; cursor: grab;" title="Déplacer"><i class="bi bi-grip-vertical"></i></div>' +
+              '<div class="flex-grow-1" style="min-width: 0;">' +
+                 '<div class="d-flex justify-content-between align-items-start mb-0">' +
+                    '<div class="flex-grow-1">' + mainContent + '</div>' +
+                    '<div class="d-flex align-items-center ms-3 pt-1">' +
+                        roleHTML +
+                        '<span class="badge rounded-1 fw-normal border ' + badgeClass + '" style="font-size:9px; padding: 2px 4px;">' + block.type + '</span>' +
+                        resetBtn +
+                        '<i class="bi bi-x-lg text-danger opacity-0 hover-opacity-100 cursor-pointer small ms-2 no-print" onclick="removeBlock(' + index + ')" title="Supprimer"></i>' +
+                    '</div>' +
+                 '</div>' +
+                 bottomContent +
+              '</div>' +
+            '</div>' +
+            '<div class="add-zone-line no-print" style="bottom: -7px;" onclick="openInsertMenu(' + index + ', this)"><div class="plus-icon"><i class="bi bi-plus"></i></div></div>' +
+        '</div>';
+    });
+    
+    document.querySelectorAll('textarea').forEach(el => autoResize(el));
+}
+</script>

@@ -1,0 +1,183 @@
+<script>
+  let rolesList = []; 
+  // NOUVEAU : Mémoire vive pour le Template actif
+  let CURRENT_TPL_DATA = null;
+
+  document.addEventListener("DOMContentLoaded", function() {
+    loadTemplatesList();
+    loadRolesForTemplates();
+    
+    // EVENTS
+    ['insertMenu', 'menuOverlay', 'roleMenu'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el && el.parentElement !== document.body) document.body.appendChild(el);
+    });
+
+    document.addEventListener('click', function(e) {
+        const overlay = document.getElementById('menuOverlay');
+        if (e.target === overlay) closeAllMenus();
+    });
+    
+    document.addEventListener('keydown', function(e) {
+        if (e.key === "Escape") closeAllMenus();
+    });
+
+    const el = document.getElementById('blocksContainer');
+    if (el) {
+        new Sortable(el, { 
+            animation: 150, draggable: '.item-wrapper', handle: '.drag-handle', 
+            ghostClass: 'sortable-ghost', forceFallback: true, 
+            onEnd: function(evt) {
+                const item = DATA_TEMPLATE_BLOCKS.splice(evt.oldIndex, 1)[0];
+                DATA_TEMPLATE_BLOCKS.splice(evt.newIndex, 0, item);
+                renderSharedBlocks('blocksContainer', DATA_TEMPLATE_BLOCKS, 'TEMPLATE');
+            }
+        });
+    }
+  });
+
+  // --- LOGIQUE METIER ---
+
+  function loadTemplatesList() { 
+      google.script.run.withSuccessHandler(list => { 
+          const container = document.getElementById('templatesList'); 
+          container.innerHTML = ""; 
+          list.forEach(t => container.innerHTML += `<button class="list-group-item list-group-item-action border-0 py-3 px-3 border-bottom text-start" onclick="loadTemplate('${t.id}')"><span class="fw-bold text-dark" style="font-size: 14px;">${t.nom}</span></button>`); 
+      }).getTemplatesList();
+  }
+
+  function loadRolesForTemplates() { 
+      google.script.run.withSuccessHandler(data => { rolesList = data.roles || []; }).getConfigData();
+  }
+  
+  function loadTemplate(id) { 
+      APP_CONTEXT = 'TEMPLATE';
+      showMobileEditor(); 
+      
+      // Placement Header
+      const sharedHeader = document.getElementById('sharedHeaderRoot');
+      const placeholder = document.getElementById('templateHeaderPlaceholder');
+      if(sharedHeader && placeholder) placeholder.appendChild(sharedHeader);
+
+      // Reset visuel immédiat
+      if(typeof resetSharedHeader === 'function') resetSharedHeader();
+
+      google.script.run.withSuccessHandler(tpl => { 
+          // 1. Stockage en mémoire vive
+          CURRENT_TPL_DATA = tpl;
+          try { 
+              const parsed = JSON.parse(tpl.structure);
+              CURRENT_TPL_DATA.parsedSettings = parsed.settings || {};
+              DATA_TEMPLATE_BLOCKS = parsed.blocks || []; 
+          } catch(e) { 
+              CURRENT_TPL_DATA.parsedSettings = {};
+              DATA_TEMPLATE_BLOCKS = [];
+          }
+
+          // 2. Affichage
+          restoreTemplateHeader(); // Utilisation de la fonction partagée
+          renderSharedBlocks('blocksContainer', DATA_TEMPLATE_BLOCKS, 'TEMPLATE');
+
+      }).getTemplateDetails(id); 
+  }
+
+  function createNewTemplate() { 
+      APP_CONTEXT = 'TEMPLATE';
+      
+      const sharedHeader = document.getElementById('sharedHeaderRoot');
+      const placeholder = document.getElementById('templateHeaderPlaceholder');
+      if(sharedHeader && placeholder) placeholder.appendChild(sharedHeader);
+
+      if(typeof resetSharedHeader === 'function') resetSharedHeader();
+      showMobileEditor(); 
+      
+      // Init mémoire vide
+      CURRENT_TPL_DATA = { id: "", rowIndex: "", nom: "", parsedSettings: { publicTitle: "FANOMPOAM-PIVAVAHANA" } };
+      DATA_TEMPLATE_BLOCKS = []; 
+      
+      restoreTemplateHeader();
+      renderSharedBlocks('blocksContainer', DATA_TEMPLATE_BLOCKS, 'TEMPLATE');
+      
+      const nameInput = document.getElementById('tplName'); 
+      if(nameInput) nameInput.focus(); 
+  }
+
+  // NOUVELLE FONCTION CRITIQUE : Restaure les données visuelles depuis la mémoire
+  function restoreTemplateHeader() {
+      if(!CURRENT_TPL_DATA) return;
+      
+      // Champs spécifiques Template
+      safeSetValue('tplId', CURRENT_TPL_DATA.id); 
+      safeSetValue('tplRowIndex', CURRENT_TPL_DATA.rowIndex); 
+      safeSetValue('tplName', CURRENT_TPL_DATA.nom); 
+      document.getElementById('headerDateDisplay').innerText = "DATE AUTOMATIQUE";
+
+      // Champs Header Partagé
+      const settings = CURRENT_TPL_DATA.parsedSettings || {};
+      safeSetValue('commonTitleInput', settings.publicTitle || ""); 
+      safeSetValue('commonSubtitleInput', settings.subTitle || ""); 
+      
+      // Rôles
+      renderSharedRoles('TEMPLATE', rolesList, settings.requiredRoles || []);
+  }
+
+  function saveTemplate() { 
+      const nomAdmin = safeGetValue('tplName');
+      if(!nomAdmin) { alert("Nom obligatoire !"); return; } 
+      document.getElementById('saveStatus').innerText = "Sauvegarde..."; 
+      
+      const selectedRoles = [];
+      document.querySelectorAll('.role-check:checked').forEach(chk => selectedRoles.push(chk.value)); 
+      
+      const templateData = { 
+          settings: { 
+              publicTitle: safeGetValue('commonTitleInput'), 
+              subTitle: safeGetValue('commonSubtitleInput'), 
+              requiredRoles: selectedRoles 
+          }, 
+          blocks: DATA_TEMPLATE_BLOCKS 
+      };
+
+      // Mise à jour mémoire locale pour consistance immédiate
+      if(CURRENT_TPL_DATA) {
+          CURRENT_TPL_DATA.nom = nomAdmin;
+          CURRENT_TPL_DATA.parsedSettings = templateData.settings;
+      }
+
+      const form = { rowIndex: safeGetValue('tplRowIndex'), nom: nomAdmin, structure: JSON.stringify(templateData) }; 
+      google.script.run.withSuccessHandler(msg => { 
+          document.getElementById('saveStatus').innerText = "Enregistré"; 
+          loadTemplatesList(); 
+      }).saveTemplateBackend(form);
+  }
+
+  // --- UTILS ---
+  function closeAllMenus() { 
+      document.getElementById('insertMenu').style.display = 'none'; 
+      document.getElementById('roleMenu').style.display = 'none'; 
+      document.getElementById('menuOverlay').style.display = 'none';
+  }
+  function deleteCurrentTemplate() { 
+      if(!confirm("Supprimer ?")) return; 
+      const id = safeGetValue('tplId'); 
+      google.script.run.withSuccessHandler(msg => { loadTemplatesList(); createNewTemplate(); }).deleteTemplateBackend(id);
+  }
+  function safeSetValue(id, value) { const el = document.getElementById(id); if (el) el.value = value || ""; }
+  function safeGetValue(id) { const el = document.getElementById(id); return el ? el.value : ""; }
+  function showMobileEditor() { 
+      if (window.innerWidth < 768) {
+          document.getElementById('panel-list').classList.add('d-none');
+          document.getElementById('panel-editor').classList.remove('d-none');
+      } else {
+          document.getElementById('panel-list').classList.remove('d-none');
+          document.getElementById('panel-editor').classList.remove('d-none');
+          document.getElementById('emptyStatePanel').classList.add('d-none');
+      }
+      document.getElementById('panel-editor').style.setProperty('display', 'flex', 'important'); 
+  }
+  function showMobileList() { 
+      document.getElementById('panel-list').classList.remove('d-none');
+      document.getElementById('panel-editor').classList.add('d-none'); 
+  }
+</script>
+<style>.sortable-ghost { opacity: 0.2; transform: scale(0.95); }</style>

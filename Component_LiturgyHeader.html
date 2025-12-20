@@ -1,0 +1,234 @@
+<div id="sharedHeaderRoot" class="mb-5 mx-auto" style="max-width: 1000px;">
+    
+    <div class="mb-4">
+        <input type="text" id="commonTitleInput" class="form-control border-0 p-0 shadow-none text-dark fw-bold mb-2" 
+               style="font-size: 2.5rem; letter-spacing: -1px;" placeholder="Grand Titre">
+        <input type="text" id="commonSubtitleInput" class="form-control border-0 p-0 shadow-none text-secondary fw-normal mb-4" 
+               style="font-size: 1.25rem;" placeholder="Sous-titre (ex: ALAHADY MANOKANA)">
+    </div>
+
+    <div id="templateInfoBlock" class="ps-3 border-start border-4 border-light mb-5 d-none">
+        <div class="d-flex align-items-center mb-2 text-muted small">
+            <span style="width: 80px;" class="fw-bold text-secondary"><i class="bi bi-calendar3 me-2"></i>Date</span>
+            <span class="badge bg-light text-secondary border fw-normal">Automatique</span>
+        </div>
+        <div class="d-flex align-items-center mb-1 text-muted small">
+            <span style="width: 80px;" class="fw-bold text-secondary"><i class="bi bi-translate me-2"></i>Thème</span>
+            <span class="fst-italic text-black-50">Sera défini dans le programme</span>
+        </div>
+    </div>
+
+    <div id="programmeInfoBlock" class="ps-3 border-start border-4 border-dark mb-5 d-none">
+        <div class="d-flex align-items-center mb-2 text-muted small">
+            <span style="width: 80px;" class="fw-bold text-secondary"><i class="bi bi-calendar3 me-2"></i>Date</span>
+            <span id="headerDateDisplay" class="fw-bold text-dark text-uppercase" style="letter-spacing: 0.5px;"></span>
+        </div>
+        <div class="d-flex align-items-start text-muted small">
+            <span style="width: 80px; padding-top:4px;" class="fw-bold text-secondary"><i class="bi bi-translate me-2"></i>Thème</span>
+            <div class="flex-grow-1 d-flex flex-column gap-1">
+                <input type="text" id="docThemeMG" class="form-control form-control-sm border-0 bg-light fw-medium text-dark px-2" placeholder="Thème en Malgache...">
+                <input type="text" id="docThemeFR" class="form-control form-control-sm border-0 bg-white fst-italic text-secondary px-2" placeholder="Thème en Français...">
+            </div>
+        </div>
+    </div>
+
+    <div class="border rounded mb-5 overflow-hidden">
+        <div class="bg-light px-3 py-2 d-flex justify-content-between align-items-center cursor-pointer" 
+             onclick="toggleTeamAccordion(event)">
+            
+            <div class="d-flex align-items-center gap-3">
+                <span class="text-start text-secondary fw-bold small" style="font-size: 0.75rem; letter-spacing: 0.5px;">
+                    <i class="bi bi-people me-2"></i>PARTICIPANTS <span id="lblParticipantsType">REQUIS</span>
+                </span>
+                
+                <div id="headerTimeSwitcherContainer" class="d-flex gap-1"></div>
+            </div>
+
+            <div class="d-flex align-items-center gap-2">
+                <div class="form-check form-switch m-0" title="Tout sélectionner" id="containerMasterSwitch">
+                     <input class="form-check-input" type="checkbox" id="masterRoleSwitch" onchange="toggleAllRoles(this.checked)">
+                </div>
+                <i class="bi bi-chevron-down text-muted ms-2"></i>
+            </div>
+        </div>
+        <div id="collapseTeam" class="collapse show bg-white">
+            <div class="p-3">
+                 <div class="row gx-4 gy-2" id="rolesCheckboxesContainer">
+                    <div class="text-center w-100 text-muted py-2"><div class="spinner-border spinner-border-sm"></div></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <hr class="my-5 mx-auto opacity-25" style="max-width: 100px; border-top: 2px solid #ddd;">
+</div>
+
+<script>
+/**
+ * NOUVELLE FONCTION : Gestion intelligente du pliage/dépliage
+ * Empêche le header de se fermer si on clique sur les boutons horaires ou switchs
+ */
+function toggleTeamAccordion(e) {
+    // 1. Identification des zones "interdites" (qui ne doivent pas fermer l'accordéon)
+    // On vérifie si l'élément cliqué est à l'intérieur du switcher horaire ou du switch master
+    if (e.target.closest('#headerTimeSwitcherContainer') || 
+        e.target.closest('#containerMasterSwitch') ||
+        e.target.tagName === 'INPUT' || // Sécurité pour les inputs directs
+        e.target.tagName === 'BUTTON') { // Sécurité pour les boutons
+        return; 
+    }
+
+    // 2. Action manuelle sur l'accordéon Bootstrap
+    const collapseEl = document.getElementById('collapseTeam');
+    if (collapseEl && window.bootstrap) {
+        const bsCollapse = bootstrap.Collapse.getOrCreateInstance(collapseEl, { toggle: false });
+        bsCollapse.toggle();
+    }
+}
+
+/**
+ * NETTOYAGE COMPLET DU HEADER
+ */
+function resetSharedHeader() {
+    const ids = ['commonTitleInput', 'commonSubtitleInput', 'docThemeMG', 'docThemeFR', 'headerDateDisplay'];
+    ids.forEach(id => {
+        const el = document.getElementById(id);
+        if(el) { if(el.tagName === 'INPUT') el.value = ""; else el.innerText = ""; }
+    });
+    if(document.getElementById('masterRoleSwitch')) document.getElementById('masterRoleSwitch').checked = false;
+    
+    // Nettoyage conteneurs
+    const container = document.getElementById('rolesCheckboxesContainer');
+    if(container) container.innerHTML = "";
+    const timeContainer = document.getElementById('headerTimeSwitcherContainer');
+    if(timeContainer) timeContainer.innerHTML = "";
+}
+
+/**
+ * MISE EN PAGE DU HEADER
+ */
+function updateHeaderLayout(mode) {
+    const isProg = (mode === 'PROGRAMME');
+    const lblType = document.getElementById('lblParticipantsType');
+    if(lblType) lblType.innerText = isProg ? "DU CULTE" : "REQUIS";
+    
+    const tplBlock = document.getElementById('templateInfoBlock');
+    const progBlock = document.getElementById('programmeInfoBlock');
+    const masterSw = document.getElementById('containerMasterSwitch');
+
+    if(isProg) {
+        if(tplBlock) tplBlock.classList.add('d-none');
+        if(progBlock) progBlock.classList.remove('d-none');
+        if(masterSw) masterSw.classList.add('d-none');
+    } else {
+        if(tplBlock) tplBlock.classList.remove('d-none');
+        if(progBlock) progBlock.classList.add('d-none');
+        if(masterSw) masterSw.classList.remove('d-none');
+    }
+}
+
+/**
+ * Rendu des Rôles (SÉCURISÉ CONTRE DUPLICATIONS)
+ */
+function renderSharedRoles(mode, rolesConfig, selectedRoles = [], assignments = {}) {
+    updateHeaderLayout(mode);
+    const container = document.getElementById('rolesCheckboxesContainer');
+    if(!container) return;
+    
+    // 1. NETTOYAGE AGRESSIF
+    container.innerHTML = "";
+    if (!rolesConfig || rolesConfig.length === 0) { 
+        container.innerHTML = '<div class="text-muted p-2 small fst-italic">Aucun rôle configuré dans l\'Admin.</div>';
+        return; 
+    }
+
+    // 2. DÉ-DOUBLONNAGE (Sécurité supplémentaire)
+    const uniqueRoles = [];
+    const seenNames = new Set();
+    rolesConfig.forEach(r => {
+        if (!seenNames.has(r.name)) {
+            seenNames.add(r.name);
+            uniqueRoles.push(r);
+        }
+    });
+    const isProg = (mode === 'PROGRAMME');
+    const half = Math.ceil(uniqueRoles.length / 2);
+    const col1List = uniqueRoles.slice(0, half);
+    const col2List = uniqueRoles.slice(half);
+
+    const buildListHTML = (list) => {
+        let html = "";
+        list.forEach(roleObj => {
+            const roleName = roleObj.name;
+            const roleType = roleObj.type;
+            const safeId = "role_" + roleName.replace(/[^a-zA-Z0-9]/g, '');
+            const isChecked = selectedRoles.includes(roleName);
+            
+            // Badges
+            let badgeClass = "bg-light text-secondary border";
+            if (roleType === 'Technique') badgeClass = "bg-danger bg-opacity-10 text-danger border-danger border-opacity-25";
+            if (roleType === 'Liturgie') badgeClass = "bg-primary bg-opacity-10 text-primary border-primary border-opacity-25";
+            if (roleType === 'Musiciens') badgeClass = "bg-success bg-opacity-10 text-success border-success border-opacity-25";
+
+            let rightContent = "";
+            let rowOpacity = isChecked ? '1' : '0.7';
+            
+            if (isProg) {
+                const personName = assignments[roleName] || "";
+                const nameStyle = personName ? "font-weight:600; color:#333;" : "font-style:italic; color:#999;";
+                const displayText = personName || "(Non assigné)";
+                rightContent = `<div class="ms-auto text-end small" style="font-size:0.8rem; ${nameStyle}">${displayText}</div>`;
+                if(!isChecked && !personName) rowOpacity = '0.5'; 
+            }
+
+            html += `
+            <div class="d-flex align-items-center mb-1 p-1 ps-2 border rounded role-item bg-white" 
+                 style="opacity:${rowOpacity}; transition:0.2s; border-color: ${isChecked ? '#cbd5e1' : '#f1f5f9'} !important;">
+                <div class="form-check form-switch m-0 me-2" style="min-height:auto;">
+                    <input class="form-check-input role-check" type="checkbox" role="switch" 
+                           value="${roleName}" id="${safeId}" ${isChecked ? 'checked' : ''} 
+                           onchange="toggleRoleStyle(this)">
+                </div>
+                <label class="form-check-label small d-flex align-items-center flex-wrap gap-2 cursor-pointer flex-grow-1" for="${safeId}">
+                    <span class="role-label ${isChecked ? 'fw-bold text-dark' : 'fw-normal text-secondary'}" style="font-size:0.8rem;">${roleName}</span>
+                    <span class="badge ${badgeClass}" style="font-size:8px; padding:2px 4px; font-weight:normal;">${roleType}</span>
+                </label>
+                ${rightContent}
+            </div>`;
+        });
+        return html;
+    };
+
+    container.innerHTML = `<div class="col-md-6">${buildListHTML(col1List)}</div><div class="col-md-6">${buildListHTML(col2List)}</div>`;
+    if(!isProg) updateMasterSwitch();
+}
+
+function toggleRoleStyle(checkbox) {
+    const row = checkbox.closest('.role-item');
+    const labelSpan = row.querySelector('.role-label');
+    
+    if(checkbox.checked) {
+        labelSpan.classList.remove('fw-normal', 'text-secondary'); labelSpan.classList.add('fw-bold', 'text-dark');
+        row.style.opacity = '1'; row.style.borderColor = '#cbd5e1 !important';
+    } else {
+        labelSpan.classList.add('fw-normal', 'text-secondary'); labelSpan.classList.remove('fw-bold', 'text-dark');
+        row.style.opacity = '0.7'; row.style.borderColor = '#f1f5f9 !important';
+    }
+    const master = document.getElementById('masterRoleSwitch');
+    if(master && master.offsetParent !== null) updateMasterSwitch();
+}
+
+function updateMasterSwitch() {
+    const all = document.querySelectorAll('.role-check');
+    const checked = document.querySelectorAll('.role-check:checked');
+    const master = document.getElementById('masterRoleSwitch');
+    if(master) {
+        master.checked = (all.length > 0 && all.length === checked.length);
+        master.indeterminate = (checked.length > 0 && checked.length < all.length);
+    }
+}
+
+function toggleAllRoles(state) {
+    document.querySelectorAll('.role-check').forEach(chk => { chk.checked = state; toggleRoleStyle(chk); });
+}
+</script>
