@@ -1,204 +1,174 @@
 <style>
   /* --- LAYOUT GLOBAL & HERO (Code existant conservé) --- */
   .hero-container { padding: 20px 30px; background: #fff; border-bottom: 1px solid #e1e1e1; }
-  .hero-card { background: white; border: 1px solid #e1e1e1; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); display: flex; overflow: hidden; position: relative; transition: transform 0.2s; }
-  .hero-card:hover { transform: translateY(-2px); box-shadow: 0 6px 15px rgba(0,0,0,0.1); }
+  .hero-card { background: white; border: 1px solid #e1e1e1; border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); display: flex; overflow: hidden; position: relative; transition: transform 0.2s; }
+  .hero-card:hover { transform: translateY(-2px); box-shadow: 0 6px 15px rgba(0,0,0,0.08); }
   .hero-strip { width: 6px; flex-shrink: 0; }
-  .strip-missing { background: #ef4444; } .strip-draft { background: #f97316; } .strip-final { background: #10b981; }
-  .hero-date { background: #f8f9fa; padding: 15px 25px; display: flex; flex-direction: column; align-items: center; justify-content: center; border-right: 1px solid #f0f0f0; min-width: 110px; }
-  .hd-day-name { font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 1px; }
-  .hd-day-num { font-size: 32px; font-weight: 800; color: #1e293b; line-height: 1; margin: 4px 0; }
-  .hd-month { font-size: 11px; font-weight: 600; color: #94a3b8; text-transform: uppercase; }
+  .strip-missing { background: #EB5757; } .strip-draft { background: #F2994A; } .strip-final { background: #27AE60; }
+  .hero-date { background: #fbfbfa; padding: 15px 25px; display: flex; flex-direction: column; align-items: center; justify-content: center; border-right: 1px solid #f0f0f0; min-width: 110px; }
+  .hd-day-name { font-size: 11px; font-weight: 600; color: #787774; text-transform: uppercase; letter-spacing: 1px; }
+  .hd-day-num { font-size: 32px; font-weight: 700; color: #37352F; line-height: 1; margin: 4px 0; }
+  .hd-month { font-size: 11px; font-weight: 600; color: #9B9A97; text-transform: uppercase; }
   .hero-info { flex-grow: 1; padding: 15px 25px; display: flex; flex-direction: column; justify-content: center; }
   .hero-badges { display: flex; gap: 8px; margin-bottom: 6px; }
-  .time-badge { background: #e2e8f0; color: #334155; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 700; font-family: 'Inter', monospace; }
-  .hero-title { font-size: 18px; font-weight: 700; color: #1e293b; margin-bottom: 4px; }
-  .hero-theme { display: flex; flex-direction: column; gap: 2px; font-size: 12px; color: #64748b; margin-top: 4px; }
+  .time-badge { background: #f0f0f0; color: #555; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; font-family: 'Inter', sans-serif; }
+  .hero-title { font-size: 18px; font-weight: 600; color: #37352F; margin-bottom: 4px; letter-spacing: -0.2px; }
+  .hero-theme { display: flex; flex-direction: column; gap: 2px; font-size: 12px; color: #787774; margin-top: 4px; }
   .theme-item { display: flex; align-items: baseline; }
-  .theme-item span { font-weight: 700; color: #94a3b8; margin-right: 6px; font-size: 10px; min-width: 20px; text-align: right; }
-  .hero-action { padding: 15px 25px; display: flex; align-items: center; justify-content: center; border-left: 1px solid #f0f0f0; background: #fcfcfc; }
+  .theme-item span { font-weight: 600; color: #9B9A97; margin-right: 6px; font-size: 10px; min-width: 20px; text-align: right; }
+  .hero-action { padding: 15px 25px; display: flex; align-items: center; justify-content: center; border-left: 1px solid #f0f0f0; background: #fff; }
 
-  /* CALENDRIER & EDITOR (Code existant conservé) */
+  /* CALENDRIER & EDITOR */
   .calendar-container { padding: 20px 30px; background: #fff; flex-grow: 1; overflow-y: auto; }
   .cal-controls { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
   .full-calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); background-color: #e1e1e1; border: 1px solid #e1e1e1; border-radius: 6px; gap: 1px; overflow: hidden; }
-  .cal-headers { display: grid; grid-template-columns: repeat(7, 1fr); text-align: center; font-size: 11px; font-weight: 700; color: #94a3b8; padding-bottom: 6px; text-transform: uppercase; }
+  .cal-headers { display: grid; grid-template-columns: repeat(7, 1fr); text-align: center; font-size: 11px; font-weight: 600; color: #9B9A97; padding-bottom: 6px; text-transform: uppercase; }
   .cal-cell-wrapper { background: white; min-height: 100px; padding: 8px; display: flex; flex-direction: column; cursor: pointer; transition: background 0.1s; position: relative; }
-  .cal-cell-wrapper:hover { filter: brightness(0.97); }
-  .cal-cell-wrapper.is-past { background-color: #f9f9f9; opacity: 0.6; filter: grayscale(100%); }
-  .cal-cell-wrapper.today .cal-day-num { background: #2383E2 !important; color: white !important; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
-  .cal-day-num { font-size: 14px; font-weight: 600; color: #37352F; margin-bottom: 6px; }
+  .cal-cell-wrapper:hover { background-color: #fcfcfc; }
+  .cal-cell-wrapper.is-past { background-color: #fafafa; opacity: 0.7; }
+  .cal-cell-wrapper.today .cal-day-num { background: #EB5757 !important; color: white !important; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+  .cal-day-num { font-size: 14px; font-weight: 500; color: #37352F; margin-bottom: 6px; }
   .cal-content { display: flex; flex-direction: column; gap: 2px; }
-  .ev-time { font-size: 11px; color: #666; font-family: 'Inter', monospace; font-weight: 500; }
-  .ev-title { font-size: 13px; font-weight: 700; color: #1e293b; line-height: 1.2; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-  .bg-missing { background-color: #FFF5F5 !important; } .bg-missing::before { content:''; position:absolute; left:0; top:0; bottom:0; width:4px; background:#EF4444; }
-  .bg-draft { background-color: #FFFAEB !important; } .bg-draft::before { content:''; position:absolute; left:0; top:0; bottom:0; width:4px; background:#F97316; }
-  .bg-final { background-color: #F2FDF5 !important; } .bg-final::before { content:''; position:absolute; left:0; top:0; bottom:0; width:4px; background:#10B981; }
-  .status-dot { width: 10px; height: 10px; border-radius: 2px; display: inline-block; margin-right:4px; }
-  .dot-red { background-color: #FFF5F5; border: 1px solid #EF4444; } .dot-orange { background-color: #FFFAEB; border: 1px solid #F97316; } .dot-green { background-color: #F2FDF5; border: 1px solid #10B981; }
+  .ev-time { font-size: 11px; color: #787774; font-weight: 500; }
+  .ev-title { font-size: 12px; font-weight: 600; color: #37352F; line-height: 1.3; }
+  
+  /* Status indicators - Notion Colors */
+  .bg-missing { background-color: #fff9f9 !important; border-left: 3px solid #EB5757; }
+  .bg-draft { background-color: #fffcf5 !important; border-left: 3px solid #F2994A; }
+  .bg-final { background-color: #f7fdf9 !important; border-left: 3px solid #27AE60; }
+  
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right:5px; }
+  .dot-red { background-color: #EB5757; } .dot-orange { background-color: #F2994A; } .dot-green { background-color: #27AE60; }
 
   /* MODE LECTURE SEULE */
   .read-only-mode input, .read-only-mode textarea { pointer-events: none; border-color: transparent !important; background: transparent !important; }
   .read-only-mode .btn-add, .read-only-mode .delete-btn, .read-only-mode .drag-handle, .read-only-mode .add-zone-line, .read-only-mode .add-zone-final { display: none !important; }
-  .read-only-mode .badge { opacity: 0.7; }
-  .read-only-mode #containerMasterSwitch { display: none !important; } 
   .read-only-mode .role-check { display: none; } 
-  .read-only-mode .role-item { border: none !important; padding-left: 0 !important; background: transparent !important; opacity: 1 !important; }
-  .read-only-mode .role-label { color: #666 !important; font-weight: normal !important; }
 
   /* BOUTONS TIME SWITCHER */
-  .time-switch-btn { border: 1px solid #e2e8f0; background: #fff; padding: 2px 8px; border-radius: 4px; color: #64748b; font-size: 11px; font-weight: 600; font-family: 'Inter', monospace; cursor: pointer; transition: all 0.2s; }
-  .time-switch-btn:hover { color: #334155; background: #f8fafc; }
-  .time-switch-btn.active { background: #e0f2fe; color: #0284c7; border-color: #0284c7; }
+  .time-switch-btn { border: 1px solid #e1e1e1; background: #fff; padding: 2px 8px; border-radius: 4px; color: #787774; font-size: 11px; font-weight: 500; cursor: pointer; transition: all 0.2s; }
+  .time-switch-btn:hover { color: #37352F; background: #f7f7f5; }
+  .time-switch-btn.active { background: #37352F; color: #fff; border-color: #37352F; }
 
-  /* --- NOUVEAU STYLE SÉLECTEUR DE CHANT (UX/UI) --- */
+  /* --- STYLE SÉLECTEUR DE CHANT (NOTION STYLE) --- */
   
-  /* 1. Navigation "Pills" (Recueils) */
-  .pills-container {
-      display: flex;
-      gap: 8px;
-      overflow-x: auto;
-      padding-bottom: 4px;
-      -ms-overflow-style: none;  /* IE and Edge */
-      scrollbar-width: none;  /* Firefox */
+  /* Modal Overlay & Dialog - Refonte pour Pop-up Mobile */
+  .notion-dialog-wrapper {
+      position: fixed; top: 50%; left: 50%; 
+      transform: translate(-50%, -50%); 
+      width: 750px; 
+      max-width: 90vw; 
+      /* Max-height dynamique pour gérer l'orientation */
+      max-height: 85dvh; 
+      height: 600px;
+      background: white; 
+      border-radius: 8px; 
+      box-shadow: 0 8px 30px rgba(0,0,0,0.12); 
+      z-index: 1100; 
+      display: flex; flex-direction: column; 
+      border: 1px solid #e1e1e1; 
+      font-family: 'Inter', sans-serif;
   }
-  .pills-container::-webkit-scrollbar { display: none; }
+
+  /* Header Modal */
+  .modal-notion-header {
+      padding: 12px 16px;
+      border-bottom: 1px solid #f0f0f0;
+      display: flex; justify-content: space-between; align-items: center;
+      background: white; border-radius: 8px 8px 0 0;
+  }
+  .modal-title-wrap { display: flex; align-items: center; gap: 8px; color: #37352F; font-weight: 600; font-size: 14px; }
+  .modal-icon-box { display: flex; align-items: center; justify-content: center; color: #787774; }
+
+  /* Boutons Notion */
+  .btn-notion-black { background: #2f2f2f; color: white; border: 1px solid #2f2f2f; font-size: 12px; font-weight: 500; padding: 4px 12px; border-radius: 4px; transition: 0.1s; }
+  .btn-notion-black:hover { background: #1f1f1f; }
+  .btn-notion-black:disabled { background: #e0e0e0; border-color: #e0e0e0; color: #999; }
   
+  .btn-notion-text { background: transparent; color: #787774; border: 1px solid transparent; font-size: 12px; padding: 4px 8px; border-radius: 4px; }
+  .btn-notion-text:hover { background: #f0f0f0; color: #37352F; }
+
+  .btn-notion-outline { background: white; border: 1px solid #e1e1e1; color: #37352F; font-size: 11px; padding: 2px 8px; border-radius: 4px; }
+  .btn-notion-outline:hover { background: #f7f7f5; }
+
+  /* 1. Navigation "Pills" */
+  .pills-container { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 0; }
   .nav-pill {
-      white-space: nowrap;
-      padding: 6px 12px;
-      border-radius: 20px;
-      background-color: #F0F0F0;
-      color: #666;
-      font-size: 12px;
-      font-weight: 500;
-      border: none;
-      cursor: pointer;
-      transition: all 0.2s;
+      white-space: nowrap; padding: 2px 8px; border-radius: 4px;
+      background-color: #f2f2f0; color: #787774;
+      font-size: 12px; font-weight: 400; border: none; cursor: pointer; transition: all 0.1s;
   }
-  .nav-pill:hover { background-color: #E0E0E0; }
-  .nav-pill.active {
-      background-color: #2383E2;
-      color: white;
-      font-weight: 600;
-      box-shadow: 0 2px 5px rgba(35, 131, 226, 0.3);
-  }
+  .nav-pill:hover { background-color: #e3e3e0; color: #37352F; }
+  .nav-pill.active { background-color: #2383E2; color: white; }
 
-  /* 2. Barre de Recherche "Notion" */
-  .search-wrapper {
-      position: relative;
-      width: 100%;
-  }
-  .search-wrapper i {
-      position: absolute;
-      left: 12px;
-      top: 50%;
-      transform: translateY(-50%);
-      color: #999;
-  }
+  /* 2. Barre de Recherche Clean */
+  .search-wrapper { position: relative; width: 100%; margin-bottom: 8px; }
+  .search-wrapper i { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: #9B9A97; font-size: 14px; }
   .search-input-modern {
-      width: 100%;
-      padding: 8px 12px 8px 36px;
-      border-radius: 6px;
-      border: 1px solid transparent;
-      background-color: #F7F7F5;
-      font-size: 13px;
-      outline: none;
-      transition: all 0.2s;
+      width: 100%; padding: 6px 12px 6px 32px; border-radius: 4px;
+      border: 1px solid #e1e1e1; background-color: #fff;
+      font-size: 13px; outline: none; transition: all 0.1s; box-shadow: 0 1px 2px rgba(0,0,0,0.03);
   }
-  .search-input-modern:focus {
-      background-color: white;
-      border-color: #2383E2;
-      box-shadow: 0 0 0 2px rgba(35, 131, 226, 0.1);
-  }
+  .search-input-modern:focus { border-color: #2383E2; box-shadow: 0 0 0 2px rgba(35, 131, 226, 0.1); }
 
-  /* 3. "Chips" Builder (Strophes) */
-  .stanza-chip {
-      border: 1px solid #E1E1E1;
-      border-radius: 8px;
-      padding: 10px;
-      margin-bottom: 8px;
-      cursor: pointer;
-      transition: all 0.15s ease;
-      background: white;
-      position: relative;
+  /* 3. Liste Résultats */
+  .song-item { 
+      padding: 8px 12px; border-bottom: 1px solid #f7f7f5; cursor: pointer; transition: background 0.1s; 
+      display: flex; justify-content: space-between; align-items: center;
   }
-  .stanza-chip:hover {
-      border-color: #ccc;
-      transform: translateY(-1px);
+  .song-item:hover { background-color: #f7f7f5; }
+  .song-item.active { background-color: #edf5fd; }
+  
+  .song-ref { font-size: 10px; color: #9B9A97; text-transform: uppercase; letter-spacing: 0.5px; border: 1px solid #e1e1e1; padding: 1px 4px; border-radius: 3px; margin-right: 6px; }
+
+  /* 4. Cartes Strophes (Cards) */
+  .stanza-card {
+      border: 1px solid #e1e1e1; border-radius: 6px; padding: 0;
+      margin-bottom: 10px; cursor: pointer; transition: all 0.15s ease;
+      background: white; position: relative; overflow: hidden;
   }
+  .stanza-card:hover { border-color: #d0d0d0; box-shadow: 0 2px 5px rgba(0,0,0,0.03); }
+  
   /* État Sélectionné */
-  .stanza-chip.selected {
-      background-color: #F0F7FF;
-      border-color: #2383E2;
-      box-shadow: 0 2px 8px rgba(35, 131, 226, 0.15);
+  .stanza-card.selected { border: 1px solid #2383E2; box-shadow: 0 0 0 1px #2383E2; }
+  .stanza-card.selected .card-check { background: #2383E2; border-color: #2383E2; color: white; }
+  .stanza-card.selected .card-header-area { background: #f7fbff; border-bottom: 1px solid #e8f3ff; }
+  
+  .card-header-area { padding: 8px 12px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #f9f9f9; }
+  .card-check { 
+      width: 16px; height: 16px; border-radius: 50%; border: 1px solid #ccc; 
+      display: flex; align-items: center; justify-content: center; font-size: 10px; transition: 0.1s;
   }
-  .stanza-chip.selected .chip-check {
-      background-color: #2383E2;
-      border-color: #2383E2;
-  }
-  .stanza-chip.selected .chip-check::after {
-      content: '✓'; color: white; font-size: 10px; font-weight: bold;
-  }
-  /* État Désélectionné (Grisé) */
-  .stanza-chip:not(.selected) {
-      opacity: 0.6;
-  }
-  .stanza-chip:not(.selected) .chip-content {
-      filter: grayscale(100%);
-      color: #888;
-  }
+  .card-body-area { padding: 10px 12px; font-size: 13px; color: #37352F; line-height: 1.5; }
+  
+  .refrain-mini { font-size: 11px; color: #787774; font-style: italic; margin-top: 6px; border-left: 2px solid #27AE60; padding-left: 8px; }
 
-  /* Checkbox visuelle custom */
-  .chip-check {
-      width: 18px; height: 18px;
-      border-radius: 50%;
-      border: 2px solid #ddd;
-      display: flex; align-items: center; justify-content: center;
-      margin-right: 10px; flex-shrink: 0;
-      transition: all 0.2s;
-  }
-
-  /* 4. Mobile Drawer Logic */
+  /* Mobile Tweaks */
   @media (max-width: 768px) {
-      .hero-container { padding: 10px; }
+      .hero-container { padding: 12px; }
       .hero-card { flex-direction: column; }
-      .hero-strip { width: 100%; height: 6px; order: -1; }
+      .hero-strip { width: 100%; height: 4px; order: -1; }
       .hero-date, .hero-info, .hero-action { border: none; width: 100%; border-bottom: 1px solid #f0f0f0; padding: 12px; flex-direction: row; justify-content: space-between; align-items: center; }
       .hero-info { flex-direction: column; align-items: flex-start; gap: 4px; }
-      .hero-action { border-bottom: none; background: #fcfcfc; justify-content: flex-end; }
+      .hero-action { border-bottom: none; justify-content: flex-end; }
+      
       .calendar-container { padding: 10px; }
       .cal-headers { display: none; }
       .full-calendar-grid { display: flex; flex-direction: column; border: none; gap: 8px; background: transparent; }
       .cal-cell-wrapper { min-height: auto; border: 1px solid #e1e1e1; border-radius: 8px; flex-direction: row; align-items: center; padding: 12px; gap: 15px; background: white !important; }
-      .bg-missing::before, .bg-draft::before, .bg-final::before { display: none; }
-      .bg-missing { border-left: 6px solid #EF4444 !important; } .bg-draft { border-left: 6px solid #F97316 !important; } .bg-final { border-left: 6px solid #10B981 !important; }
-      .cal-cell-wrapper.is-empty:not(.keep-visible) { display: none !important; }
-      .cal-cell-wrapper.today .cal-day-num { color: #ffffff !important; background: #2383E2 !important; width: 32px; height: 32px; font-size: 14px; }
-      .cal-day-num { font-size: 18px; margin-bottom: 0; width: 40px; text-align: center; }
-      .mobile-day-name { display: block; font-size: 9px; text-transform: uppercase; color: #999; margin-top:2px; text-align:center;}
-      .cal-content { flex-grow: 1; }
       
-      /* DRAWER LOGIC */
-      .mobile-hidden { display: none !important; }
-      .mobile-visible { display: flex !important; }
-      
-      /* Le modal prend tout l'écran sur mobile */
-      #songSelectorModal {
-          width: 100% !important;
-          height: 100% !important;
-          max-width: 100% !important;
-          border-radius: 0 !important;
-          top: 0 !important; left: 0 !important;
-          transform: none !important;
+      /* Popup Responsive Mobile */
+      .notion-dialog-wrapper {
+          width: 95vw; height: auto; max-height: 85dvh;
+          border-radius: 12px; 
       }
+      .modal-notion-header { padding: 10px 14px; }
+      .modal-title-wrap { font-size: 13px; }
       
-      /* Ajustement hauteur liste */
-      #songSelectorResults { max-height: none !important; flex-grow: 1; }
-  }
-  @media (min-width: 769px) { 
-      .mobile-day-name { display: none; } 
-      .mobile-only-header { display: none !important; }
+      .mobile-stack { flex-direction: column; }
+      .mobile-hidden { display: none !important; }
+      
+      #songSelectorResults { max-height: 200px; flex-shrink: 0; }
   }
 </style>
 
@@ -221,11 +191,6 @@
                  <button class="btn btn-sm btn-white border shadow-sm px-2" onclick="navCalendar(1)"><i class="bi bi-chevron-right"></i></button>
                  <button class="btn btn-sm btn-light text-secondary ms-2 py-0 border-0" style="font-size:11px;" onclick="navCalendarToToday()">Aujourd'hui</button>
               </div>
-              <div class="d-none d-md-flex gap-3 align-items-center small text-muted">
-                  <div class="d-flex align-items-center"><div class="status-dot dot-red"></div> <span style="font-size:11px;">Manquant</span></div>
-                  <div class="d-flex align-items-center"><div class="status-dot dot-orange"></div> <span style="font-size:11px;">Brouillon</span></div>
-                  <div class="d-flex align-items-center"><div class="status-dot dot-green"></div> <span style="font-size:11px;">Validé</span></div>
-              </div>
           </div>
           <div class="cal-headers d-none d-md-grid"><div>LUN</div><div>MAR</div><div>MER</div><div>JEU</div><div>VEN</div><div>SAM</div><div class="text-danger">DIM</div></div>
           <div id="fullCalendarGrid" class="full-calendar-grid"></div>
@@ -238,7 +203,6 @@
               <button class="btn btn-link text-dark p-0" onclick="closeEditor()"><i class="bi bi-arrow-left fs-5"></i></button>
               <div class="vr mx-2"></div>
               <span id="editorDateBadge" class="badge bg-light text-dark border d-none d-sm-inline">...</span>
-              
               <span id="editorStatusBadge" class="status-badge ms-1">...</span>
               <span id="saveIndicator" class="small text-muted fst-italic ms-2 d-none d-md-inline"></span>
           </div>
@@ -246,7 +210,7 @@
               <input type="hidden" id="progId"><input type="hidden" id="progRowIndex">
               <div id="toolbarEditMode" class="d-flex gap-2">
                   <button class="btn btn-sm btn-light border text-danger" onclick="deleteProgramme()"><i class="bi bi-trash"></i></button>
-                  <button class="btn btn-sm btn-primary-notion" onclick="saveProgramme()">Enregistrer</button>
+                  <button class="btn btn-sm btn-dark" onclick="saveProgramme()">Enregistrer</button>
                   <button class="btn btn-sm btn-success text-white" onclick="askValidation()"><i class="bi bi-check2-circle me-1"></i>Valider</button>
               </div>
               <div id="toolbarReadMode" class="d-none">
@@ -259,14 +223,8 @@
       </div>
       <div class="flex-grow-1 overflow-auto bg-light custom-scrollbar p-0" id="editorScrollArea">
           <div id="editorPaper" class="notion-page-container bg-white shadow-sm min-vh-100 my-4 p-4 p-md-5">
-              
-              <!-- PLACEHOLDER POUR LE HEADER PARTAGÉ -->
               <div id="programmeHeaderPlaceholder"></div>
-
-              <!-- FIX D&D : Ajout min-height pour que la zone soit toujours droppable -->
               <div id="docBlocksContainer" class="d-flex flex-column pb-5 w-100" style="min-height: 100px;"></div>
-              
-              <!-- BOUTON AJOUT -->
               <div class="add-zone-final p-3 text-secondary opacity-50 hover-opacity-100 cursor-pointer text-center mx-auto no-print" onclick="openInsertMenu(-1, this)">
                   <i class="bi bi-plus-lg me-2"></i>Ajouter un élément
               </div>
@@ -274,7 +232,7 @@
       </div>
   </div>
 
-  <!-- MODALES EXISTANTES -->
+  <!-- MODALES STANDARD (Creation, Security, Delete) - Conservées Simplifiées -->
   <div id="creationModal" class="notion-dialog" style="display:none; padding: 25px; width: 400px; max-width: 90vw; flex-direction: column;">
       <div class="d-flex justify-content-between align-items-center mb-4">
           <h6 class="fw-bold m-0"><i class="bi bi-calendar-plus me-2"></i>Nouveau Programme</h6>
@@ -285,7 +243,7 @@
           <input type="date" id="createDateInput" class="form-control fw-bold bg-light border-0" style="font-size: 1.1rem;">
       </div>
       <div class="mb-3">
-          <label class="small fw-bold text-muted mb-1">MÉTHODE DE CRÉATION</label>
+          <label class="small fw-bold text-muted mb-1">MÉTHODE</label>
           <select id="createMethodSelect" class="form-select shadow-none" onchange="updateCreationMethodUI()">
               <option value="blank">Programme vide</option>
               <option value="template">À partir d'un Template</option>
@@ -293,32 +251,24 @@
           </select>
       </div>
       <div id="zoneTemplate" class="mb-3 d-none p-3 bg-light rounded border">
-          <label class="small fw-bold text-muted mb-1">CHOISIR LE MODÈLE</label>
-          <div id="templateLoader" class="text-center py-2 text-muted small"><div class="spinner-border spinner-border-sm me-2"></div>Chargement...</div>
-          <select id="templateSelect" class="form-select form-select-sm shadow-none d-none"></select>
+          <label class="small fw-bold text-muted mb-1">MODÈLE</label>
+          <select id="templateSelect" class="form-select form-select-sm shadow-none"></select>
       </div>
       <div id="zoneDuplicate" class="mb-3 d-none p-3 bg-light rounded border">
-          <label class="small fw-bold text-muted mb-1">RECHERCHER UN CULTE</label>
+          <label class="small fw-bold text-muted mb-1">RECHERCHER</label>
           <div class="input-group input-group-sm mb-2">
                <span class="input-group-text bg-white border-end-0"><i class="bi bi-search"></i></span>
-               <input type="text" class="form-control border-start-0" placeholder="Par date (14/12) ou titre..." onkeyup="searchProgArchives(this.value)">
+               <input type="text" class="form-control border-start-0" placeholder="Date ou titre..." onkeyup="searchProgArchives(this.value)">
           </div>
-          <div id="duplicateResults" class="bg-white border rounded custom-scrollbar" style="max-height: 120px; overflow-y: auto;">
-               <div class="text-center py-3 text-muted small fst-italic">Tapez votre recherche...</div>
-          </div>
+          <div id="duplicateResults" class="bg-white border rounded custom-scrollbar" style="max-height: 120px; overflow-y: auto;"></div>
           <input type="hidden" id="selectedDuplicateId">
       </div>
-      <div id="zoneBlank" class="mb-3 text-muted small fst-italic ps-1">
-          <i class="bi bi-info-circle me-1"></i>Crée une structure vierge avec l'équipe du planning.
-      </div>
-      <div class="d-grid mt-2">
-          <button class="btn btn-dark" onclick="submitCreationForm()">Créer le programme</button>
-      </div>
+      <div class="d-grid mt-2"><button class="btn btn-dark" onclick="submitCreationForm()">Créer</button></div>
   </div>
 
   <div id="securityModal" class="notion-dialog" style="display:none; padding:20px; width: 320px;">
       <div class="text-center mb-3">
-           <div id="secuIcon" class="bg-light rounded-circle d-inline-flex align-items-center justify-content-center mb-2" style="width:40px; height:40px;"><i class="bi bi-lock-fill text-dark fs-5"></i></div>
+           <div class="bg-light rounded-circle d-inline-flex align-items-center justify-content-center mb-2" style="width:40px; height:40px;"><i class="bi bi-lock-fill text-dark fs-5"></i></div>
            <h6 class="fw-bold m-0" id="secuTitle">Sécurité</h6>
            <p class="small text-muted" id="secuSubtitle">...</p>
       </div>
@@ -340,7 +290,6 @@
               <i class="bi bi-exclamation-triangle-fill text-danger fs-4"></i>
           </div>
           <h5 class="fw-bold m-0 text-danger">Supprimer ?</h5>
-          <p class="small text-muted mt-2">Cette action est irréversible.</p>
       </div>
       <div class="d-flex gap-2">
           <button class="btn btn-light border w-50" onclick="closeAllModals()">Annuler</button>
@@ -348,52 +297,42 @@
       </div>
   </div>
   
-  <!-- SÉLECTEUR DE CHANT (REFONTE UX/UI) -->
-  <div id="songSelectorModal" class="notion-dialog" style="display:none; width: 700px; max-width: 95vw; height: 500px; padding: 0;">
+  <!-- === NOUVEAU SÉLECTEUR DE CHANT (NOTION STYLE) === -->
+  <div id="songSelectorModal" class="notion-dialog-wrapper" style="display:none;">
       
-      <!-- Header (Desktop) -->
-      <div class="d-none d-md-flex align-items-center justify-content-between p-3 border-bottom bg-light">
-          <h6 class="fw-bold m-0 text-secondary"><i class="bi bi-music-note-list me-2"></i>Sélectionner un chant</h6>
-          <button type="button" class="btn-close small" aria-label="Close" onclick="closeAllModals()"></button>
+      <!-- HEADER -->
+      <div class="modal-notion-header">
+          <div class="modal-title-wrap">
+              <div class="modal-icon-box"><i class="bi bi-music-note-beamed"></i></div>
+              <span>Sélectionner un chant</span>
+          </div>
+          <button class="btn-close small" aria-label="Close" onclick="closeAllModals()"></button>
       </div>
 
-      <!-- Body Split (Responsive Grid) -->
+      <!-- BODY GRID (Split View Desktop / Switch View Mobile) -->
       <div class="row g-0 flex-grow-1 overflow-hidden" style="height: 100%;">
           
-          <!-- COLONNE GAUCHE : RECHERCHE & LISTE -->
+          <!-- GAUCHE : RECHERCHE -->
           <div id="colSearch" class="col-12 col-md-5 border-end d-flex flex-column h-100 bg-white">
-              
-              <!-- Header Mobile (Recherche) -->
-              <div class="d-md-none p-3 border-bottom bg-light d-flex justify-content-between align-items-center">
-                  <h6 class="fw-bold m-0">Choisir un chant</h6>
-                  <button class="btn btn-sm btn-light border" onclick="closeAllModals()">Fermer</button>
-              </div>
-
-              <div class="p-2 border-bottom bg-white">
-                  <!-- NAVIGATION PILLS (Swipe) -->
-                  <div id="recueilPillsContainer" class="pills-container mb-2">
-                      <!-- Généré par JS -->
-                  </div>
-                  
-                  <!-- BARRE DE RECHERCHE MODERNE -->
-                  <div class="search-wrapper">
+              <div class="p-3 border-bottom bg-white">
+                  <div id="recueilPillsContainer" class="pills-container"></div>
+                  <div class="search-wrapper m-0">
                       <i class="bi bi-search"></i>
-                      <input type="text" id="songSelectorSearch" class="search-input-modern" placeholder="Titre, numéro, paroles..." onkeyup="searchSongsForSelector(this.value)">
+                      <input type="text" id="songSelectorSearch" class="search-input-modern" placeholder="Rechercher..." onkeyup="searchSongsForSelector(this.value)">
                   </div>
               </div>
-              
-              <div id="songSelectorResults" class="flex-grow-1 overflow-auto p-0 custom-scrollbar">
-                  <div class="text-center py-4 text-muted small fst-italic">Tapez pour rechercher...</div>
+              <div id="songSelectorResults" class="flex-grow-1 overflow-auto custom-scrollbar">
+                  <div class="text-center py-4 text-muted small fst-italic">Recherchez un chant...</div>
               </div>
           </div>
 
-          <!-- COLONNE DROITE : CONFIGURATION (CHIPS) -->
+          <!-- DROITE : CONFIGURATION -->
           <div id="colConfig" class="col-12 col-md-7 d-none d-md-flex flex-column h-100 bg-white">
               
-              <!-- Header Mobile (Config) -->
-              <div class="d-md-none p-3 border-bottom bg-light d-flex align-items-center gap-3 mobile-only-header">
+              <!-- HEADER MOBILE (Navigation Retour) -->
+              <div class="d-md-none p-2 border-bottom bg-white d-flex align-items-center gap-2">
                   <button class="btn btn-sm btn-white border shadow-sm" onclick="showMobileSongList()"><i class="bi bi-arrow-left"></i></button>
-                  <h6 class="fw-bold m-0 flex-grow-1 text-truncate" id="mobileConfigTitle">Configuration</h6>
+                  <span class="fw-bold small text-truncate flex-grow-1" id="mobileConfigTitle">Configuration</span>
               </div>
 
               <div id="songSelectorPreviewPanel" class="flex-grow-1 overflow-hidden d-flex flex-column">
@@ -404,16 +343,17 @@
           </div>
       </div>
 
-      <!-- Footer (Desktop Only - Mobile a ses propres actions dans le panel) -->
-      <div class="d-none d-md-flex p-3 border-top bg-light justify-content-between align-items-center">
-          <span class="small text-muted fst-italic" id="songSelectorStatus"></span>
+      <!-- FOOTER -->
+      <div class="p-3 border-top bg-white d-flex justify-content-between align-items-center">
+          <span class="small text-muted" id="songSelectorStatus"></span>
           <div class="d-flex gap-2">
-              <button class="btn btn-sm btn-light border" onclick="closeAllModals()">Annuler</button>
-              <button class="btn btn-sm btn-primary-notion" id="btnConfirmSong" disabled onclick="confirmSongSelection()">Insérer</button>
+              <button class="btn-notion-text" onclick="closeAllModals()">Annuler</button>
+              <button class="btn-notion-black" id="btnConfirmSong" disabled onclick="confirmSongSelection()">Insérer</button>
           </div>
       </div>
+
   </div>
 
-  <div id="progCreatorOverlay" style="position:fixed; inset:0; background:rgba(0,0,0,0.4); z-index:1090; display:none; backdrop-filter:blur(2px);" onclick="closeAllModals()"></div>
+  <div id="progCreatorOverlay" style="position:fixed; inset:0; background:rgba(0,0,0,0.3); z-index:1090; display:none; backdrop-filter:blur(2px);" onclick="closeAllModals()"></div>
   <div id="notionToastContainer" class="notion-toast-container"></div>
 </div>
