@@ -1,7 +1,138 @@
+/**
+ * CONTRÔLEUR CHANTS
+ * Gestion de la base de données des chants, recherche, filtrage et statistiques.
+ */
+
 var SHEET_NAME_CHANTS = "DB_CHANTS";
 var SHEET_NAME_CONFIG = "CONFIG";
 
-// 1. RECHERCHE PRINCIPALE
+/**
+ * Récupère les statistiques globales du répertoire pour le Dashboard Chants.
+ * Calcule : Total, Sans Tonalité, Non Traduit, Traduit Partiellement.
+ * 
+ * @return {Object} Stats object {total, missingTone, transNone, transPartial}
+ */
+function getRepoStats() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(SHEET_NAME_CHANTS);
+  
+  if (!sheet || sheet.getLastRow() < 2) {
+    return { total: 0, missingTone: 0, transNone: 0, transPartial: 0 };
+  }
+  
+  // Récupération optimisée en une seule lecture
+  var data = sheet.getRange(2, 1, sheet.getLastRow() - 1, 7).getValues();
+  var total = data.length;
+  var missingTone = 0;
+  var transNone = 0;
+  var transPartial = 0;
+  
+  for (var i = 0; i < total; i++) {
+    var row = data[i];
+    
+    // Tonalité manquante (Col 4)
+    if (!row[4] || String(row[4]).trim() === "") {
+      missingTone++;
+    }
+    
+    // Analyse des paroles (Col 5 = MG, Col 6 = FR)
+    var mg = row[5] ? String(row[5]) : "";
+    var fr = row[6] ? String(row[6]) : "";
+    
+    var nbMg = mg.split(" /// ").filter(function(t) { return t.trim().length > 0; }).length;
+    var nbFr = fr.split(" /// ").filter(function(t) { return t.trim().length > 0; }).length;
+    
+    if (nbMg > 0) {
+      if (nbFr === 0) {
+        transNone++;
+      } else if (nbMg > nbFr) {
+        transPartial++;
+      }
+    }
+  }
+  
+  return { 
+    total: total, 
+    missingTone: missingTone, 
+    transNone: transNone, 
+    transPartial: transPartial 
+  };
+}
+
+/**
+ * Filtre les chants selon un critère de maintenance ou une liste d'IDs spécifique.
+ * 
+ * @param {string} issueType - Type de problème ('missing_tone', 'trans_none', 'specific_ids'...)
+ * @param {Array} idsList - (Optionnel) Liste d'IDs pour le filtrage 'specific_ids'
+ */
+function getChantsByIssue(issueType, idsList) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(SHEET_NAME_CHANTS);
+  if (!sheet) return [];
+  
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return [];
+
+  var data = sheet.getRange(2, 1, lastRow - 1, 7).getValues();
+  
+  // Sécurisation des IDs entrants
+  var safeIds = [];
+  if (idsList && Array.isArray(idsList)) {
+    safeIds = idsList.map(function(id) { return String(id).trim(); });
+  }
+
+  var filtered = data.filter(function(row) {
+    // Cas 1 : Filtrage par liste d'IDs (Culte)
+    if (issueType === 'specific_ids') {
+      if (safeIds.length === 0) return false;
+      var rowId = String(row[0]).trim();
+      return safeIds.indexOf(rowId) > -1;
+    }
+    
+    // Cas 2 : Maintenance Tonalité
+    if (issueType === 'missing_tone') {
+      return (!row[4] || String(row[4]).trim() === "");
+    }
+    
+    // Cas 3 : Maintenance Non Traduit
+    if (issueType === 'trans_none') {
+      var mg = row[5] ? String(row[5]) : "";
+      var fr = row[6] ? String(row[6]) : "";
+      return (mg.length > 0 && fr.length === 0);
+    }
+    
+    // Cas 4 : Maintenance Traduction Partielle
+    if (issueType === 'trans_partial') {
+      var mg = row[5] ? String(row[5]) : "";
+      var fr = row[6] ? String(row[6]) : "";
+      var nbMg = mg.split(" /// ").length;
+      var nbFr = fr.split(" /// ").length;
+      return (nbMg > nbFr && nbFr > 0);
+    }
+    
+    // Fallback ancien code
+    if (issueType === 'missing_trans') {
+      var mg = row[5] ? String(row[5]) : "";
+      var fr = row[6] ? String(row[6]) : "";
+      var nbMg = mg.split(" /// ").length;
+      var nbFr = fr.split(" /// ").length;
+      return (nbMg > 0 && (nbFr === 0 || nbMg > nbFr));
+    }
+    
+    return false;
+  });
+
+  return filtered.map(formatChantLight);
+}
+
+/**
+ * Recherche principale (Titre, Numéro, Paroles, Recueil)
+ * Utilisée aussi bien pour la recherche textuelle que pour le chargement initial.
+ * 
+ * @param {string} query - Texte à chercher
+ * @param {string} recueilFilter - (Obsolète ici, géré en JS, mais gardé pour signature)
+ * @param {Array} historyIds - Liste d'IDs à filtrer (Compatibilité)
+ */
 function searchChantsBackend(query, recueilFilter, historyIds) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName(SHEET_NAME_CHANTS);
@@ -10,38 +141,40 @@ function searchChantsBackend(query, recueilFilter, historyIds) {
   var lastRow = sheet.getLastRow();
   if (lastRow < 2) return [];
 
+  // On récupère toutes les colonnes utiles (jusqu'à I pour Tags)
   var data = sheet.getRange(2, 1, lastRow - 1, 9).getValues(); 
 
-  // CAS DEFAUT
+  // CAS 1 : Chargement complet (Cache JS)
   if ((!query || query === "") && (!recueilFilter || recueilFilter === "") && (!historyIds || historyIds.length === 0)) {
-     return data.slice(-20).reverse().map(formatChantLight);
+     // On renvoie TOUT pour permettre le filtrage rapide côté client
+     return data.map(formatChantLight);
   }
   
-  // CAS HISTORIQUE
+  // CAS 2 : Liste d'IDs spécifiques (Historique ou autre)
   if ((!query || query === "") && (!recueilFilter || recueilFilter === "") && historyIds && historyIds.length > 0) {
+    var safeTargetIds = historyIds.map(function(id) { return String(id).trim(); });
     var historyChants = data.filter(function(row) {
-      return historyIds.includes(String(row[0]));
+      return safeTargetIds.indexOf(String(row[0]).trim()) > -1;
     });
     return historyChants.map(formatChantLight);
   }
 
-  // CAS RECHERCHE AMÉLIORÉE + SNIPPET
+  // CAS 3 : Recherche Textuelle (Serveur)
+  // Nécessaire quand on veut le snippet des paroles
   var q = query ? query.toLowerCase() : "";
   
   var results = data.filter(function(row) {
-    // row[1]=Recueil, row[2]=Numero, row[3]=Titre, row[5]=ParolesMG, row[6]=ParolesFR
-    var content = (String(row[5] || "") + " " + String(row[6] || "")); // Paroles seules pour le snippet
+    var content = (String(row[5] || "") + " " + String(row[6] || "")); 
     var fullIndex = (
-      String(row[1] || "") + " " + 
-      String(row[2] || "") + " " + 
-      String(row[3] || "") + " " + 
+      String(row[1] || "") + " " + // Recueil
+      String(row[2] || "") + " " + // Numero
+      String(row[3] || "") + " " + // Titre
       content
     ).toLowerCase();
 
-    var matchRecueil = (recueilFilter && recueilFilter !== "") ? row[1] === recueilFilter : true;
     var matchText = q ? fullIndex.indexOf(q) > -1 : true;
     
-    // Génération du Snippet si match dans les paroles
+    // Génération du Snippet (Aperçu)
     if (matchText && q.length > 2) {
         var lyricsLower = content.toLowerCase();
         var idx = lyricsLower.indexOf(q);
@@ -52,29 +185,32 @@ function searchChantsBackend(query, recueilFilter, historyIds) {
         }
     }
     
-    return matchText && matchRecueil;
+    return matchText;
   });
 
-  // TRI NUMÉRIQUE
+  // Tri par défaut (Recueil puis Numéro)
   results.sort(function(a, b) {
-      if (a[1] === b[1]) {
-          return parseInt(a[2]) - parseInt(b[2]);
-      }
+      if (a[1] === b[1]) return parseInt(a[2]) - parseInt(b[2]);
       return 0;
   });
 
-  return results.slice(0, 20).map(function(row) {
+  // Limite à 50 résultats pour la recherche serveur (Performance)
+  return results.slice(0, 50).map(function(row) {
       var c = formatChantLight(row);
-      if(row.snippet) c.snippet = row.snippet; // Injection du snippet
+      if (row.snippet) c.snippet = row.snippet; 
       return c;
   });
 }
 
+/**
+ * Formate une ligne de données en objet léger pour le frontend
+ */
 function formatChantLight(row) {
   var mgTxt = row[5] ? String(row[5]) : "";
   var frTxt = row[6] ? String(row[6]) : "";
-  var nbMg = mgTxt.split(" /// ").filter(t => t.trim().length > 0).length;
-  var nbFr = frTxt.split(" /// ").filter(t => t.trim().length > 0).length;
+  
+  var nbMg = mgTxt.split(" /// ").filter(function(t) { return t.trim().length > 0; }).length;
+  var nbFr = frTxt.split(" /// ").filter(function(t) { return t.trim().length > 0; }).length;
 
   var status = "ok";
   if (nbMg > 0 && nbFr === 0) status = "none";
@@ -85,46 +221,24 @@ function formatChantLight(row) {
     recueil: row[1],
     numero: row[2],
     titre: row[3],
+    tonalite: row[4],
     hasMG: (nbMg > 0), 
     hasFR: (nbFr > 0),
     transStatus: status
   };
 }
 
-// 2. RÉCUPÉRER UN RECUEIL COMPLET
-function getChantsByRecueil(recueilName) {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheetByName(SHEET_NAME_CHANTS);
-  if (!sheet) return [];
-  var lastRow = sheet.getLastRow();
-  if (lastRow < 2) return [];
+// --- UTILITAIRES CRUD (CRUD Standard) ---
 
-  var data = sheet.getRange(2, 1, lastRow - 1, 7).getValues();
-  
-  var filtered = data.filter(function(row) {
-    return row[1] === recueilName;
-  });
-
-  filtered.sort(function(a, b) {
-    return parseInt(a[2]) - parseInt(b[2]);
-  });
-
-  return filtered.map(formatChantLight);
-}
-
-// 3. DÉTAILS D'UN CHANT
 function getChantDetails(id) {
   var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME_CHANTS);
   var data = sheet.getDataRange().getValues();
-  
   for (var i = 1; i < data.length; i++) {
     if (String(data[i][0]) === String(id)) {
-      
-      // Calcul statut traduction pour le détail aussi
       var mgTxt = data[i][5] ? String(data[i][5]) : "";
       var frTxt = data[i][6] ? String(data[i][6]) : "";
-      var nbMg = mgTxt.split(" /// ").filter(t => t.trim().length > 0).length;
-      var nbFr = frTxt.split(" /// ").filter(t => t.trim().length > 0).length;
+      var nbMg = mgTxt.split(" /// ").filter(function(t) { return t.trim().length > 0; }).length;
+      var nbFr = frTxt.split(" /// ").filter(function(t) { return t.trim().length > 0; }).length;
       var status = "ok";
       if (nbMg > 0 && nbFr === 0) status = "none";
       else if (nbMg > nbFr) status = "partial";
@@ -139,7 +253,7 @@ function getChantDetails(id) {
         paroles_fr: data[i][6],
         structure: data[i][7],
         tags: data[i][8],
-        transStatus: status, // Ajouté ici pour remonter au front
+        transStatus: status,
         rowIndex: i + 1
       };
     }
@@ -147,7 +261,6 @@ function getChantDetails(id) {
   return null;
 }
 
-// 4. SAUVEGARDER LE CHANT
 function saveChantBackend(form) {
   var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME_CHANTS);
   var mgFull = form.strophes_mg.join(" /// ");
@@ -173,11 +286,22 @@ function saveChantBackend(form) {
   }
 }
 
-// 5. LISTE DES FILTRES
 function getRecueilsFilterList() {
   var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME_CONFIG);
   if(!sheet) return [];
   var last = sheet.getLastRow();
   if(last < 2) return [];
   return sheet.getRange(2, 1, last - 1, 1).getValues().flat().filter(String);
+}
+
+function getChantsByRecueil(recueilName) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(SHEET_NAME_CHANTS);
+  if (!sheet) return [];
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return [];
+  var data = sheet.getRange(2, 1, lastRow - 1, 7).getValues();
+  var filtered = data.filter(function(row) { return row[1] === recueilName; });
+  filtered.sort(function(a, b) { return parseInt(a[2]) - parseInt(b[2]); });
+  return filtered.map(formatChantLight);
 }

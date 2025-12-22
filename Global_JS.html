@@ -1,19 +1,43 @@
 <script>
-  // --- STATE MANAGEMENT GLOBAL ---
-  var APP_CONTEXT = ""; // 'TEMPLATE' ou 'PROGRAMME'
-  
-  // Données Globales exposées (pour que le SharedRenderer puisse les manipuler)
-  var DATA_TEMPLATE_BLOCKS = [];
-  var DATA_PROGRAMME_BLOCKS = [];
+// --- STATE MANAGEMENT GLOBAL ---
+var APP_CONTEXT = ""; // 'TEMPLATE' ou 'PROGRAMME'
 
-  // Fonction pour agrandir les zones de texte automatiquement
-  function autoResize(textarea) {
-    textarea.style.height = 'auto';
-    textarea.style.height = (textarea.scrollHeight) + 'px';
-  }
+// Données Globales
+var DATA_TEMPLATE_BLOCKS = [];
+var DATA_PROGRAMME_BLOCKS = [];
 
-  // Appliquer autoResize sur tous les textareas existants au chargement
-  document.addEventListener("DOMContentLoaded", function() {
-     document.querySelectorAll('textarea').forEach(el => autoResize(el));
-  });
+// --- UTILS UI ---
+
+function autoResize(textarea) {
+if(!textarea) return;
+textarea.style.height = 'auto';
+textarea.style.height = (textarea.scrollHeight) + 'px';
+}
+
+// Animation des chiffres (Compteur) - Disponible partout
+function animateCounter(id, start, end, duration) {
+const obj = document.getElementById(id);
+if (!obj) return;
+if (start === end) { obj.innerText = end; return; }
+
+let range = end - start;
+let current = start;
+let increment = end > start ? 1 : -1;
+let stepTime = Math.abs(Math.floor(duration / range));
+// Cap pour éviter que ça soit trop lent sur les petits nombres
+stepTime = Math.max(stepTime, 10);
+
+let timer = setInterval(function() {
+current += increment;
+obj.innerText = current;
+if (current == end) {
+clearInterval(timer);
+}
+}, stepTime);
+}
+
+// Initialisation globale
+document.addEventListener("DOMContentLoaded", function() {
+document.querySelectorAll('textarea').forEach(el => autoResize(el));
+});
 </script>

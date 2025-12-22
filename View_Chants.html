@@ -1,146 +1,169 @@
-<div class="toast-container position-fixed bottom-0 start-50 translate-middle-x p-3" style="z-index: 1060;">
-  <div id="liveToast" class="toast align-items-center text-white bg-dark border-0" role="alert" aria-live="assertive" aria-atomic="true">
-    <div class="d-flex">
-      <div class="toast-body" id="toastMessage">
-        Action effectuée !
-      </div>
-      <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
-    </div>
-  </div>
+<!-- TOAST -->
+<div class="toast-container position-fixed bottom-0 start-50 translate-middle-x p-3" style="z-index: 10060;">
+<div id="liveToast" class="toast align-items-center text-white bg-dark border-0" role="alert" aria-live="assertive" aria-atomic="true">
+<div class="d-flex"><div class="toast-body" id="toastMessage">Action effectuée !</div><button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button></div>
 </div>
-
+</div>
 <div class="d-flex justify-content-between align-items-center mb-4">
-  <div>
-    <h2 class="mb-1">Bibliothèque des chants</h2>
-    <div class="text-secondary small">Gérez le répertoire de l'église</div>
-  </div>
-  <button class="btn btn-primary-notion" onclick="openChantModal()">
-    <i class="bi bi-plus-lg"></i> Ajouter un chant
-  </button>
+<div><h2 class="mb-1 fw-bold text-dark">Chants</h2><div class="text-secondary small">Répertoire de l'église</div></div>
+<button class="btn btn-saas-primary" onclick="openChantModal()"><i class="bi bi-plus-lg me-2"></i>Nouveau chant</button>
 </div>
-
-<div class="d-flex gap-2 mb-4">
-  <div class="input-group flex-grow-1" style="box-shadow: 0 1px 3px rgba(0,0,0,0.05); border-radius: 6px;">
-    <span class="input-group-text bg-white border-end-0 ps-3"><i class="bi bi-search text-secondary"></i></span>
-    <input type="text" id="chantSearchInput" class="form-control border-start-0 border-end-0 py-2" 
-           placeholder="Rechercher un chant..." onkeyup="handleSearchInput()">
-    <span class="input-group-text bg-white border-start-0 pe-3">
-      <div id="searchSpinner" class="spinner-border spinner-border-sm text-primary hidden" role="status"></div>
-    </span>
-  </div>
+<!-- KPI CARDS -->
+<div class="row g-3 mb-4">
+<div class="col-6 col-xl-3">
+<div class="saas-card p-3 cursor-pointer hover-lift" onclick="resetChantFilter()">
+<div class="d-flex justify-content-between align-items-center">
+<div><div class="text-secondary small fw-bold text-uppercase mb-1">Total</div><div class="fs-4 fw-bold text-dark" id="kpiTotal">--</div></div>
+<div class="bg-light rounded p-2 text-secondary"><i class="bi bi-music-note-list fs-5"></i></div>
 </div>
-
-<div id="mainChantView">
-  
-  <div id="searchResultsContainer" class="list-group list-group-flush border rounded-3 bg-white hidden"></div>
-
-  <div id="accordionContainer" class="accordion accordion-flush border rounded-3 bg-white">
-    
-    <div class="accordion-item">
-      <h2 class="accordion-header">
-        <button class="accordion-button collapsed fw-bold text-secondary" type="button" onclick="toggleRecueil(this, 'Fihirana')">
-          <i class="bi bi-book me-2 text-primary"></i> Fihirana
-        </button>
-      </h2>
-      <div id="collapse-Fihirana" class="accordion-collapse collapse">
-        <div class="accordion-body p-0 list-group list-group-flush" id="list-Fihirana">
-          <div class="p-3 text-center text-muted"><div class="spinner-border spinner-border-sm"></div> Chargement...</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="accordion-item">
-      <h2 class="accordion-header">
-        <button class="accordion-button collapsed fw-bold text-secondary" type="button" onclick="toggleRecueil(this, 'Fihirana Fanampiny')">
-          <i class="bi bi-journal-text me-2 text-success"></i> Fihirana Fanampiny
-        </button>
-      </h2>
-      <div id="collapse-Fihirana Fanampiny" class="accordion-collapse collapse">
-        <div class="accordion-body p-0 list-group list-group-flush" id="list-Fihirana Fanampiny">
-           <div class="p-3 text-center text-muted"><div class="spinner-border spinner-border-sm"></div> Chargement...</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="accordion-item">
-      <h2 class="accordion-header">
-        <button class="accordion-button collapsed fw-bold text-secondary" type="button" onclick="toggleRecueil(this, 'Antema')">
-          <i class="bi bi-bookmarks me-2 text-warning"></i> Antema
-        </button>
-      </h2>
-      <div id="collapse-Antema" class="accordion-collapse collapse">
-        <div class="accordion-body p-0 list-group list-group-flush" id="list-Antema">
-           <div class="p-3 text-center text-muted"><div class="spinner-border spinner-border-sm"></div> Chargement...</div>
-        </div>
-      </div>
-    </div>
-
-  </div>
 </div>
+</div>
+<div class="col-6 col-xl-3">
+<div class="saas-card p-3 cursor-pointer hover-lift" style="border-left: 4px solid #F59E0B;" onclick="applySpecialFilter('missing_tone')">
+<div class="d-flex justify-content-between align-items-center">
+<div><div class="text-secondary small fw-bold text-uppercase mb-1">Sans Tonalité</div><div class="fs-4 fw-bold text-dark" id="kpiTone">--</div></div>
+<div class="bg-warning bg-opacity-10 rounded p-2 text-warning"><i class="bi bi-music-note-beamed fs-5"></i></div>
+</div>
+</div>
+</div>
+<div class="col-6 col-xl-3">
+<div class="saas-card p-3 cursor-pointer hover-lift" style="border-left: 4px solid #DC2626;" onclick="applySpecialFilter('trans_none')">
+<div class="d-flex justify-content-between align-items-center">
+<div><div class="text-secondary small fw-bold text-uppercase mb-1">Non Traduits</div><div class="fs-4 fw-bold text-dark" id="kpiTransNone">--</div></div>
+<div class="bg-danger bg-opacity-10 rounded p-2 text-danger"><i class="bi bi-translate fs-5"></i></div>
+</div>
+</div>
+</div>
+<div class="col-6 col-xl-3">
+<div class="saas-card p-3 cursor-pointer hover-lift" style="border-left: 4px solid #F97316;" onclick="applySpecialFilter('trans_partial')">
+<div class="d-flex justify-content-between align-items-center">
+<div><div class="text-secondary small fw-bold text-uppercase mb-1">Traduits partiellement</div><div class="fs-4 fw-bold text-dark" id="kpiTransPartial">--</div></div>
+<div class="bg-warning bg-opacity-10 rounded p-2" style="color:#F97316;"><i class="bi bi-journal-check fs-5"></i></div>
+</div>
+</div>
+</div>
+</div>
+<!-- SEARCH & FILTERS -->
+<div class="saas-card mb-4 p-3">
+<div class="d-flex flex-column gap-3">
+<div class="input-group border-0">
+<span class="input-group-text bg-white border-0 ps-3"><i class="bi bi-search text-secondary"></i></span>
+<input type="text" id="chantSearchInput" class="form-control border-0 py-2 shadow-none" placeholder="Rechercher un chant..." onkeyup="handleSearchInput()">
+</div>
+<div class="d-flex flex-wrap gap-2" id="recueilPillsWrapper">
+<button class="nav-pill active" onclick="filterLocalRecueil('ALL', this)">Tout</button>
+<button class="nav-pill" onclick="filterLocalRecueil('Fihirana', this)">Fihirana</button>
+<button class="nav-pill" onclick="filterLocalRecueil('Fihirana Fanampiny', this)">Fihirana Fanampiny</button>
+<button class="nav-pill" onclick="filterLocalRecueil('Antema', this)">Antema</button>
+<button class="nav-pill" onclick="filterLocalRecueil('Tsanta', this)">Tsanta</button>
+</div>
+</div>
+</div>
+<!-- GRID SYSTEM -->
+<style>
+.chant-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+.chant-card {
+background: white; border: 1px solid var(--border-medium); border-radius: 8px;
+padding: 16px; transition: all 0.2s; cursor: pointer; position: relative;
+display: flex; flex-direction: column; justify-content: space-between; height: 100%;
+}
+.chant-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-md); border-color: var(--primary-border); }
 
+.c-badge-ref {
+font-size: 12px; font-weight: 700; color: var(--text-secondary);
+background: #F3F4F6; padding: 2px 8px; border-radius: 4px; display: inline-block;
+}
+.c-title { font-weight: 600; color: var(--text-primary); font-size: 14px; margin: 8px 0; line-height: 1.4; }
 
-<div class="modal fade" id="modalEditChant" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
-  <div class="modal-dialog modal-lg modal-dialog-scrollable">
-    <div class="modal-content" style="border-radius: 3px; box-shadow: 0 8px 30px rgba(0,0,0,0.12); border: 1px solid #e1e1e1;">
-      
-      <div id="modalLoader" class="hidden" style="position: absolute; inset: 0; background: rgba(255,255,255,0.9); z-index: 10; display: flex; align-items: center; justify-content: center;">
-        <div class="spinner-border text-secondary" role="status"></div>
-      </div>
+.c-meta-row { display: flex; align-items: center; gap: 12px; margin-top: auto; padding-top: 10px; border-top: 1px solid #F3F4F6; }
+.c-meta-item { display: flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; color: var(--text-secondary); }
+.c-meta-item.missing { color: #DC2626; background: #FEF2F2; padding: 2px 6px; border-radius: 4px; }
 
-      <div class="modal-header border-0 pb-0 pt-4 px-4">
-        <h5 class="modal-title fw-bold text-dark" id="modalTitle">Nouveau chant</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
+.sk-card { height: 120px; border-radius: 8px; }
+textarea { overflow: hidden; resize: none; }
+</style>
+<div id="chantsLoader" class="chant-grid mb-4">
+<div class="skeleton sk-card"></div><div class="skeleton sk-card"></div>
+<div class="skeleton sk-card"></div><div class="skeleton sk-card"></div>
+<div class="skeleton sk-card"></div><div class="skeleton sk-card"></div>
+</div>
+<div id="chantsGrid" class="chant-grid hidden"></div>
+<div id="emptySearchState" class="text-center py-5 hidden">
+<div class="text-muted fst-italic">Aucun chant trouvé.</div>
+</div>
+<!-- MODALE ÉDITEUR -->
+<!-- CORRECTION : Suppression de data-bs-backdrop="static" pour autoriser le clic -->
+<div class="modal fade" id="modalEditChant" tabindex="-1" aria-hidden="true">
+<div class="modal-dialog modal-lg modal-dialog-scrollable" style="height: 95vh;">
+<div class="modal-content" style="border-radius: 12px; box-shadow: 0 20px 50px rgba(0,0,0,0.3); border: none; height: 100%;">
+  <div id="modalLoader" class="hidden" style="position: absolute; inset: 0; background: rgba(255,255,255,0.9); z-index: 10; display: flex; align-items: center; justify-content: center;">
+    <div class="spinner-border text-secondary" role="status"></div>
+  </div>
 
-      <div class="modal-body px-4 pt-2">
-        <form id="formChantEditor">
-          <input type="hidden" id="editRowIndex">
+  <div class="modal-header border-bottom px-4 py-3">
+    <h5 class="modal-title fw-bold text-dark" id="modalTitle">Nouveau chant</h5>
+    <button type="button" class="btn-close" onclick="attemptClose()"></button>
+  </div>
 
-          <div class="py-2" style="font-size: 14px;">
-            <div class="row g-2">
-              <div class="col-4">
-                <label class="small text-secondary fw-bold">RECUEIL</label>
-                <select class="form-select form-select-sm bg-light border-0" id="editRecueil"></select>
+  <div class="modal-body px-4 pt-4 bg-light custom-scrollbar" style="overflow-x: hidden;">
+    <form id="formChantEditor" style="width: 100%;">
+      <input type="hidden" id="editRowIndex">
+
+      <div class="saas-card p-4 mb-4">
+          <div class="row g-3">
+              <div class="col-12 col-md-4">
+                <label class="small text-secondary fw-bold mb-1">RECUEIL</label>
+                <select class="form-select input-saas" id="editRecueil" onchange="markChantDirty()"></select>
               </div>
-              <div class="col-2">
-                 <label class="small text-secondary fw-bold">N°</label>
-                 <input type="number" class="form-control form-control-sm bg-light border-0 fw-bold" id="editNumero">
+              <div class="col-6 col-md-2">
+                 <label class="small text-secondary fw-bold mb-1">NUMÉRO</label>
+                 <input type="number" class="form-control input-saas fw-bold" id="editNumero" oninput="markChantDirty()">
               </div>
-              <div class="col-2"> <label class="small text-secondary fw-bold">TONALITÉ</label>
-                 <input type="text" class="form-control form-control-sm bg-light border-0 fw-bold" id="editTonalite" placeholder="Ex: G">
+              <div class="col-6 col-md-2"> 
+                 <label class="small text-secondary fw-bold mb-1">TONALITÉ</label>
+                 <input type="text" class="form-control input-saas fw-bold" id="editTonalite" placeholder="ex: G" oninput="markChantDirty()">
               </div>
-               <div class="col-4">
-                 <label class="small text-secondary fw-bold">TAGS</label>
-                 <input type="text" class="form-control form-control-sm bg-light border-0" id="editTags" placeholder="Noël...">
+               <div class="col-12 col-md-4">
+                 <label class="small text-secondary fw-bold mb-1">TAGS</label>
+                 <input type="text" class="form-control input-saas" id="editTags" placeholder="Louange, Noël..." oninput="markChantDirty()">
               </div>
-            </div>
+              <div class="col-12">
+                  <label class="small text-secondary fw-bold mb-1">TITRE</label>
+                  <input type="text" class="form-control input-saas fs-5 fw-bold" id="editTitre" placeholder="Titre du chant" oninput="markChantDirty()">
+              </div>
           </div>
-
-          <hr class="text-secondary opacity-25 my-3">
-          <input type="text" class="form-control border-0 px-0 mb-4" id="editTitre" placeholder="Titre du chant" style="font-size: 24px; font-weight: 700;">
-
-          <div id="editorStrophesContainer" class="d-flex flex-column gap-3 mb-4"></div>
-
-          <div class="text-center text-muted small fst-italic py-2" id="emptyStropheMsg">
-            Ajoutez des paroles ci-dessous.
-          </div>
-
-          <div class="d-flex gap-2 justify-content-center pt-3 border-top border-dashed">
-            <button type="button" class="btn btn-outline-primary btn-sm px-3" onclick="addStropheBlock('C')">
-              <i class="bi bi-plus-lg"></i> Couplet
-            </button>
-            <button type="button" class="btn btn-outline-success btn-sm px-3" onclick="addStropheBlock('R')">
-              <i class="bi bi-plus-lg"></i> Refrain
-            </button>
-          </div>
-
-        </form>
       </div>
 
-      <div class="modal-footer border-0 bg-light">
-        <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Fermer</button>
-        <button type="button" class="btn btn-sm btn-dark px-4" onclick="submitChantSave()">Enregistrer</button>
+      <div id="editorStrophesContainer" class="d-flex flex-column gap-3 mb-5"></div>
+
+      <div class="text-center text-muted small fst-italic py-4 border-top border-dashed" id="emptyStropheMsg">
+        Aucune parole. Commencez par ajouter un couplet ou un refrain.
       </div>
-    </div>
+
+      <div class="d-flex gap-2 justify-content-center pt-3 pb-5">
+        <button type="button" class="btn btn-outline-primary btn-sm px-3 rounded-pill" onclick="addStropheBlock('C')"><i class="bi bi-plus-lg me-1"></i> Couplet</button>
+        <button type="button" class="btn btn-outline-success btn-sm px-3 rounded-pill" onclick="addStropheBlock('R')"><i class="bi bi-plus-lg me-1"></i> Refrain</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="modal-footer border-top bg-white px-4 py-3">
+    <button type="button" class="btn btn-saas-secondary" onclick="attemptClose()">Annuler</button>
+    <button type="button" class="btn btn-saas-dark px-4" id="btnSaveChant" onclick="submitChantSave()">Enregistrer</button>
   </div>
 </div>
+</div>
+</div>
+<!-- CONFIRMATION MODAL -->
+<div id="confirmDiscardModal" class="notion-dialog" style="display:none; width: 320px; padding: 20px; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 10070;">
+<div class="text-center mb-3">
+<div class="mb-2"><i class="bi bi-exclamation-circle text-warning fs-3"></i></div>
+<h6 class="fw-bold m-0 text-dark">Modifications en cours</h6>
+<p class="small text-muted mt-2 mb-0">Si vous quittez, vos changements seront perdus.</p>
+</div>
+<div class="d-flex justify-content-center gap-2">
+<button class="btn btn-sm btn-light border" onclick="cancelDiscard()">Annuler</button>
+<button class="btn btn-sm btn-danger text-white" onclick="confirmDiscard()">Quitter sans sauver</button>
+</div>
+</div>
+<div id="confirmOverlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.4); z-index:10065;" onclick="cancelDiscard()"></div>

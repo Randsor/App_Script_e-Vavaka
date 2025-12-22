@@ -1,7 +1,7 @@
 <script>
 /**
- * MOTEUR DE RENDU UNIFIÉ & LOGIQUE PARTAGÉE
- * Version Finalisée (Clean Buttons - No Inline Loading)
+ * MOTEUR DE RENDU UNIFIÉ
+ * V2 : Style Document & Mobile Responsive
  */
 
 function getActiveDataArray() { return (APP_CONTEXT === 'TEMPLATE') ? DATA_TEMPLATE_BLOCKS : DATA_PROGRAMME_BLOCKS; }
@@ -13,23 +13,16 @@ function removeBlock(index) { const data = getActiveDataArray(); data.splice(ind
 function updateBlockField(index, field, value) { const data = getActiveDataArray(); if(data[index]) data[index][field] = value; }
 function updateBlockDataField(index, field, value) { const data = getActiveDataArray(); if(data[index]) { if(!data[index].data) data[index].data = {}; data[index].data[field] = value; } if(field === 'mode') refreshActiveView(); }
 
-// FONCTION DE RESET
 function resetSongBlock(index) {
     const data = getActiveDataArray();
-    if(data[index]) {
-        data[index].data = { mode: 'recherche' }; 
-        refreshActiveView();
-    }
+    if(data[index]) { data[index].data = { mode: 'recherche' }; refreshActiveView(); }
 }
 
 // --- INSERTION & MENUS ---
 
 function insertBlock(type) {
     if(typeof closeAllMenus === 'function') closeAllMenus();
-    else { 
-        const m = document.getElementById('insertMenu'); if(m) m.style.display = 'none'; 
-        const o = document.getElementById('menuOverlay'); if(o) o.style.display = 'none'; 
-    }
+    else { const m = document.getElementById('insertMenu'); if(m) m.style.display = 'none'; const o = document.getElementById('menuOverlay'); if(o) o.style.display = 'none'; }
     
     const data = getActiveDataArray();
     let insertIdx = (typeof window.insertIndex !== 'undefined') ? window.insertIndex : -1;
@@ -52,10 +45,7 @@ function insertBlock(type) {
 }
 
 // Positionnement Souris
-function openInsertMenu(index, btnElement, event) { 
-    window.insertIndex = index; 
-    openMenuAtMouse('insertMenu', btnElement, event); 
-}
+function openInsertMenu(index, btnElement, event) { window.insertIndex = index; openMenuAtMouse('insertMenu', btnElement, event); }
 
 function openRoleMenu(index, btnElement, event) {
     window.roleEditIndex = index;
@@ -102,7 +92,6 @@ function setSharedBlockRole(roleName) {
     closeAllMenus(); 
 }
 
-// LOGIQUE DE POSITIONNEMENT SOURIS AMÉLIORÉE
 function openMenuAtMouse(menuId, element, event) {
     if(typeof closeAllMenus === 'function') closeAllMenus(); 
     const menu = document.getElementById(menuId);
@@ -113,19 +102,11 @@ function openMenuAtMouse(menuId, element, event) {
         menu.style.display = 'block';
         menu.style.visibility = 'hidden'; 
         const rect = element.getBoundingClientRect();
-        
         let topPos = rect.bottom;
-        let leftPos = rect.left;
-        
-        if(event && event.clientX) {
-            leftPos = event.clientX;
-        } else {
-            leftPos = rect.left + (rect.width / 2);
-        }
+        let leftPos = event && event.clientX ? event.clientX : rect.left + (rect.width / 2);
         
         const menuWidth = menu.offsetWidth || 180;
         if (leftPos + menuWidth > window.innerWidth - 10) leftPos = window.innerWidth - menuWidth - 10;
-        
         const menuHeight = menu.offsetHeight || 200;
         if (topPos + menuHeight > window.innerHeight - 10) topPos = rect.top - menuHeight;
 
@@ -138,7 +119,7 @@ function openMenuAtMouse(menuId, element, event) {
 
 function openMenuAtElementGeneric(menuId, element) { openMenuAtMouse(menuId, element, null); }
 
-// --- RENDERER PRINCIPAL ---
+// --- RENDERER PRINCIPAL (FIXED: Doc Style & Mobile Stack) ---
 function renderSharedBlocks(containerId, blocks, context) {
     const container = document.getElementById(containerId);
     if(!container) return;
@@ -170,20 +151,23 @@ function renderSharedBlocks(containerId, blocks, context) {
         }
 
         let extraFields = "";
+        // STYLE DOCUMENT : Bordures invisibles par défaut
         let contentStyle = 'style="font-size:14px; resize:none; overflow-y:hidden;"';
         let isProg = (context === 'PROGRAMME');
 
         // --- TYPE: CHANT ---
         if (block.type === 'CHANT') {
+             // Titres en ligne (MG/FR)
              let titleRow = '<div class="d-flex align-items-baseline gap-2 w-100 flex-wrap" style="padding-right: 70px;">';
-             titleRow += '<input type="text" class="form-control doc-input input-mg p-0" style="width: auto;" value="' + block.label_mg + '" placeholder="TITRE MG" onchange="updateBlockField(' + index + ', \'label_mg\', this.value)">';
-             titleRow += '<input type="text" class="form-control doc-input input-fr p-0" style="width: auto;" value="' + block.label_fr + '" placeholder="Titre FR" onchange="updateBlockField(' + index + ', \'label_fr\', this.value)">';
+             titleRow += '<input type="text" class="form-control doc-borderless input-mg p-0" style="width: auto;" value="' + block.label_mg + '" placeholder="TITRE MG" onchange="updateBlockField(' + index + ', \'label_mg\', this.value)">';
+             titleRow += '<input type="text" class="form-control doc-borderless input-fr p-0" style="width: auto;" value="' + block.label_fr + '" placeholder="Titre FR" onchange="updateBlockField(' + index + ', \'label_fr\', this.value)">';
              titleRow += '</div>';
              
              let content = "";
              let mode = block.data?.mode || "recherche";
              
              if (mode === 'fixe' || block.data?.paroles_fixe) {
+                 // AFFICHAGE CHANT SÉLECTIONNÉ
                  let songInfo = "";
                  let isFromDB = !!block.data?.id;
                  let readonlyAttr = isFromDB ? "readonly" : "";
@@ -222,12 +206,14 @@ function renderSharedBlocks(containerId, blocks, context) {
                  }
                  
                  content = songInfo;
+                 // MOBILE STACK FIX: col-12 col-md-6
                  content += '<div class="row g-2 mt-1 border-start ps-2 ms-1">';
-                 content += '<div class="col-6"><textarea class="form-control doc-input ' + bgClass + '" rows="2" ' + contentStyle + ' ' + readonlyAttr + ' placeholder="Paroles MG..." oninput="autoResize(this)" onchange="updateBlockDataField(' + index + ', \'paroles_fixe\', this.value)">' + (block.data?.paroles_fixe || '') + '</textarea></div>';
-                 content += '<div class="col-6"><textarea class="form-control doc-input text-secondary ' + bgClass + '" rows="2" ' + contentStyle + ' ' + readonlyAttr + ' placeholder="Traduction..." oninput="autoResize(this)" onchange="updateBlockDataField(' + index + ', \'paroles_fr_fixe\', this.value)">' + (block.data?.paroles_fr_fixe || '') + '</textarea></div>';
+                 content += '<div class="col-12 col-md-6"><textarea class="form-control doc-borderless ' + bgClass + '" rows="2" ' + contentStyle + ' ' + readonlyAttr + ' placeholder="Paroles MG..." oninput="autoResize(this)" onchange="updateBlockDataField(' + index + ', \'paroles_fixe\', this.value)">' + (block.data?.paroles_fixe || '') + '</textarea></div>';
+                 content += '<div class="col-12 col-md-6"><textarea class="form-control doc-borderless text-secondary ' + bgClass + '" rows="2" ' + contentStyle + ' ' + readonlyAttr + ' placeholder="Traduction..." oninput="autoResize(this)" onchange="updateBlockDataField(' + index + ', \'paroles_fr_fixe\', this.value)">' + (block.data?.paroles_fr_fixe || '') + '</textarea></div>';
                  content += '</div>';
              } 
              else {
+                 // MODE RECHERCHE
                  if (isProg) {
                      content = '<div class="d-grid gap-2 d-md-flex mt-2">';
                      content += `<button class="btn btn-sm bg-white text-dark shadow-sm d-flex align-items-center gap-2 px-3" style="border: 1px solid #E1E1E1; color: #37352F;" onclick="openSongSelector(${index})"><i class="bi bi-search" style="color:#999;"></i> Choisir dans la liste</button>`;
@@ -237,67 +223,56 @@ function renderSharedBlocks(containerId, blocks, context) {
                      content = '<div class="text-muted small fst-italic mt-1 ms-1"><i class="bi bi-search me-1"></i>Recherche biblio (Mode Programme)</div>';
                  }
              }
-             let isManual = !block.data?.id;
-             let toggleLibre = '<div class="form-check form-switch mt-1 mb-0 no-print" style="font-size:0.65rem;"><input class="form-check-input" type="checkbox" style="width: 1.5em; height: 0.8em;" ' + (mode === 'fixe' && isManual ? 'checked' : '') + ' onchange="if(this.checked) { updateBlockDataField(' + index + ', \'id\', \'\'); updateBlockDataField(' + index + ', \'mode\', \'fixe\'); } else { updateBlockDataField(' + index + ', \'mode\', \'recherche\'); }"><label class="form-check-label text-muted">Chant libre (Saisie manuelle)</label></div>';
-             extraFields = '<div>' + titleRow + toggleLibre + content + '</div>';
+             // SUPPRESSION DU DOUBLON SWITCH "Chant Libre"
+             extraFields = '<div>' + titleRow + content + '</div>';
         }
         
-        // --- TYPE: FANEKENA (Design Final - Clean) ---
+        // --- TYPE: FANEKENA ---
         else if (block.type === 'FANEKENA') {
             let isFilled = block.data && block.data.id;
             let clickAction = (APP_CONTEXT === 'TEMPLATE') ? 'openFanekenaSelectorTemplate(' + index + ')' : 'openFanekenaSelectorProgramme(' + index + ')';
             
             let selectorHtml = "";
-            
             if (!isFilled) {
-                // CAS VIDE : Bouton simple sans feedback inline (géré par la modale)
-                selectorHtml = '<div class="mt-2">';
-                selectorHtml += '<button class="btn btn-sm bg-white text-dark shadow-sm d-flex align-items-center gap-2 px-3" ';
-                selectorHtml += 'style="border: 1px solid #E1E1E1; color: #37352F;" ';
-                selectorHtml += 'onclick="' + clickAction + '">';
-                selectorHtml += '<i class="bi bi-search" style="color:#999;"></i> Choisir FANEKEM-PINOANA';
-                selectorHtml += '</button></div>';
+                selectorHtml = '<div class="mt-2"><button class="btn btn-sm bg-white text-dark shadow-sm d-flex align-items-center gap-2 px-3" style="border: 1px solid #E1E1E1; color: #37352F;" onclick="' + clickAction + '"><i class="bi bi-search" style="color:#999;"></i> Choisir FANEKEM-PINOANA</button></div>';
             } else {
-                // CAS REMPLI : Titre + Bouton Changer (Clean)
-                selectorHtml = '<div class="d-flex justify-content-between align-items-center mb-2 pt-1">';
-                // Titre
-                selectorHtml += '<span class="fw-bold text-dark" style="font-size:13px; text-transform:uppercase; letter-spacing:0.5px;">' + block.data.titre + '</span>';
-                // Bouton Changer
-                selectorHtml += '<button class="btn btn-sm bg-white border text-secondary shadow-sm py-0 px-2" ';
-                selectorHtml += 'style="font-size:11px; border-color:#e1e1e1 !important;" ';
-                selectorHtml += 'onclick="' + clickAction + '">Changer</button>';
-                selectorHtml += '</div>';
+                selectorHtml = '<div class="d-flex justify-content-between align-items-center mb-2 pt-1"><span class="fw-bold text-dark" style="font-size:13px; text-transform:uppercase; letter-spacing:0.5px;">' + block.data.titre + '</span><button class="btn btn-sm bg-white border text-secondary shadow-sm py-0 px-2" style="font-size:11px; border-color:#e1e1e1 !important;" onclick="' + clickAction + '">Changer</button></div>';
             }
             
             let rows = isProg ? '4' : '1';
-            let txtMG = '<textarea class="form-control doc-input" rows="' + rows + '" ' + contentStyle + ' placeholder="Texte MG..." oninput="autoResize(this)" onchange="updateBlockDataField(' + index + ', \'contenu_mg\', this.value)">' + (block.data?.contenu_mg || '') + '</textarea>';
-            let txtFR = '<textarea class="form-control doc-input text-secondary" rows="' + rows + '" ' + contentStyle + ' placeholder="Texte FR..." oninput="autoResize(this)" onchange="updateBlockDataField(' + index + ', \'contenu_fr\', this.value)">' + (block.data?.contenu_fr || '') + '</textarea>';
+            let txtMG = '<textarea class="form-control doc-borderless" rows="' + rows + '" ' + contentStyle + ' placeholder="Texte MG..." oninput="autoResize(this)" onchange="updateBlockDataField(' + index + ', \'contenu_mg\', this.value)">' + (block.data?.contenu_mg || '') + '</textarea>';
+            let txtFR = '<textarea class="form-control doc-borderless text-secondary" rows="' + rows + '" ' + contentStyle + ' placeholder="Texte FR..." oninput="autoResize(this)" onchange="updateBlockDataField(' + index + ', \'contenu_fr\', this.value)">' + (block.data?.contenu_fr || '') + '</textarea>';
             
-            extraFields = '<div class="mt-1 ps-3 border-start border-2 border-primary border-opacity-25">' + selectorHtml + '<div class="row g-2"><div class="col-6">' + txtMG + '</div><div class="col-6">' + txtFR + '</div></div></div>';
+            // MOBILE STACK FIX
+            extraFields = '<div class="mt-1 ps-3 border-start border-2 border-primary border-opacity-25">' + selectorHtml + '<div class="row g-2"><div class="col-12 col-md-6">' + txtMG + '</div><div class="col-12 col-md-6">' + txtFR + '</div></div></div>';
         }
-        // --- AUTRES TYPES ---
+        
+        // --- TYPE: LECTURE ---
         else if (block.type === 'LECTURE') {
             extraFields = '<div class="row g-3 mt-1 border-start ps-2 ms-1">';
-            extraFields += '<div class="col-6"><input type="text" class="form-control doc-input fw-bold mb-1" ' + contentStyle + ' placeholder="Toko sy andininy" value="' + (block.data?.ref_mg || '') + '" onchange="updateBlockDataField(' + index + ', \'ref_mg\', this.value)">';
-            extraFields += isProg ? '<textarea class="form-control doc-input" rows="3" ' + contentStyle + ' placeholder="Texte Biblique MG..." oninput="autoResize(this)" onchange="updateBlockDataField(' + index + ', \'texte_mg\', this.value)">' + (block.data?.texte_mg || '') + '</textarea>' : '<textarea class="form-control doc-input text-muted" rows="1" disabled placeholder="(Texte Biblique MG)">' + (block.data?.texte_mg || '') + '</textarea>';
-            extraFields += '</div><div class="col-6"><input type="text" class="form-control doc-input fw-bold mb-1 text-secondary" ' + contentStyle + ' placeholder="Référence biblique" value="' + (block.data?.ref_fr || '') + '" onchange="updateBlockDataField(' + index + ', \'ref_fr\', this.value)">';
-            extraFields += isProg ? '<textarea class="form-control doc-input text-secondary" rows="3" ' + contentStyle + ' placeholder="Texte Biblique FR..." oninput="autoResize(this)" onchange="updateBlockDataField(' + index + ', \'texte_fr\', this.value)">' + (block.data?.texte_fr || '') + '</textarea>' : '<textarea class="form-control doc-input text-muted" rows="1" disabled placeholder="(Texte Biblique FR)">' + (block.data?.texte_fr || '') + '</textarea>';
+            extraFields += '<div class="col-12 col-md-6"><input type="text" class="form-control doc-borderless fw-bold mb-1" ' + contentStyle + ' placeholder="Toko sy andininy" value="' + (block.data?.ref_mg || '') + '" onchange="updateBlockDataField(' + index + ', \'ref_mg\', this.value)">';
+            extraFields += isProg ? '<textarea class="form-control doc-borderless" rows="3" ' + contentStyle + ' placeholder="Texte Biblique MG..." oninput="autoResize(this)" onchange="updateBlockDataField(' + index + ', \'texte_mg\', this.value)">' + (block.data?.texte_mg || '') + '</textarea>' : '<textarea class="form-control doc-borderless text-muted" rows="1" disabled placeholder="(Texte Biblique MG)">' + (block.data?.texte_mg || '') + '</textarea>';
+            extraFields += '</div><div class="col-12 col-md-6"><input type="text" class="form-control doc-borderless fw-bold mb-1 text-secondary" ' + contentStyle + ' placeholder="Référence biblique" value="' + (block.data?.ref_fr || '') + '" onchange="updateBlockDataField(' + index + ', \'ref_fr\', this.value)">';
+            extraFields += isProg ? '<textarea class="form-control doc-borderless text-secondary" rows="3" ' + contentStyle + ' placeholder="Texte Biblique FR..." oninput="autoResize(this)" onchange="updateBlockDataField(' + index + ', \'texte_fr\', this.value)">' + (block.data?.texte_fr || '') + '</textarea>' : '<textarea class="form-control doc-borderless text-muted" rows="1" disabled placeholder="(Texte Biblique FR)">' + (block.data?.texte_fr || '') + '</textarea>';
             extraFields += '</div></div>';
         }
+        
+        // --- AUTRES TYPES (LITURGIE, PRIERE, etc.) ---
         else if (['LITURGIE', 'LIBRE', 'PRIERE', 'TEXTE_LIBRE'].includes(block.type)) {
-            let versetInput = (block.type === 'LITURGIE') ? '<input type="text" class="form-control doc-input fw-bold text-primary mb-1" ' + contentStyle + ' placeholder="Verset..." value="' + (block.data?.verset || '') + '" onchange="updateBlockDataField(' + index + ', \'verset\', this.value)">' : '';
+            let versetInput = (block.type === 'LITURGIE') ? '<input type="text" class="form-control doc-borderless fw-bold text-primary mb-1" ' + contentStyle + ' placeholder="Verset..." value="' + (block.data?.verset || '') + '" onchange="updateBlockDataField(' + index + ', \'verset\', this.value)">' : '';
             let rows = isProg ? '2' : '1';
-            let txtMG = '<textarea class="form-control doc-input" rows="' + rows + '" ' + contentStyle + ' placeholder="Texte MG..." oninput="autoResize(this)" onchange="updateBlockDataField(' + index + ', \'texte_mg\', this.value)">' + (block.data?.texte_mg || '') + '</textarea>';
-            let txtFR = '<textarea class="form-control doc-input text-secondary" rows="' + rows + '" ' + contentStyle + ' placeholder="Texte FR..." oninput="autoResize(this)" onchange="updateBlockDataField(' + index + ', \'texte_fr\', this.value)">' + (block.data?.texte_fr || '') + '</textarea>';
+            let txtMG = '<textarea class="form-control doc-borderless" rows="' + rows + '" ' + contentStyle + ' placeholder="Texte MG..." oninput="autoResize(this)" onchange="updateBlockDataField(' + index + ', \'texte_mg\', this.value)">' + (block.data?.texte_mg || '') + '</textarea>';
+            let txtFR = '<textarea class="form-control doc-borderless text-secondary" rows="' + rows + '" ' + contentStyle + ' placeholder="Texte FR..." oninput="autoResize(this)" onchange="updateBlockDataField(' + index + ', \'texte_fr\', this.value)">' + (block.data?.texte_fr || '') + '</textarea>';
             
-            extraFields = '<div class="mt-1 ps-3 border-start border-2 border-light">' + versetInput + '<div class="row g-2"><div class="col-6">' + txtMG + '</div><div class="col-6">' + txtFR + '</div></div></div>';
+            // MOBILE STACK FIX
+            extraFields = '<div class="mt-1 ps-3 border-start border-2 border-light">' + versetInput + '<div class="row g-2"><div class="col-12 col-md-6">' + txtMG + '</div><div class="col-12 col-md-6">' + txtFR + '</div></div></div>';
             
             if(block.type === 'TEXTE_LIBRE') {
-                extraFields = '<div class="row g-2"><div class="col-6">' + txtMG + '</div><div class="col-6">' + txtFR + '</div></div>';
+                extraFields = '<div class="row g-2"><div class="col-12 col-md-6">' + txtMG + '</div><div class="col-12 col-md-6">' + txtFR + '</div></div>';
             }
         }
         else if (block.type === 'TITRE') {
-             extraFields = '<input type="text" class="form-control doc-input text-muted fst-italic mt-0" style="font-size:14px;" placeholder="Commentaire..." value="' + (block.data?.comment || '') + '" onchange="updateBlockDataField(' + index + ', \'comment\', this.value)">'; 
+             extraFields = '<input type="text" class="form-control doc-borderless text-muted fst-italic mt-0" style="font-size:14px;" placeholder="Commentaire..." value="' + (block.data?.comment || '') + '" onchange="updateBlockDataField(' + index + ', \'comment\', this.value)">'; 
         }
         else if (block.type === 'PREDICATION') {
              extraFields = '<div class="mt-1 d-flex gap-2 text-muted small"><span class="badge bg-light text-secondary border fw-normal">Lohateny</span><span class="badge bg-light text-secondary border fw-normal">Thème</span></div>'; 
@@ -308,7 +283,7 @@ function renderSharedBlocks(containerId, blocks, context) {
 
         const mainContent = (block.type === 'CHANT' || block.type === 'TEXTE_LIBRE') 
             ? extraFields 
-            : '<input type="text" class="form-control doc-input input-mg p-0" value="' + block.label_mg + '" placeholder="TITRE MG" onchange="updateBlockField(' + index + ', \'label_mg\', this.value)"><input type="text" class="form-control doc-input input-fr p-0" value="' + block.label_fr + '" placeholder="Titre FR" onchange="updateBlockField(' + index + ', \'label_fr\', this.value)">';
+            : '<input type="text" class="form-control doc-borderless input-mg p-0" value="' + block.label_mg + '" placeholder="TITRE MG" onchange="updateBlockField(' + index + ', \'label_mg\', this.value)"><input type="text" class="form-control doc-borderless input-fr p-0" value="' + block.label_fr + '" placeholder="Titre FR" onchange="updateBlockField(' + index + ', \'label_fr\', this.value)">';
 
         const bottomContent = (block.type !== 'CHANT' && block.type !== 'TEXTE_LIBRE') ? '<div class="ps-1">' + extraFields + '</div>' : '';
 

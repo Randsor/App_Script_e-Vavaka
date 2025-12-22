@@ -33,6 +33,40 @@
       });
   });
 
+  // --- HELPER FIX MODAL JUMP & SCROLL (SÉCURISÉ) ---
+  function openCustomModal(modalId, overlayId) {
+      const modal = document.getElementById(modalId);
+      const overlay = document.getElementById(overlayId);
+      
+      if (modal && modal.parentElement !== document.body) {
+          document.body.appendChild(modal); // Déplace au body pour éviter le relatif
+      }
+      if (overlay && overlay.parentElement !== document.body) {
+          document.body.appendChild(overlay);
+      }
+      
+      if(modal) {
+          modal.style.display = 'flex'; // FORCE FLEX POUR CENTRAGE
+          // Force Z-Index via JS pour être sûr, même si CSS le fait
+          modal.style.zIndex = '10060';
+      }
+      if(overlay) {
+          overlay.style.display = 'block';
+          overlay.style.zIndex = '10055';
+      }
+      
+      // LOCK SCROLL
+      document.body.classList.add('modal-open');
+  }
+
+  function closeCustomModal(modalId, overlayId) {
+      const modal = document.getElementById(modalId);
+      const overlay = document.getElementById(overlayId);
+      if(modal) modal.style.display = 'none';
+      if(overlay) overlay.style.display = 'none';
+      document.body.classList.remove('modal-open');
+  }
+
   function populateRecueilFilter() {
       google.script.run.withSuccessHandler(list => {
           const container = document.getElementById('recueilPillsContainer');
@@ -68,8 +102,9 @@
   // --- SÉLECTEUR DE FANEKENA (Programme) ---
   function openFanekenaSelectorProgramme(index) {
       FANEKENA_CONTEXT.blockIndex = index;
-      document.getElementById('fanekenaSelectorModal').style.display = 'flex';
-      document.getElementById('progCreatorOverlay').style.display = 'block';
+      // FIX: Utilisation du helper
+      openCustomModal('fanekenaSelectorModal', 'progCreatorOverlay');
+      
       const container = document.getElementById('fanekenaSelectList');
       container.innerHTML = '<div class="text-center py-4"><div class="spinner-border spinner-border-sm"></div></div>';
       
@@ -80,7 +115,6 @@
               const div = document.createElement('div');
               div.className = "song-item"; 
               div.innerHTML = '<div class="fw-bold text-dark" style="font-size:13px;">' + item.titre + '</div><i class="bi bi-chevron-right small text-muted ms-2"></i>';
-              // MODIF : On passe 'this' (le div cliqué) à la fonction de sélection
               div.onclick = function() { selectFanekena(item.id, this); };
               container.appendChild(div);
           });
@@ -88,18 +122,13 @@
   }
 
   function selectFanekena(id, clickedElement) {
-      // 1. FEEDBACK VISUEL IMMÉDIAT
       if(clickedElement) {
           clickedElement.innerHTML = '<div class="d-flex align-items-center gap-2 text-primary fw-bold"><div class="spinner-border spinner-border-sm"></div><span>Insertion...</span></div>';
-          clickedElement.style.pointerEvents = 'none'; // Anti double-clic
-          // Griser les frères
+          clickedElement.style.pointerEvents = 'none';
           const siblings = clickedElement.parentElement.children;
-          for(let sib of siblings) {
-              if(sib !== clickedElement) sib.style.opacity = '0.5';
-          }
+          for(let sib of siblings) { if(sib !== clickedElement) sib.style.opacity = '0.5'; }
       }
 
-      // 2. APPEL SERVEUR
       const idx = FANEKENA_CONTEXT.blockIndex;
       if (idx > -1 && DATA_PROGRAMME_BLOCKS[idx]) {
           google.script.run.withSuccessHandler(data => {
@@ -109,15 +138,30 @@
               DATA_PROGRAMME_BLOCKS[idx].data.contenu_mg = data.contenu_mg;
               DATA_PROGRAMME_BLOCKS[idx].data.contenu_fr = data.contenu_fr;
               
-              renderCurrentTimeline(); // Mise à jour du bloc
-              closeAllModals(); // Fermeture seulement maintenant
+              renderCurrentTimeline(); 
+              closeAllModals(); // Fermeture globale
               showNotionToast("Confession insérée.", "success");
           }).getFanekenaDetails(id);
       }
   }
 
-  // --- SÉLECTEUR DE CHANT (Code inchangé...) ---
-  function openSongSelector(index) { SONG_SELECTOR_CONTEXT.blockIndex = index; SONG_SELECTOR_CONTEXT.selectedSong = null; SONG_SELECTOR_CONTEXT.selectedSequence = []; document.getElementById('songSelectorSearch').value = ""; document.getElementById('songSelectorResults').innerHTML = '<div class="text-center py-4 text-muted small fst-italic">Recherchez un chant...</div>'; document.getElementById('songSelectorPreviewPanel').innerHTML = '<div class="h-100 d-flex align-items-center justify-content-center text-muted small fst-italic">Sélectionnez un chant à gauche.</div>'; document.getElementById('songSelectorStatus').innerText = ""; document.getElementById('btnConfirmSong').disabled = true; showMobileSongList(); document.getElementById('songSelectorModal').style.display = 'flex'; document.getElementById('progCreatorOverlay').style.display = 'block'; setTimeout(() => document.getElementById('songSelectorSearch').focus(), 100); }
+  // --- SÉLECTEUR DE CHANT ---
+  function openSongSelector(index) { 
+      SONG_SELECTOR_CONTEXT.blockIndex = index; 
+      SONG_SELECTOR_CONTEXT.selectedSong = null; 
+      SONG_SELECTOR_CONTEXT.selectedSequence = []; 
+      document.getElementById('songSelectorSearch').value = ""; 
+      document.getElementById('songSelectorResults').innerHTML = '<div class="text-center py-4 text-muted small fst-italic">Recherchez un chant...</div>'; 
+      document.getElementById('songSelectorPreviewPanel').innerHTML = '<div class="h-100 d-flex align-items-center justify-content-center text-muted small fst-italic">Sélectionnez un chant à gauche.</div>'; 
+      document.getElementById('songSelectorStatus').innerText = ""; 
+      document.getElementById('btnConfirmSong').disabled = true; 
+      showMobileSongList(); 
+      
+      // FIX: Utilisation du helper
+      openCustomModal('songSelectorModal', 'progCreatorOverlay');
+      
+      setTimeout(() => document.getElementById('songSelectorSearch').focus(), 100); 
+  }
   function showMobileSongList() { const colSearch = document.getElementById('colSearch'); const colConfig = document.getElementById('colConfig'); colSearch.classList.remove('d-none'); colConfig.classList.add('d-none'); colConfig.classList.remove('d-flex'); }
   function showMobileSongConfig() { const colSearch = document.getElementById('colSearch'); const colConfig = document.getElementById('colConfig'); if (window.innerWidth < 768) { colSearch.classList.add('d-none'); colConfig.classList.remove('d-none'); colConfig.classList.add('d-flex'); } }
   let songSearchTimer = null;
@@ -131,19 +175,43 @@
   function confirmSongSelection() { const song = SONG_SELECTOR_CONTEXT.selectedSong; if(!song) return; const chips = document.querySelectorAll('.stanza-card.selected'); const sequenceIndices = []; chips.forEach((chip) => { let idx = parseInt(chip.id.replace('chip_', '')); sequenceIndices.push(idx); const structArr = (song.structure || "").split(','); if (idx + 1 < structArr.length && structArr[idx+1].trim().toUpperCase() === 'R') { sequenceIndices.push(idx + 1); } }); if(sequenceIndices.length === 0) { showNotionToast("Veuillez sélectionner au moins une strophe.", "error"); return; } const textMGArr = (song.paroles_mg || "").split(" /// "); const textFRArr = (song.paroles_fr || "").split(" /// "); const structArr = (song.structure || "").split(","); let fullTextMG = ""; let fullTextFR = ""; let cleanSequence = []; let displayLabels = {}; let cCount = 1; let totalCouplets = 0; structArr.forEach((t, i) => { if(t.trim().toUpperCase() === 'C') { displayLabels[i] = cCount++; totalCouplets++; } else if(t.trim().toUpperCase() === 'R') displayLabels[i] = "Ref"; else displayLabels[i] = ""; }); sequenceIndices.forEach((idx, i) => { const txtM = textMGArr[idx] || ""; const txtF = textFRArr[idx] || ""; let label = displayLabels[idx] ? displayLabels[idx] + ". " : ""; if(i > 0) { fullTextMG += "\n\n"; fullTextFR += "\n\n"; } fullTextMG += label + txtM; if(txtF.trim() !== "") { fullTextFR += label + txtF; } if(structArr[idx] && structArr[idx].trim().toUpperCase() === 'C') cleanSequence.push(displayLabels[idx]); }); let summaryStr = (cleanSequence.length === totalCouplets) ? "Tout" : cleanSequence.join(", "); const idx = SONG_SELECTOR_CONTEXT.blockIndex; if(idx > -1 && DATA_PROGRAMME_BLOCKS[idx]) { if(!DATA_PROGRAMME_BLOCKS[idx].data) DATA_PROGRAMME_BLOCKS[idx].data = {}; Object.assign(DATA_PROGRAMME_BLOCKS[idx].data, { id: song.id, titre: song.titre, recueil: song.recueil, numero: song.numero, sequenceSummary: summaryStr, tonalite: song.tonalite, transStatus: song.transStatus, sequence: sequenceIndices, paroles_fixe: fullTextMG, paroles_fr_fixe: fullTextFR, mode: "fixe" }); renderCurrentTimeline(); closeAllModals(); showNotionToast("Chant inséré avec succès !", "success"); } }
 
   // --- STANDARD FUNCTIONS ---
-  function openCreationModal(dateIso, defaultTime) { if(dateIso) { if(dateIso.includes('/')) { let p = dateIso.split('/'); dateIso = `${p[2]}-${p[1]}-${p[0]}`; } document.getElementById('createDateInput').value = dateIso; } document.getElementById('createMethodSelect').value = "blank"; document.getElementById('selectedDuplicateId').value = ""; updateCreationMethodUI(); document.getElementById('creationModal').style.display = 'flex'; document.getElementById('progCreatorOverlay').style.display = 'block'; }
+  function openCreationModal(dateIso, defaultTime) { 
+      if(dateIso) { if(dateIso.includes('/')) { let p = dateIso.split('/'); dateIso = `${p[2]}-${p[1]}-${p[0]}`; } document.getElementById('createDateInput').value = dateIso; } 
+      document.getElementById('createMethodSelect').value = "blank"; document.getElementById('selectedDuplicateId').value = ""; updateCreationMethodUI(); 
+      
+      openCustomModal('creationModal', 'progCreatorOverlay');
+  }
+  
   function updateCreationMethodUI() { const method = document.getElementById('createMethodSelect').value; document.getElementById('zoneTemplate').classList.add('d-none'); document.getElementById('zoneDuplicate').classList.add('d-none'); document.getElementById('zoneBlank').classList.add('d-none'); if(method === 'template') { document.getElementById('zoneTemplate').classList.remove('d-none'); const sel = document.getElementById('templateSelect'); if(sel.options.length === 0) { google.script.run.withSuccessHandler(list => { sel.innerHTML = ""; if(list.length === 0) sel.innerHTML = "<option disabled>Aucun modèle trouvé</option>"; else list.forEach(t => sel.innerHTML += `<option value="${t.id}">${t.titre}</option>`); }).getSelectableTemplates(); } } else if(method === 'duplicate') { document.getElementById('zoneDuplicate').classList.remove('d-none'); } else { document.getElementById('zoneBlank').classList.remove('d-none'); } }
   function searchProgArchives(query) { const container = document.getElementById('duplicateResults'); if(query.length < 2) return; container.innerHTML = `<div class="text-center py-2 text-muted"><div class="spinner-border spinner-border-sm"></div></div>`; google.script.run.withSuccessHandler(results => { container.innerHTML = ""; if(results.length === 0) { container.innerHTML = `<div class="text-center py-2 text-muted small fst-italic">Aucun résultat.</div>`; return; } results.forEach(prog => { const div = document.createElement('div'); div.className = "p-2 border-bottom hover-bg-light cursor-pointer"; div.innerHTML = `<div class="fw-bold small">${prog.date} - ${prog.titre}</div>`; div.onclick = function() { document.getElementById('selectedDuplicateId').value = prog.id; Array.from(container.children).forEach(c => c.classList.remove('bg-primary-subtle')); div.classList.add('bg-primary-subtle'); }; container.appendChild(div); }); }).searchArchivedProgrammes(query); }
   function submitCreationForm() { const dateVal = document.getElementById('createDateInput').value; if(!dateVal) { showNotionToast("Veuillez choisir une date.", "error"); return; } const parts = dateVal.split('-'); const dateFR = `${parts[2]}/${parts[1]}/${parts[0]}`; const method = document.getElementById('createMethodSelect').value; let sourceId = null; if(method === 'template') { sourceId = document.getElementById('templateSelect').value; if(!sourceId) { showNotionToast("Veuillez choisir un modèle.", "error"); return; } } if(method === 'duplicate') { sourceId = document.getElementById('selectedDuplicateId').value; if(!sourceId) { showNotionToast("Veuillez sélectionner un culte à copier.", "error"); return; } } const btn = document.querySelector('#creationModal .btn-dark'); const originalTxt = btn.innerText; btn.innerText = "Création..."; btn.disabled = true; const params = { date: dateFR, method: method, sourceId: sourceId }; google.script.run.withSuccessHandler(res => { closeAllModals(); btn.innerText = originalTxt; btn.disabled = false; if(res.success) { openEditor(res.id); renderFullCalendar(); initNextCultWidget(); } else { showNotionToast("Erreur: " + res.message, "error"); } }).createNewProgramme(params); }
-  function closeAllModals() { ['creationModal', 'securityModal', 'deleteModal', 'progCreatorOverlay', 'songSelectorModal', 'fanekenaSelectorModal'].forEach(id => { const el = document.getElementById(id); if(el) el.style.display = 'none'; }); }
+  
+  // FIX CLOSING GLOBAL
+  function closeAllModals() { 
+      ['creationModal', 'securityModal', 'deleteModal', 'progCreatorOverlay', 'songSelectorModal', 'fanekenaSelectorModal'].forEach(id => { 
+          const el = document.getElementById(id); 
+          if(el) el.style.display = 'none'; 
+      }); 
+      document.body.classList.remove('modal-open');
+  }
+  
   function closeAllMenus() { document.getElementById('insertMenu').style.display = 'none'; document.getElementById('roleMenu').style.display = 'none'; document.getElementById('menuOverlay').style.display = 'none'; }
   function safeSetValue(id, value) { const el = document.getElementById(id); if (el) el.value = value || ""; }
   function safeGetValue(id) { const el = document.getElementById(id); return el ? el.value : ""; }
   function askUnlock() { SECURITY_CONTEXT = "UNLOCK"; openSecurityModal("Déverrouiller le programme", "Toute modification repassera le statut en Brouillon.", true); }
   function askValidation() { SECURITY_CONTEXT = "VALIDATE"; openSecurityModal("Valider le Programme", "Cette action verrouillera le programme pour diffusion.", false); }
-  function openSecurityModal(title, subtitle, allowResp) { document.getElementById('secuTitle').innerText = title; document.getElementById('secuSubtitle').innerText = subtitle; const sel = document.getElementById('secuIdentitySelect'); sel.innerHTML = ""; if(allowResp) { const opt = document.createElement('option'); opt.value = "EQUIPE"; opt.text = "Responsable / Équipe"; sel.appendChild(opt); } VALIDATORS_LIST.forEach(v => { const opt = document.createElement('option'); opt.value = "VALIDEUR|" + v.nom; opt.text = v.nom; sel.appendChild(opt); }); document.getElementById('secuCodeInput').value = ""; document.getElementById('securityModal').style.display = 'block'; document.getElementById('progCreatorOverlay').style.display = 'block'; }
+  
+  function openSecurityModal(title, subtitle, allowResp) { 
+      document.getElementById('secuTitle').innerText = title; document.getElementById('secuSubtitle').innerText = subtitle; 
+      const sel = document.getElementById('secuIdentitySelect'); sel.innerHTML = ""; if(allowResp) { const opt = document.createElement('option'); opt.value = "EQUIPE"; opt.text = "Responsable / Équipe"; sel.appendChild(opt); } VALIDATORS_LIST.forEach(v => { const opt = document.createElement('option'); opt.value = "VALIDEUR|" + v.nom; opt.text = v.nom; sel.appendChild(opt); }); document.getElementById('secuCodeInput').value = ""; 
+      
+      openCustomModal('securityModal', 'progCreatorOverlay');
+  }
+  
   function submitSecurityAction() { const selVal = document.getElementById('secuIdentitySelect').value; const code = document.getElementById('secuCodeInput').value; const btn = document.getElementById('secuActionBtn'); let authType = "EQUIPE"; let authName = ""; if(selVal.startsWith("VALIDEUR|")) { authType = "VALIDEUR"; authName = selVal.split("|")[1]; } btn.innerText = "Vérification..."; btn.disabled = true; const onSuccess = (res) => { btn.innerText = "Confirmer"; btn.disabled = false; closeAllModals(); if(SECURITY_CONTEXT === "UNLOCK") { setEditorMode('EDIT'); showNotionToast("Programme déverrouillé.", "success"); } else if (SECURITY_CONTEXT === "VALIDATE") { currentProgData.validatedBy = authName + " le " + new Date().toLocaleDateString(); setEditorMode('READ_ONLY', currentProgData.validatedBy); renderFullCalendar(); showNotionToast("Programme validé !", "success"); } }; const onFailure = (err) => { btn.innerText = "Confirmer"; btn.disabled = false; const inp = document.getElementById('secuCodeInput'); inp.classList.add('is-invalid'); inp.value = ""; inp.focus(); }; if(SECURITY_CONTEXT === "UNLOCK") { google.script.run.withSuccessHandler(isOk => { if(isOk) onSuccess(); else onFailure({message: "Code incorrect"}); }).checkAuthForUnlock(authType, authName, code); } else if (SECURITY_CONTEXT === "VALIDATE") { const progId = document.getElementById('progId').value; google.script.run.withSuccessHandler(onSuccess).withFailureHandler(onFailure).validateProgrammeBackend(progId, authName, code); } }
   function showNotionToast(msg, type) { const container = document.getElementById('notionToastContainer'); if(!container) return; const toast = document.createElement('div'); toast.className = 'notion-toast ' + (type === 'error' ? 'error' : ''); toast.innerHTML = '<i class="bi ' + (type === 'error' ? 'bi-exclamation-circle-fill' : 'bi-check-circle-fill') + '"></i><span>' + msg + '</span>'; container.appendChild(toast); setTimeout(() => { toast.style.opacity = '0'; toast.style.transform = 'translateY(10px)'; setTimeout(() => toast.remove(), 300); }, 3000); }
-  function deleteProgramme() { document.getElementById('deleteModal').style.display = 'block'; document.getElementById('progCreatorOverlay').style.display = 'block'; }
+  function deleteProgramme() { 
+      openCustomModal('deleteModal', 'progCreatorOverlay');
+  }
   function confirmDeleteAction() { const id = document.getElementById('progId').value; const btn = document.querySelector('#deleteModal .btn-danger'); btn.innerText = "..."; btn.disabled = true; google.script.run.withSuccessHandler(() => { btn.innerText = "Supprimer"; btn.disabled = false; closeAllModals(); closeEditor(); }).deleteProgrammeBackend(id); }
 </script>

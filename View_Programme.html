@@ -49,15 +49,7 @@
   .time-switch-btn:hover { color: #37352F; background: #f7f7f5; }
   .time-switch-btn.active { background: #37352F; color: #fff; border-color: #37352F; }
 
-  /* --- STYLE SÉLECTEUR DE CHANT & FANEKENA --- */
-  .notion-dialog-wrapper {
-      position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); 
-      width: 750px; max-width: 90vw; max-height: 85dvh; height: 600px;
-      background: white; border-radius: 8px; box-shadow: 0 8px 30px rgba(0,0,0,0.12); 
-      z-index: 1100; display: flex; flex-direction: column; border: 1px solid #e1e1e1; font-family: 'Inter', sans-serif;
-  }
-  .notion-dialog-simple { height: auto !important; width: 400px; }
-
+  /* --- SELECTOR --- */
   .modal-notion-header { padding: 12px 16px; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center; background: white; border-radius: 8px 8px 0 0; }
   .modal-title-wrap { display: flex; align-items: center; gap: 8px; color: #37352F; font-weight: 600; font-size: 14px; }
   .modal-icon-box { display: flex; align-items: center; justify-content: center; color: #787774; }
@@ -85,17 +77,6 @@
   .song-item.active { background-color: #edf5fd; }
   .song-ref { font-size: 10px; color: #9B9A97; text-transform: uppercase; letter-spacing: 0.5px; border: 1px solid #e1e1e1; padding: 1px 4px; border-radius: 3px; margin-right: 6px; }
 
-  .stanza-card { border: 1px solid #e1e1e1; border-radius: 6px; padding: 0; margin-bottom: 10px; cursor: pointer; transition: all 0.15s ease; background: white; position: relative; overflow: hidden; }
-  .stanza-card:hover { border-color: #d0d0d0; box-shadow: 0 2px 5px rgba(0,0,0,0.03); }
-  .stanza-card.selected { border: 1px solid #2383E2; box-shadow: 0 0 0 1px #2383E2; }
-  .stanza-card.selected .card-check { background: #2383E2; border-color: #2383E2; color: white; }
-  .stanza-card.selected .card-header-area { background: #f7fbff; border-bottom: 1px solid #e8f3ff; }
-  
-  .card-header-area { padding: 8px 12px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #f9f9f9; }
-  .card-check { width: 16px; height: 16px; border-radius: 50%; border: 1px solid #ccc; display: flex; align-items: center; justify-content: center; font-size: 10px; transition: 0.1s; }
-  .card-body-area { padding: 10px 12px; font-size: 13px; color: #37352F; line-height: 1.5; }
-  .refrain-mini { font-size: 11px; color: #787774; font-style: italic; margin-top: 6px; border-left: 2px solid #27AE60; padding-left: 8px; }
-
   /* --- MOBILE TWEAKS --- */
   @media (max-width: 768px) {
       .hero-container { padding: 12px; }
@@ -116,13 +97,34 @@
       .cal-cell-wrapper.bg-draft { border-left: 5px solid #F2994A !important; }
       .cal-cell-wrapper.bg-final { border-left: 5px solid #27AE60 !important; }
 
-      .notion-dialog-wrapper { width: 95vw; height: auto; max-height: 85dvh; border-radius: 12px; }
+      /* FIX MOBILE SELECTEUR - HEIGHT FIX */
+      .notion-dialog-wrapper { 
+          width: 95vw; 
+          height: 80vh !important;
+          max-height: 85dvh; 
+          border-radius: 12px; 
+          display: flex;
+          flex-direction: column;
+      }
+      
+      /* Assure que la structure interne utilise flex pour scroll */
+      .row.g-0.flex-grow-1 { flex: 1; overflow: hidden; }
+      
+      #colSearch, #colConfig { 
+          height: 100% !important; 
+          overflow: hidden; 
+          display: flex;
+          flex-direction: column;
+      }
+      
+      #songSelectorPreviewPanel { flex: 1; overflow-y: auto !important; height: auto; }
+      #songSelectorResults { flex: 1; overflow-y: auto !important; max-height: none !important; }
+      
       .notion-dialog-simple { width: 95vw; }
       .modal-notion-header { padding: 10px 14px; }
       .modal-title-wrap { font-size: 13px; }
       .mobile-stack { flex-direction: column; }
       .mobile-hidden { display: none !important; }
-      #songSelectorResults { max-height: 200px; flex-shrink: 0; }
   }
 </style>
 
@@ -130,13 +132,21 @@
 
   <div id="calendar-view" class="h-100 d-flex flex-column overflow-hidden">
       <div class="hero-container">
-          <div class="d-flex align-items-center mb-2">
+          <div class="d-flex align-items-center justify-content-between mb-2">
              <span class="badge bg-light text-secondary border fw-normal" style="font-size: 10px; letter-spacing: 1px;"><i class="bi bi-stars text-warning me-1"></i>PROCHAIN CULTE</span>
           </div>
           <div id="nextCultWidgetContainer">
-              <div class="hero-card p-4 text-center text-muted fst-italic">Chargement...</div>
+              <div class="hero-card p-4 text-center text-muted fst-italic w-100">Chargement...</div>
+          </div>
+          
+          <!-- BOUTON D'AJOUT MOBILE -->
+          <div class="d-md-none mt-3">
+              <button class="btn btn-saas-dark w-100 py-2" onclick="openCreationModal(new Date().toISOString().split('T')[0], '09:30')">
+                  <i class="bi bi-calendar-plus me-2"></i>Rajouter une date
+              </button>
           </div>
       </div>
+      
       <div class="calendar-container custom-scrollbar">
           <div class="cal-controls">
               <div class="d-flex align-items-center gap-1">
@@ -186,7 +196,7 @@
       </div>
   </div>
 
-  <!-- MODALES STANDARD -->
+  <!-- MODALES STANDARD (NETTOYAGE STYLES INLINE) -->
   <div id="creationModal" class="notion-dialog" style="display:none; padding: 25px; width: 400px; max-width: 90vw; flex-direction: column;">
       <div class="d-flex justify-content-between align-items-center mb-4">
           <h6 class="fw-bold m-0"><i class="bi bi-calendar-plus me-2"></i>Nouveau Programme</h6>
@@ -253,7 +263,7 @@
       </div>
   </div>
   
-  <!-- SÉLECTEUR DE CHANT -->
+  <!-- SÉLECTEURS -->
   <div id="songSelectorModal" class="notion-dialog-wrapper" style="display:none;">
       <div class="modal-notion-header">
           <div class="modal-title-wrap"><div class="modal-icon-box"><i class="bi bi-music-note-beamed"></i></div><span>Sélectionner un chant</span></div>
@@ -284,7 +294,6 @@
       </div>
   </div>
 
-  <!-- SÉLECTEUR DE FANEKENA -->
   <div id="fanekenaSelectorModal" class="notion-dialog-wrapper notion-dialog-simple" style="display:none; width: 400px; height: 500px;">
       <div class="modal-notion-header">
           <div class="modal-title-wrap"><div class="modal-icon-box"><i class="bi bi-journal-text"></i></div><span>Confessions de foi</span></div>
@@ -295,6 +304,6 @@
       </div>
   </div>
 
-  <div id="progCreatorOverlay" style="position:fixed; inset:0; background:rgba(0,0,0,0.3); z-index:1090; display:none; backdrop-filter:blur(2px);" onclick="closeAllModals()"></div>
+  <div id="progCreatorOverlay" style="position:fixed; inset:0; display:none;" onclick="closeAllModals()"></div>
   <div id="notionToastContainer" class="notion-toast-container"></div>
 </div>
