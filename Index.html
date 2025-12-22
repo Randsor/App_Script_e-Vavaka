@@ -15,7 +15,6 @@
 
   <div id="headerDock" class="d-none"></div>
 
-  <!-- OVERLAY POUR MENU MOBILE (Ajouté ici) -->
   <div id="mobile-menu-overlay" class="hidden" onclick="toggleSidebar()"></div>
 
   <div class="mobile-header">
@@ -61,80 +60,103 @@
   <?!= include('JS_Planning'); ?>
   <?!= include('JS_Config'); ?>
 
+  <!-- MODALE SYSTÈME DE NAVIGATION (GLOBAL) -->
+  <div id="sysNavModal" class="notion-dialog" style="display:none; width: 320px; padding: 24px; text-align: center; z-index: 20010 !important;">
+      <div class="mb-3">
+          <div class="bg-warning bg-opacity-10 rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width:50px; height:50px;">
+              <i class="bi bi-exclamation-lg text-warning fs-3"></i>
+          </div>
+          <h6 class="fw-bold m-0 text-dark">Modifications en cours</h6>
+          <p class="small text-muted mt-2 mb-0" style="line-height:1.4;">
+              Si vous quittez maintenant, vos derniers changements seront perdus.
+          </p>
+      </div>
+      <div class="d-grid gap-2">
+          <button class="btn btn-sm btn-danger fw-medium" onclick="confirmSysNav()">Quitter sans sauvegarder</button>
+          <button class="btn btn-sm btn-light border text-secondary" onclick="cancelSysNav()">Annuler</button>
+      </div>
+  </div>
+  <div id="sysNavOverlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:20000 !important; backdrop-filter: blur(2px);"></div>
+
   <script>
+    let pendingNavCallback = null;
+
     function navTo(viewName, params = {}) {
-      // 1. SÉCURITÉ : Dirty Checks
-      if (typeof IS_CHANT_DIRTY !== 'undefined' && IS_CHANT_DIRTY) {
-          if(!confirm("Modifications en cours. Quitter sans enregistrer ?")) return;
-          if(typeof forceClose === 'function') forceClose(); 
-          IS_CHANT_DIRTY = false;
-      }
-
-      // 2. UI UPDATE
-      document.querySelectorAll('.nav-link').forEach(el => el.classList.remove('active'));
-      const activeLink = document.getElementById('nav-' + viewName);
-      if(activeLink) activeLink.classList.add('active');
-      
-      document.querySelectorAll('.view-section').forEach(el => el.classList.add('hidden'));
-      const target = document.getElementById('view-' + viewName);
-      if(target) target.classList.remove('hidden');
-      
-      // FERMETURE SIDEBAR + OVERLAY
-      if(window.innerWidth < 768) {
-          document.getElementById('sidebar').classList.remove('open');
-          document.getElementById('mobile-menu-overlay').classList.add('hidden'); // Cache l'overlay
-      }
-
-      // 3. HEADER MANAGEMENT
-      const sharedHeader = document.getElementById('sharedHeaderRoot');
-      const dock = document.getElementById('headerDock');
-      if(typeof resetSharedHeader === 'function') resetSharedHeader();
-      if(sharedHeader && dock) dock.appendChild(sharedHeader); 
-      
-      setTimeout(() => {
-          if (viewName === 'programme') {
-             const place = document.getElementById('programmeHeaderPlaceholder');
-             if(place && sharedHeader) place.appendChild(sharedHeader);
-             if(typeof restoreProgrammeHeader === 'function') restoreProgrammeHeader();
-          } else if (viewName === 'templates') {
-             const place = document.getElementById('templateHeaderPlaceholder');
-             if(place && sharedHeader) place.appendChild(sharedHeader);
-             if(typeof restoreTemplateHeader === 'function') restoreTemplateHeader();
+      const action = () => {
+          document.querySelectorAll('.nav-link').forEach(el => el.classList.remove('active'));
+          const activeLink = document.getElementById('nav-' + viewName);
+          if(activeLink) activeLink.classList.add('active');
+          
+          document.querySelectorAll('.view-section').forEach(el => el.classList.add('hidden'));
+          const target = document.getElementById('view-' + viewName);
+          if(target) target.classList.remove('hidden');
+          
+          if(window.innerWidth < 768) {
+              document.getElementById('sidebar').classList.remove('open');
+              document.getElementById('mobile-menu-overlay').classList.add('hidden');
           }
-      }, 50);
 
-      // 4. MODULE INIT
-      if(viewName === 'dashboard' && typeof initDashboardView === 'function') initDashboardView();
-      if(viewName === 'programme') {
-          if(Object.keys(params).length === 0 && typeof closeEditor === 'function') closeEditor();
-          if(typeof initProgrammeView === 'function') initProgrammeView();
-          if (params.id) setTimeout(() => { openEditor(params.id); }, 200);
-          else if (params.date) setTimeout(() => { openCreationModal(params.date, '09:30'); }, 200);
-      }
-      if(viewName === 'chants') {
-          if (params.filter && typeof applySpecialFilter === 'function') {
-               setTimeout(() => { applySpecialFilter(params); }, 100);
-          } else {
-              if(typeof initChantsView === 'function') initChantsView();
+          const sharedHeader = document.getElementById('sharedHeaderRoot');
+          const dock = document.getElementById('headerDock');
+          if(typeof resetSharedHeader === 'function') resetSharedHeader();
+          if(sharedHeader && dock) dock.appendChild(sharedHeader); 
+          
+          setTimeout(() => {
+              if (viewName === 'programme') {
+                 const place = document.getElementById('programmeHeaderPlaceholder');
+                 if(place && sharedHeader) place.appendChild(sharedHeader);
+                 if(typeof restoreProgrammeHeader === 'function') restoreProgrammeHeader();
+              } else if (viewName === 'templates') {
+                 const place = document.getElementById('templateHeaderPlaceholder');
+                 if(place && sharedHeader) place.appendChild(sharedHeader);
+                 if(typeof restoreTemplateHeader === 'function') restoreTemplateHeader();
+              }
+          }, 50);
+
+          if(viewName === 'dashboard' && typeof initDashboardView === 'function') initDashboardView();
+          if(viewName === 'programme') {
+              if(Object.keys(params).length === 0 && typeof closeEditor === 'function') closeEditor(true);
+              if(typeof initProgrammeView === 'function') initProgrammeView();
+              if (params.id) setTimeout(() => { openEditor(params.id); }, 200);
+              else if (params.date) setTimeout(() => { openCreationModal(params.date, '09:30'); }, 200);
           }
-      }
-      if(viewName === 'planning' && typeof initPlanningView === 'function') initPlanningView();
-      if(viewName === 'config' && typeof initConfigView === 'function') initConfigView();
-      if(viewName === 'fanekena' && typeof initFanekenaView === 'function') initFanekenaView();
+          if(viewName === 'chants') {
+              if (params.filter && typeof applySpecialFilter === 'function') {
+                   setTimeout(() => { applySpecialFilter(params); }, 100);
+              } else {
+                  if(typeof initChantsView === 'function') initChantsView();
+              }
+          }
+          if(viewName === 'planning' && typeof initPlanningView === 'function') initPlanningView();
+          if(viewName === 'config' && typeof initConfigView === 'function') initConfigView();
+          if(viewName === 'fanekena' && typeof initFanekenaView === 'function') initFanekenaView();
+      };
+
+      guardNavigation(action);
     }
 
-    // MISE A JOUR DE TOGGLE SIDEBAR AVEC GESTION OVERLAY
+    function confirmSysNav() {
+        document.getElementById('sysNavModal').style.display = 'none';
+        document.getElementById('sysNavOverlay').style.display = 'none';
+        setDirty(false); 
+        if (pendingNavCallback) {
+            pendingNavCallback(); 
+            pendingNavCallback = null;
+        }
+    }
+
+    function cancelSysNav() {
+        document.getElementById('sysNavModal').style.display = 'none';
+        document.getElementById('sysNavOverlay').style.display = 'none';
+        pendingNavCallback = null;
+    }
+
     function toggleSidebar() { 
         const sidebar = document.getElementById('sidebar');
         const overlay = document.getElementById('mobile-menu-overlay');
-        
         sidebar.classList.toggle('open');
-        
-        if (sidebar.classList.contains('open')) {
-            overlay.classList.remove('hidden'); // Affiche l'overlay
-        } else {
-            overlay.classList.add('hidden'); // Cache l'overlay
-        }
+        if (sidebar.classList.contains('open')) overlay.classList.remove('hidden');
+        else overlay.classList.add('hidden');
     }
     
     window.onload = function() { 

@@ -1,246 +1,245 @@
 <script>
 // --- VARIABLES GLOBALES ---
 let searchTimeout = null;
-let allChantsCache = []; // MASTER : Contient TOUTE la base (Immuable après chargement)
-let displayList = []; // DISPLAY : Liste filtrée affichée à l'écran
+let allChantsCache = []; // MASTER
+let displayList = []; // DISPLAY
 
 let currentRecueilFilter = "ALL";
-let IS_CHANT_DIRTY = false;
 let IGNORE_DIRTY_FLAG = false;
 let modalInstance = null;
 let FORCE_CLOSE_FLAG = false;
 
 function initChantsView() {
-document.getElementById('chantSearchInput').value = "";
-loadChantsData();
-moveModalsToBody();
+    document.getElementById('chantSearchInput').value = "";
+    loadChantsData();
+    moveModalsToBody();
 }
 
 function moveModalsToBody() {
-const modalEl = document.getElementById('modalEditChant');
-const confirmEl = document.getElementById('confirmDiscardModal');
-const overlayEl = document.getElementById('confirmOverlay');
+    const modalEl = document.getElementById('modalEditChant');
+    const confirmEl = document.getElementById('confirmDiscardModal');
+    const overlayEl = document.getElementById('confirmOverlay');
 
-if (modalEl && modalEl.parentElement !== document.body) {
-document.body.appendChild(modalEl);
-document.body.appendChild(confirmEl);
-document.body.appendChild(overlayEl);
+    if (modalEl && modalEl.parentElement !== document.body) {
+        document.body.appendChild(modalEl);
+        document.body.appendChild(confirmEl);
+        document.body.appendChild(overlayEl);
 
-modalEl.addEventListener('hide.bs.modal', function (e) {
-if (IS_CHANT_DIRTY && !FORCE_CLOSE_FLAG) {
-e.preventDefault();
-document.getElementById('confirmDiscardModal').style.display = 'block';
-document.getElementById('confirmOverlay').style.display = 'block';
-}
-});
-}
+        // GESTION DE LA FERMETURE (CROIX OU ECHAP)
+        modalEl.addEventListener('hide.bs.modal', function (e) {
+            // Si c'est sale ET que ce n'est pas une fermeture forcée par nous
+            if (APP_IS_DIRTY && !FORCE_CLOSE_FLAG) {
+                e.preventDefault(); // On bloque la fermeture Bootstrap
+                document.getElementById('confirmDiscardModal').style.display = 'block';
+                document.getElementById('confirmOverlay').style.display = 'block';
+            }
+        });
+    }
 }
 
 function loadChantsData() {
-const input = document.getElementById('chantSearchInput');
-input.placeholder = "Rechercher un chant...";
-input.style.borderColor = "";
+    const input = document.getElementById('chantSearchInput');
+    input.placeholder = "Rechercher un chant...";
+    input.style.borderColor = "";
 
-google.script.run.withSuccessHandler(updateKPIs).getRepoStats();
+    google.script.run.withSuccessHandler(updateKPIs).getRepoStats();
 
-showLoader(true);
-google.script.run.withSuccessHandler(results => {
-allChantsCache = results;
-displayList = results;
-filterAndRender();
-showLoader(false);
-loadRecueilOptions();
-}).searchChantsBackend("", "", []);
+    showLoader(true);
+    google.script.run.withSuccessHandler(results => {
+        allChantsCache = results;
+        displayList = results;
+        filterAndRender();
+        showLoader(false);
+        loadRecueilOptions();
+    }).searchChantsBackend("", "", []);
 }
 
 function updateKPIs(stats) {
-if(typeof animateCounter === 'function') {
-animateCounter('kpiTotal', 0, stats.total, 800);
-animateCounter('kpiTone', 0, stats.missingTone, 800);
-animateCounter('kpiTransNone', 0, stats.transNone, 800);
-animateCounter('kpiTransPartial', 0, stats.transPartial, 800);
-} else {
-document.getElementById('kpiTotal').innerText = stats.total;
-}
+    if(typeof animateCounter === 'function') {
+        animateCounter('kpiTotal', 0, stats.total, 800);
+        animateCounter('kpiTone', 0, stats.missingTone, 800);
+        animateCounter('kpiTransNone', 0, stats.transNone, 800);
+        animateCounter('kpiTransPartial', 0, stats.transPartial, 800);
+    } else {
+        document.getElementById('kpiTotal').innerText = stats.total;
+    }
 }
 
 function loadRecueilOptions() {
-google.script.run.withSuccessHandler(list => {
-const sel = document.getElementById('editRecueil');
-sel.innerHTML = "";
-list.forEach(r => {
-let o = document.createElement('option'); o.text=r; o.value=r; sel.add(o);
-});
-}).getRecueilsFilterList();
+    google.script.run.withSuccessHandler(list => {
+        const sel = document.getElementById('editRecueil');
+        sel.innerHTML = "";
+        list.forEach(r => {
+            let o = document.createElement('option'); o.text=r; o.value=r; sel.add(o);
+        });
+    }).getRecueilsFilterList();
 }
 
 // --- RECHERCHE INTELLIGENTE ---
 
 function handleSearchInput() {
-const q = document.getElementById('chantSearchInput').value;
+    const q = document.getElementById('chantSearchInput').value;
 
-// CAS 1 : Recherche locale (courte)
-if (q.length < 3) {
-displayList = [...allChantsCache];
-filterAndRender();
-return;
-}
+    // CAS 1 : Recherche locale (courte)
+    if (q.length < 3) {
+        displayList = [...allChantsCache];
+        filterAndRender();
+        return;
+    }
 
-// CAS 2 : Recherche serveur (longue)
-if (searchTimeout) clearTimeout(searchTimeout);
-showLoader(true);
+    // CAS 2 : Recherche serveur (longue)
+    if (searchTimeout) clearTimeout(searchTimeout);
+    showLoader(true);
 
-searchTimeout = setTimeout(() => {
-// UX : On reset le filtre recueil visuellement pour ne pas masquer le résultat
-if (currentRecueilFilter !== 'ALL') {
-document.querySelectorAll('#recueilPillsWrapper .nav-pill').forEach(el => el.classList.remove('active'));
-// On active le bouton "Tout" (le premier)
-const allBtn = document.querySelector('#recueilPillsWrapper .nav-pill');
-if(allBtn) allBtn.classList.add('active');
-currentRecueilFilter = 'ALL';
-}
+    searchTimeout = setTimeout(() => {
+        if (currentRecueilFilter !== 'ALL') {
+            document.querySelectorAll('#recueilPillsWrapper .nav-pill').forEach(el => el.classList.remove('active'));
+            const allBtn = document.querySelector('#recueilPillsWrapper .nav-pill');
+            if(allBtn) allBtn.classList.add('active');
+            currentRecueilFilter = 'ALL';
+        }
 
-google.script.run.withSuccessHandler(results => {
-displayList = results;
-filterAndRender();
-showLoader(false);
-}).searchChantsBackend(q, "", []);
-}, 400);
+        google.script.run.withSuccessHandler(results => {
+            displayList = results;
+            filterAndRender();
+            showLoader(false);
+        }).searchChantsBackend(q, "", []);
+    }, 400);
 }
 
 function filterAndRender() {
-const q = document.getElementById('chantSearchInput').value.toLowerCase();
+    const q = document.getElementById('chantSearchInput').value.toLowerCase();
 
-let filtered = displayList.filter(c => {
-if (currentRecueilFilter !== 'ALL' && c.recueil !== currentRecueilFilter) return false;
+    let filtered = displayList.filter(c => {
+        if (currentRecueilFilter !== 'ALL' && c.recueil !== currentRecueilFilter) return false;
 
-if (q.length > 0) {
-const snippetText = c.snippet ? c.snippet.toLowerCase() : "";
-const fullText = (c.titre + " " + c.recueil + " " + c.numero + " " + snippetText).toLowerCase();
-return fullText.includes(q);
-}
-return true;
-});
+        if (q.length > 0) {
+            const snippetText = c.snippet ? c.snippet.toLowerCase() : "";
+            const fullText = (c.titre + " " + c.recueil + " " + c.numero + " " + snippetText).toLowerCase();
+            return fullText.includes(q);
+        }
+        return true;
+    });
 
-const rOrder = { 'Fihirana': 1, 'Fihirana Fanampiny': 2, 'Antema': 3, 'Tsanta': 4 };
-filtered.sort((a, b) => {
-const rA = rOrder[a.recueil] || 99; const rB = rOrder[b.recueil] || 99;
-if (rA !== rB) return rA - rB;
-return (parseInt(a.numero) || 0) - (parseInt(b.numero) || 0);
-});
+    const rOrder = { 'Fihirana': 1, 'Fihirana Fanampiny': 2, 'Antema': 3, 'Tsanta': 4 };
+    filtered.sort((a, b) => {
+        const rA = rOrder[a.recueil] || 99; const rB = rOrder[b.recueil] || 99;
+        if (rA !== rB) return rA - rB;
+        return (parseInt(a.numero) || 0) - (parseInt(b.numero) || 0);
+    });
 
-if (q.length === 0) filtered = filtered.slice(0, 100);
-renderGrid(filtered);
+    if (q.length === 0) filtered = filtered.slice(0, 100);
+    renderGrid(filtered);
 }
 
 function renderGrid(chants) {
-const grid = document.getElementById('chantsGrid');
-const searchQuery = document.getElementById('chantSearchInput').value.trim();
+    const grid = document.getElementById('chantsGrid');
+    const searchQuery = document.getElementById('chantSearchInput').value.trim();
 
-grid.innerHTML = "";
+    grid.innerHTML = "";
 
-if (chants.length === 0) {
-document.getElementById('emptySearchState').classList.remove('hidden');
-grid.classList.add('hidden');
-return;
-}
+    if (chants.length === 0) {
+        document.getElementById('emptySearchState').classList.remove('hidden');
+        grid.classList.add('hidden');
+        return;
+    }
 
-document.getElementById('emptySearchState').classList.add('hidden');
-grid.classList.remove('hidden');
+    document.getElementById('emptySearchState').classList.add('hidden');
+    grid.classList.remove('hidden');
 
-chants.forEach(c => {
-const card = document.createElement('div');
-card.className = "chant-card";
-card.onclick = () => openChantModal(c.id);
+    chants.forEach(c => {
+        const card = document.createElement('div');
+        card.className = "chant-card";
+        card.onclick = () => openChantModal(c.id);
 
-let displayRef = "";
-if (c.recueil === 'Fihirana') {
-displayRef = String(c.numero).padStart(3, '0');
-} else {
-let code = "XX";
-if (c.recueil === 'Fihirana Fanampiny') code = "FF";
-else if (c.recueil === 'Antema') code = "AN";
-else if (c.recueil === 'Tsanta') code = "TS";
-displayRef = code + " " + c.numero;
-}
+        let displayRef = "";
+        if (c.recueil === 'Fihirana') {
+            displayRef = String(c.numero).padStart(3, '0');
+        } else {
+            let code = "XX";
+            if (c.recueil === 'Fihirana Fanampiny') code = "FF";
+            else if (c.recueil === 'Antema') code = "AN";
+            else if (c.recueil === 'Tsanta') code = "TS";
+            displayRef = code + " " + c.numero;
+        }
 
-let titleHtml = highlightText(c.titre, searchQuery);
-let refHtml = highlightText(displayRef, searchQuery);
+        let titleHtml = highlightText(c.titre, searchQuery);
+        let refHtml = highlightText(displayRef, searchQuery);
 
-let toneHtml = c.tonalite ?
-`<span class="c-meta-item"><i class="bi bi-music-note-beamed"></i> ${c.tonalite}</span>` :
-`<span class="c-meta-item missing"><i class="bi bi-music-note-beamed"></i> ?</span>`;
+        let toneHtml = c.tonalite ?
+            `<span class="c-meta-item"><i class="bi bi-music-note-beamed"></i> ${c.tonalite}</span>` :
+            `<span class="c-meta-item missing"><i class="bi bi-music-note-beamed"></i> ?</span>`;
 
-let transHtml = "";
-if (c.transStatus === 'ok')
-transHtml = `<span class="c-meta-item text-secondary"><i class="bi bi-translate"></i> Traduit</span>`;
-else if (c.transStatus === 'partial')
-transHtml = `<span class="c-meta-item text-warning"><i class="bi bi-translate"></i> Trad. partielle</span>`;
-else
-transHtml = `<span class="c-meta-item missing"><i class="bi bi-translate"></i> Non traduit</span>`;
+        let transHtml = "";
+        if (c.transStatus === 'ok')
+            transHtml = `<span class="c-meta-item text-secondary"><i class="bi bi-translate"></i> Traduit</span>`;
+        else if (c.transStatus === 'partial')
+            transHtml = `<span class="c-meta-item text-warning"><i class="bi bi-translate"></i> Trad. partielle</span>`;
+        else
+            transHtml = `<span class="c-meta-item missing"><i class="bi bi-translate"></i> Non traduit</span>`;
 
-let snippetBlock = "";
-if (c.snippet) {
-let highlightedSnippet = highlightText(c.snippet, searchQuery);
-snippetBlock = `<div class="mt-2 text-muted fst-italic small" style="font-size:11px; border-left:2px solid #eee; padding-left:6px;">${highlightedSnippet}</div>`;
-}
+        let snippetBlock = "";
+        if (c.snippet) {
+            let highlightedSnippet = highlightText(c.snippet, searchQuery);
+            snippetBlock = `<div class="mt-2 text-muted fst-italic small" style="font-size:11px; border-left:2px solid #eee; padding-left:6px;">${highlightedSnippet}</div>`;
+        }
 
-card.innerHTML = `
-<div class="d-flex justify-content-between align-items-start">
-<span class="c-badge-ref">${refHtml}</span>
-<i class="bi bi-pencil-square text-muted small opacity-50"></i>
-</div>
-<div class="c-title text-truncate-2">${titleHtml}</div>
-${snippetBlock}
-<div class="c-meta-row">
-${toneHtml}
-${transHtml}
-</div>
-`;
-grid.appendChild(card);
-});
+        card.innerHTML = `
+        <div class="d-flex justify-content-between align-items-start">
+            <span class="c-badge-ref">${refHtml}</span>
+            <i class="bi bi-pencil-square text-muted small opacity-50"></i>
+        </div>
+        <div class="c-title text-truncate-2">${titleHtml}</div>
+        ${snippetBlock}
+        <div class="c-meta-row">
+            ${toneHtml}
+            ${transHtml}
+        </div>
+        `;
+        grid.appendChild(card);
+    });
 }
 
 function highlightText(text, query) {
-if (!query || query.length < 2 || !text) return text;
-const safeQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-const regex = new RegExp(`(${safeQuery})`, 'gi');
-return text.toString().replace(regex, '<mark class="p-0 bg-warning bg-opacity-25 fw-bold" style="color:inherit;">$1</mark>');
+    if (!query || query.length < 2 || !text) return text;
+    const safeQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`(${safeQuery})`, 'gi');
+    return text.toString().replace(regex, '<mark class="p-0 bg-warning bg-opacity-25 fw-bold" style="color:inherit;">$1</mark>');
 }
 
 // --- FILTRES DASHBOARD ---
 
 function applySpecialFilter(params) {
-let filterType = typeof params === 'string' ? params : params.filter;
-let idsList = params.ids || [];
-const input = document.getElementById('chantSearchInput');
+    let filterType = typeof params === 'string' ? params : params.filter;
+    let idsList = params.ids || [];
+    const input = document.getElementById('chantSearchInput');
 
-input.value = "";
-input.style.borderColor = "var(--primary)";
+    input.value = "";
+    input.style.borderColor = "var(--primary)";
 
-document.querySelectorAll('#recueilPillsWrapper .nav-pill').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('#recueilPillsWrapper .nav-pill').forEach(el => el.classList.remove('active'));
 
-showLoader(true);
+    showLoader(true);
 
-if (filterType === 'specific_ids' && idsList.length > 0) {
-input.placeholder = "Filtre: Chants du culte";
-google.script.run.withSuccessHandler(res => {
-displayList = res;
-filterAndRender();
-showLoader(false);
-}).searchChantsBackend("", "", idsList);
-return;
-}
+    if (filterType === 'specific_ids' && idsList.length > 0) {
+        input.placeholder = "Filtre: Chants du culte";
+        google.script.run.withSuccessHandler(res => {
+            displayList = res;
+            filterAndRender();
+            showLoader(false);
+        }).searchChantsBackend("", "", idsList);
+        return;
+    }
 
-if(filterType === 'missing_tone') input.placeholder = "Filtre: Sans Tonalité";
-if(filterType === 'trans_none') input.placeholder = "Filtre: Non Traduits";
-if(filterType === 'trans_partial') input.placeholder = "Filtre: Traduction Partielle";
+    if(filterType === 'missing_tone') input.placeholder = "Filtre: Sans Tonalité";
+    if(filterType === 'trans_none') input.placeholder = "Filtre: Non Traduits";
+    if(filterType === 'trans_partial') input.placeholder = "Filtre: Traduction Partielle";
 
-google.script.run.withSuccessHandler(res => {
-displayList = res;
-filterAndRender();
-showLoader(false);
-}).getChantsByIssue(filterType);
+    google.script.run.withSuccessHandler(res => {
+        displayList = res;
+        filterAndRender();
+        showLoader(false);
+    }).getChantsByIssue(filterType);
 }
 
 function resetChantFilter() { initChantsView(); }
@@ -248,189 +247,193 @@ function resetChantFilter() { initChantsView(); }
 // --- UTILS UI ---
 
 function showLoader(show) {
-const l = document.getElementById('chantsLoader');
-const g = document.getElementById('chantsGrid');
-if(show) { l.classList.remove('hidden'); g.classList.add('hidden'); }
-else { l.classList.add('hidden'); g.classList.remove('hidden'); }
+    const l = document.getElementById('chantsLoader');
+    const g = document.getElementById('chantsGrid');
+    if(show) { l.classList.remove('hidden'); g.classList.add('hidden'); }
+    else { l.classList.add('hidden'); g.classList.remove('hidden'); }
 }
 
 function filterLocalRecueil(recueilName, btnElement) {
-document.querySelectorAll('#recueilPillsWrapper .nav-pill').forEach(el => el.classList.remove('active'));
-btnElement.classList.add('active');
-currentRecueilFilter = recueilName;
+    document.querySelectorAll('#recueilPillsWrapper .nav-pill').forEach(el => el.classList.remove('active'));
+    btnElement.classList.add('active');
+    currentRecueilFilter = recueilName;
 
-// Si on filtre, on force un reset si le cache est trop petit (retour de recherche)
-if (displayList.length < 55) {
-displayList = [...allChantsCache];
-}
-filterAndRender();
+    if (displayList.length < 55) {
+        displayList = [...allChantsCache];
+    }
+    filterAndRender();
 }
 
-// --- MODALE & CRUD ---
+// --- MODALE & CRUD (DIRTY CHECK CONNECTÉ) ---
 
 function markChantDirty() {
-if (IGNORE_DIRTY_FLAG) return;
-IS_CHANT_DIRTY = true;
-document.getElementById('btnSaveChant').innerText = "Enregistrer ●";
+    if (IGNORE_DIRTY_FLAG) return;
+    setDirty(true); // FLAG GLOBAL
+    document.getElementById('btnSaveChant').innerText = "Enregistrer ●";
 }
 
 function attemptClose() {
-if(!modalInstance) modalInstance = bootstrap.Modal.getOrCreateInstance(document.getElementById('modalEditChant'));
-modalInstance.hide();
+    if(!modalInstance) modalInstance = bootstrap.Modal.getOrCreateInstance(document.getElementById('modalEditChant'));
+    modalInstance.hide(); // Déclenchera l'event 'hide.bs.modal'
 }
 
 function confirmDiscard() {
-document.getElementById('confirmDiscardModal').style.display = 'none';
-document.getElementById('confirmOverlay').style.display = 'none';
-FORCE_CLOSE_FLAG = true;
-IS_CHANT_DIRTY = false;
-if(!modalInstance) modalInstance = bootstrap.Modal.getOrCreateInstance(document.getElementById('modalEditChant'));
-modalInstance.hide();
-document.getElementById('btnSaveChant').innerText = "Enregistrer";
-FORCE_CLOSE_FLAG = false;
+    document.getElementById('confirmDiscardModal').style.display = 'none';
+    document.getElementById('confirmOverlay').style.display = 'none';
+    
+    FORCE_CLOSE_FLAG = true;
+    setDirty(false); // Reset Global
+    
+    if(!modalInstance) modalInstance = bootstrap.Modal.getOrCreateInstance(document.getElementById('modalEditChant'));
+    modalInstance.hide();
+    
+    document.getElementById('btnSaveChant').innerText = "Enregistrer";
+    FORCE_CLOSE_FLAG = false;
 }
 
 function cancelDiscard() {
-document.getElementById('confirmDiscardModal').style.display = 'none';
-document.getElementById('confirmOverlay').style.display = 'none';
+    document.getElementById('confirmDiscardModal').style.display = 'none';
+    document.getElementById('confirmOverlay').style.display = 'none';
 }
 
 function cleanupModals() {
-document.body.classList.remove('modal-open');
-document.body.style.overflow = '';
-document.body.style.paddingRight = '';
-const backdrops = document.querySelectorAll('.modal-backdrop');
-backdrops.forEach(b => b.remove());
+    document.body.classList.remove('modal-open');
+    document.body.style.overflow = '';
+    document.body.style.paddingRight = '';
+    const backdrops = document.querySelectorAll('.modal-backdrop');
+    backdrops.forEach(b => b.remove());
 }
 
 function openChantModal(id = null) {
-cleanupModals();
-IS_CHANT_DIRTY = false;
-IGNORE_DIRTY_FLAG = true;
-FORCE_CLOSE_FLAG = false;
-document.getElementById('btnSaveChant').innerText = "Enregistrer";
+    cleanupModals();
+    setDirty(false);
+    IGNORE_DIRTY_FLAG = true;
+    FORCE_CLOSE_FLAG = false;
+    document.getElementById('btnSaveChant').innerText = "Enregistrer";
 
-const el = document.getElementById('modalEditChant');
-modalInstance = new bootstrap.Modal(el);
+    const el = document.getElementById('modalEditChant');
+    modalInstance = new bootstrap.Modal(el);
 
-document.getElementById('editRowIndex').value = "";
-document.getElementById('editNumero').value = "";
-document.getElementById('editTitre').value = "";
-document.getElementById('editTags').value = "";
-document.getElementById('editTonalite').value = "";
-document.getElementById('editorStrophesContainer').innerHTML = "";
-document.getElementById('emptyStropheMsg').classList.remove('hidden');
+    document.getElementById('editRowIndex').value = "";
+    document.getElementById('editNumero').value = "";
+    document.getElementById('editTitre').value = "";
+    document.getElementById('editTags').value = "";
+    document.getElementById('editTonalite').value = "";
+    document.getElementById('editorStrophesContainer').innerHTML = "";
+    document.getElementById('emptyStropheMsg').classList.remove('hidden');
 
-modalInstance.show();
+    modalInstance.show();
 
-if (id) {
-document.getElementById('modalLoader').classList.remove('hidden');
-document.getElementById('modalTitle').innerText = "Modifier le chant";
+    if (id) {
+        document.getElementById('modalLoader').classList.remove('hidden');
+        document.getElementById('modalTitle').innerText = "Modifier le chant";
 
-google.script.run.withSuccessHandler(chant => {
-document.getElementById('modalLoader').classList.add('hidden');
-document.getElementById('editRowIndex').value = chant.rowIndex;
-document.getElementById('editRecueil').value = chant.recueil;
-document.getElementById('editNumero').value = chant.numero;
-document.getElementById('editTitre').value = chant.titre;
-document.getElementById('editTags').value = chant.tags || "";
-document.getElementById('editTonalite').value = chant.tonalite || "";
+        google.script.run.withSuccessHandler(chant => {
+            document.getElementById('modalLoader').classList.add('hidden');
+            document.getElementById('editRowIndex').value = chant.rowIndex;
+            document.getElementById('editRecueil').value = chant.recueil;
+            document.getElementById('editNumero').value = chant.numero;
+            document.getElementById('editTitre').value = chant.titre;
+            document.getElementById('editTags').value = chant.tags || "";
+            document.getElementById('editTonalite').value = chant.tonalite || "";
 
-const mgParts = chant.paroles_mg ? chant.paroles_mg.split(" /// ") : [];
-const frParts = chant.paroles_fr ? chant.paroles_fr.split(" /// ") : [];
-const types = chant.structure ? chant.structure.split(",") : [];
+            const mgParts = chant.paroles_mg ? chant.paroles_mg.split(" /// ") : [];
+            const frParts = chant.paroles_fr ? chant.paroles_fr.split(" /// ") : [];
+            const types = chant.structure ? chant.structure.split(",") : [];
 
-for(let i=0; i < mgParts.length; i++) {
-addStropheBlock(types[i] || 'C', mgParts[i], frParts[i]);
-}
-setTimeout(() => { IGNORE_DIRTY_FLAG = false; }, 500);
-}).getChantDetails(id);
-} else {
-document.getElementById('modalTitle').innerText = "Nouveau chant";
-document.getElementById('modalLoader').classList.add('hidden');
-setTimeout(() => { IGNORE_DIRTY_FLAG = false; }, 500);
-}
+            for(let i=0; i < mgParts.length; i++) {
+                addStropheBlock(types[i] || 'C', mgParts[i], frParts[i]);
+            }
+            setTimeout(() => { IGNORE_DIRTY_FLAG = false; }, 500);
+        }).getChantDetails(id);
+    } else {
+        document.getElementById('modalTitle').innerText = "Nouveau chant";
+        document.getElementById('modalLoader').classList.add('hidden');
+        setTimeout(() => { IGNORE_DIRTY_FLAG = false; }, 500);
+    }
 }
 
 function autoResize(textarea) {
-if(!textarea) return;
-textarea.style.height = 'auto';
-textarea.style.height = (textarea.scrollHeight) + 'px';
+    if(!textarea) return;
+    textarea.style.height = 'auto';
+    textarea.style.height = (textarea.scrollHeight) + 'px';
 }
 
 function updateStropheNumbers() {
-let counter = 1;
-document.querySelectorAll('.strophe-block').forEach(block => {
-if (block.dataset.type === 'C') {
-const badge = block.querySelector('.counter');
-if (badge) badge.innerText = "COUPLET " + counter++;
-}
-});
-if(document.querySelectorAll('.strophe-block').length === 0)
-document.getElementById('emptyStropheMsg').classList.remove('hidden');
+    let counter = 1;
+    document.querySelectorAll('.strophe-block').forEach(block => {
+        if (block.dataset.type === 'C') {
+            const badge = block.querySelector('.counter');
+            if (badge) badge.innerText = "COUPLET " + counter++;
+        }
+    });
+    if(document.querySelectorAll('.strophe-block').length === 0)
+        document.getElementById('emptyStropheMsg').classList.remove('hidden');
 }
 
 function addStropheBlock(type, txtMG = "", txtFR = "") {
-document.getElementById('emptyStropheMsg').classList.add('hidden');
-const container = document.getElementById('editorStrophesContainer');
-const div = document.createElement('div');
+    document.getElementById('emptyStropheMsg').classList.add('hidden');
+    const container = document.getElementById('editorStrophesContainer');
+    const div = document.createElement('div');
 
-div.className = `saas-card p-3 position-relative strophe-block`;
-div.dataset.type = type;
-div.style.borderLeft = (type === 'R') ? "4px solid #10B981" : "4px solid #3B82F6";
+    div.className = `saas-card p-3 position-relative strophe-block`;
+    div.dataset.type = type;
+    div.style.borderLeft = (type === 'R') ? "4px solid #10B981" : "4px solid #3B82F6";
 
-const labelText = type === 'R' ? 'REFRAIN' : 'COUPLET';
-const labelClass = (type === 'R') ? 'text-success bg-success-subtle' : 'text-primary bg-primary-subtle';
+    const labelText = type === 'R' ? 'REFRAIN' : 'COUPLET';
+    const labelClass = (type === 'R') ? 'text-success bg-success-subtle' : 'text-primary bg-primary-subtle';
 
-div.innerHTML = `
-<div class="d-flex justify-content-between mb-2">
-<span class="badge ${labelClass} border px-2 counter">${labelText}</span>
-<i class="bi bi-x-lg text-muted cursor-pointer" onclick="this.closest('.saas-card').remove(); updateStropheNumbers(); markChantDirty();"></i>
-</div>
-<div class="row g-3">
-<div class="col-12 col-md-6"><textarea class="form-control input-saas bg-light inp-mg" rows="2" style="padding-bottom: 25px;" placeholder="Malgache..." oninput="autoResize(this); markChantDirty()">${txtMG}</textarea></div>
-<div class="col-12 col-md-6"><textarea class="form-control input-saas bg-light inp-fr" rows="2" style="padding-bottom: 25px;" placeholder="Français..." oninput="autoResize(this); markChantDirty()">${txtFR}</textarea></div>
+    div.innerHTML = `
+    <div class="d-flex justify-content-between mb-2">
+        <span class="badge ${labelClass} border px-2 counter">${labelText}</span>
+        <i class="bi bi-x-lg text-muted cursor-pointer" onclick="this.closest('.saas-card').remove(); updateStropheNumbers(); markChantDirty();"></i>
+    </div>
+    <div class="row g-3">
+        <div class="col-12 col-md-6"><textarea class="form-control input-saas bg-light inp-mg" rows="2" style="padding-bottom: 25px;" placeholder="Malgache..." oninput="autoResize(this); markChantDirty()">${txtMG}</textarea></div>
+        <div class="col-12 col-md-6"><textarea class="form-control input-saas bg-light inp-fr" rows="2" style="padding-bottom: 25px;" placeholder="Français..." oninput="autoResize(this); markChantDirty()">${txtFR}</textarea></div>
     </div>`;
   
-  container.appendChild(div);
-  updateStropheNumbers();
-  setTimeout(() => { div.querySelectorAll('textarea').forEach(el => autoResize(el)); }, 50);
-  if (!IGNORE_DIRTY_FLAG) markChantDirty();
+    container.appendChild(div);
+    updateStropheNumbers();
+    setTimeout(() => { div.querySelectorAll('textarea').forEach(el => autoResize(el)); }, 50);
+    if (!IGNORE_DIRTY_FLAG) markChantDirty();
 }
+
 function submitChantSave() {
-const btn = document.getElementById('btnSaveChant');
-btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Sauvegarde...';
-btn.disabled = true;
-const strophes_mg = []; const strophes_fr = []; const types = [];
-  document.querySelectorAll('#editorStrophesContainer > div').forEach(block => {
-      strophes_mg.push(block.querySelector('.inp-mg').value);
-      strophes_fr.push(block.querySelector('.inp-fr').value);
-      types.push(block.dataset.type);
-  });
+    const btn = document.getElementById('btnSaveChant');
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Sauvegarde...';
+    btn.disabled = true;
+
+    const strophes_mg = []; const strophes_fr = []; const types = [];
+    document.querySelectorAll('#editorStrophesContainer > div').forEach(block => {
+        strophes_mg.push(block.querySelector('.inp-mg').value);
+        strophes_fr.push(block.querySelector('.inp-fr').value);
+        types.push(block.dataset.type);
+    });
   
-  const formData = {
-      rowIndex: document.getElementById('editRowIndex').value,
-      recueil: document.getElementById('editRecueil').value,
-      numero: document.getElementById('editNumero').value,
-      titre: document.getElementById('editTitre').value,
-      tonalite: document.getElementById('editTonalite').value,
-      tags: document.getElementById('editTags').value,
-      strophes_mg: strophes_mg, strophes_fr: strophes_fr, types: types
-  };
+    const formData = {
+        rowIndex: document.getElementById('editRowIndex').value,
+        recueil: document.getElementById('editRecueil').value,
+        numero: document.getElementById('editNumero').value,
+        titre: document.getElementById('editTitre').value,
+        tonalite: document.getElementById('editTonalite').value,
+        tags: document.getElementById('editTags').value,
+        strophes_mg: strophes_mg, strophes_fr: strophes_fr, types: types
+    };
   
-  google.script.run.withSuccessHandler(msg => {
-      IS_CHANT_DIRTY = false;
-      FORCE_CLOSE_FLAG = true;
-      modalInstance.hide();
-      FORCE_CLOSE_FLAG = false;
-      
-      document.getElementById('toastMessage').innerText = msg;
-      const toast = new bootstrap.Toast(document.getElementById('liveToast'));
-      toast.show();
-      
-      btn.disabled = false;
-      btn.innerText = "Enregistrer";
-      loadChantsData(); 
-  }).saveChantBackend(formData);
+    google.script.run.withSuccessHandler(msg => {
+        setDirty(false); // Reset Global
+        FORCE_CLOSE_FLAG = true;
+        modalInstance.hide();
+        FORCE_CLOSE_FLAG = false;
+        
+        document.getElementById('toastMessage').innerText = msg;
+        const toast = new bootstrap.Toast(document.getElementById('liveToast'));
+        toast.show();
+        
+        btn.disabled = false;
+        btn.innerText = "Enregistrer";
+        loadChantsData(); 
+    }).saveChantBackend(formData);
 }
 </script>

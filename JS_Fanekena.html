@@ -1,5 +1,4 @@
 <script>
-  let FNK_IS_DIRTY = false;
   let FNK_PENDING_ACTION = null;
 
   function initFanekenaView() {
@@ -25,41 +24,25 @@
 
   // --- DIRTY STATE & NAVIGATION MANAGER ---
   function markFnkDirty() {
-      if(!FNK_IS_DIRTY) {
-          FNK_IS_DIRTY = true;
+      // On utilise le système global défini dans Global_JS
+      if(!APP_IS_DIRTY) {
+          setDirty(true);
+          // Le changement visuel du bouton est géré automatiquement par Global_JS
+          // Mais on garde la classe spécifique locale pour le style css
           document.getElementById('fnk-panel-editor').classList.add('is-dirty');
-          const btn = document.getElementById('btnSaveFnk');
-          if(btn) {
-              btn.innerText = "Enregistrer ●";
-              btn.classList.add('save-btn-dirty');
-          }
       }
   }
 
   function resetFnkDirty() {
-      FNK_IS_DIRTY = false;
+      setDirty(false); // Reset Global
       document.getElementById('fnk-panel-editor').classList.remove('is-dirty');
-      const btn = document.getElementById('btnSaveFnk');
-      if(btn) {
-          btn.innerText = "Enregistrer";
-          btn.classList.remove('save-btn-dirty');
-      }
   }
 
   function handleFnkNavigation(action, payload) {
-      // Si on veut juste revenir à la liste sur mobile et qu'il n'y a pas de modif, on y va direct
-      if (action === 'BACK_LIST' && !FNK_IS_DIRTY) {
-          showFnkMobileList();
-          return;
-      }
-
-      if (FNK_IS_DIRTY) {
-          FNK_PENDING_ACTION = { type: action, payload: payload };
-          document.getElementById('discardChangesModal').style.display = 'block';
-          document.getElementById('fnkOverlay').style.display = 'block';
-      } else {
+      // Protection Navigation via le système Global
+      guardNavigation(() => {
           executeFnkNavigation(action, payload);
-      }
+      });
   }
 
   function executeFnkNavigation(action, payload) {
@@ -71,25 +54,8 @@
           showFnkMobileEditor();
       } else if (action === 'BACK_LIST') {
           showFnkMobileList();
-          // Optionnel : on peut reset l'éditeur si on revient
           resetFnkDirty();
       }
-  }
-
-  function confirmFnkDiscard() {
-      document.getElementById('discardChangesModal').style.display = 'none';
-      document.getElementById('fnkOverlay').style.display = 'none';
-      resetFnkDirty();
-      if (FNK_PENDING_ACTION) {
-          executeFnkNavigation(FNK_PENDING_ACTION.type, FNK_PENDING_ACTION.payload);
-          FNK_PENDING_ACTION = null;
-      }
-  }
-
-  function cancelFnkNavigation() {
-      document.getElementById('discardChangesModal').style.display = 'none';
-      document.getElementById('fnkOverlay').style.display = 'none';
-      FNK_PENDING_ACTION = null;
   }
 
   // --- LOGIQUE METIER ---

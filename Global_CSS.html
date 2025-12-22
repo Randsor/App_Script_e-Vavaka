@@ -1,4 +1,4 @@
-<!-- GLOBAL CSS - MODERN SAAS & LEGACY SUPPORT (FULL & FIXED LAYERS) -->
+<!-- GLOBAL CSS - MODERN SAAS & LEGACY SUPPORT (FULL VERSION) -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -35,25 +35,29 @@
     --radius-md: 8px;
     --radius-lg: 12px;
     
-    /* --- Z-INDEX STRATEGY (RATIONALISATION V3) --- */
+    /* --- Z-INDEX STRATEGY (CORRECTIF FINAL) --- */
     
     /* Niveau 1 : Navigation Mobile */
-    /* L'overlay mobile doit être SUR le contenu mais SOUS la sidebar */
+    /* Le Header Mobile reste accessible */
+    --z-mobile-header: 1030;
+    /* L'overlay doit couvrir le contenu */
     --z-overlay-mobile: 1040; 
-    --z-sidebar: 1050;        /* Sidebar au-dessus de l'overlay mobile */
+    /* La Sidebar doit être AU-DESSUS de son overlay */
+    --z-sidebar: 1050;        
     
-    /* Niveau 2 : Modales Système (Bootstrap & Custom) */
-    /* Elles doivent passer au-dessus de la navigation */
-    --z-overlay-modal: 10040; /* Backdrop Bootstrap */
-    --z-overlay-custom: 10055; /* Overlay Custom (Programme) */
+    /* Niveau 2 : Modales Bootstrap (Standard) */
+    --z-overlay-modal: 10050; 
+    --z-modal-bootstrap: 10060;
     
-    --z-modal-bootstrap: 10050; /* Modale Bootstrap */
-    --z-modal-custom: 10060;    /* Dialogues Custom (Création, Delete, Selectors) */
+    /* Niveau 3 : Dialogues Custom (Selecteurs, Editeurs) */
+    --z-overlay-custom: 10070; 
+    --z-modal-custom: 10080;
     
-    /* Niveau 3 : Urgences Absolues */
-    --z-alert-overlay: 10070;
-    --z-alert-dialog: 10080;
-    --z-toast: 11000;
+    /* Niveau 4 : ALERTES SYSTÈME (URGENCE ABSOLUE) */
+    /* Doit passer au-dessus de tout le reste */
+    --z-alert-overlay: 20000;
+    --z-alert-dialog: 20010;
+    --z-toast: 21000;
   }
 
   body {
@@ -67,17 +71,24 @@
   /* FIX SCROLL MODALE */
   body.modal-open { overflow: hidden !important; padding-right: 0 !important; }
 
-  /* --- APPLICATION DES LAYERS --- */
+  /* --- APPLICATION DES LAYERS (Z-INDEX) --- */
   
   /* Navigation */
   .sidebar { z-index: var(--z-sidebar); }
+  .mobile-header { z-index: var(--z-mobile-header); }
   #mobile-menu-overlay { z-index: var(--z-overlay-mobile); background: rgba(0,0,0,0.3); position: fixed; inset: 0; backdrop-filter: blur(2px); }
   
-  /* Modales */
+  /* Modales Bootstrap */
   .modal-backdrop { z-index: var(--z-overlay-modal) !important; }
   .modal { z-index: var(--z-modal-bootstrap) !important; }
   
-  #progCreatorOverlay, #popupOverlay { z-index: var(--z-overlay-custom) !important; background: rgba(0,0,0,0.4); backdrop-filter: blur(2px); }
+  /* Overlays Custom */
+  #progCreatorOverlay, #popupOverlay, #menuOverlay { 
+      z-index: var(--z-overlay-custom) !important; 
+      background: rgba(0,0,0,0.4); 
+      backdrop-filter: blur(2px); 
+      position: fixed; inset: 0;
+  }
   
   /* Custom Dialogs (Fixed & Centered) */
   .notion-dialog, .notion-dialog-wrapper { 
@@ -95,7 +106,7 @@
   }
 
   /* Menus Contextuels */
-  .notion-popup, .custom-popup { 
+  .notion-popup, .custom-popup, .dropdown-menu { 
       z-index: var(--z-modal-custom) !important;
       background: white; border: 1px solid var(--border-medium); 
       box-shadow: var(--shadow-floating); border-radius: var(--radius-md); 
@@ -104,10 +115,22 @@
       animation: popupFadeIn 0.1s ease-out;
   }
   
-  /* Alertes */
-  #confirmOverlay { z-index: var(--z-alert-overlay) !important; } 
-  #confirmDiscardModal { z-index: var(--z-alert-dialog) !important; }
-  .notion-toast-container { z-index: var(--z-toast); position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); pointer-events: none; display: flex; flex-direction: column; gap: 10px; }
+  /* Alertes Système (Priorité Max) */
+  #sysNavOverlay, #confirmOverlay, #fnkOverlay { 
+      z-index: var(--z-alert-overlay) !important; 
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.5);
+      backdrop-filter: blur(4px);
+  } 
+  #sysNavModal, #confirmDiscardModal, #discardChangesModal { 
+      z-index: var(--z-alert-dialog) !important; 
+  }
+  .notion-toast-container { 
+      z-index: var(--z-toast); 
+      position: fixed; bottom: 30px; left: 50%; 
+      transform: translateX(-50%); pointer-events: none; 
+      display: flex; flex-direction: column; gap: 10px; 
+  }
 
   /* --- ANIMATIONS --- */
   .hover-lift { transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease; will-change: transform; }
@@ -124,12 +147,45 @@
   }
   @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 
-  /* --- LAYOUT --- */
+  /* --- DRAG & DROP MODERN SAAS --- */
+  .item-wrapper {
+      transition: transform 0.3s cubic-bezier(0.2, 0, 0, 1), box-shadow 0.2s ease, opacity 0.2s ease;
+      background: white;
+      border: 1px solid transparent; 
+      border-radius: var(--radius-sm); 
+      margin-bottom: 8px !important;
+  }
+  .item-wrapper:hover { border-color: #E5E7EB; box-shadow: var(--shadow-sm); }
+
+  /* L'élément "fantôme" qui reste en place */
+  .sortable-ghost {
+      opacity: 0.3;
+      background-color: var(--primary-subtle) !important;
+      border: 2px dashed var(--primary) !important;
+      box-shadow: none !important;
+  }
+  /* L'élément en cours de déplacement */
+  .sortable-drag {
+      opacity: 0.98;
+      transform: scale(1.02) rotate(1deg);
+      box-shadow: var(--shadow-floating) !important;
+      background: white !important;
+      cursor: grabbing !important;
+      z-index: 9999;
+  }
+  .sortable-chosen { background-color: var(--bg-app) !important; }
+
+  /* --- LAYOUT GLOBAL --- */
   .app-wrapper { display: flex; min-height: 100vh; background-color: var(--bg-app); }
   
-  .sidebar { width: 240px; background-color: var(--bg-sidebar); border-right: 1px solid var(--border-medium); padding: 24px 12px; display: flex; flex-direction: column; position: fixed; height: 100vh; transition: transform 0.3s ease; }
+  .sidebar { 
+      width: 240px; background-color: var(--bg-sidebar); 
+      border-right: 1px solid var(--border-medium); padding: 24px 12px; 
+      display: flex; flex-direction: column; position: fixed; height: 100vh; 
+      transition: transform 0.3s ease; 
+  }
   .sidebar-brand { font-weight: 700; font-size: 18px; color: var(--text-primary); display: flex; align-items: center; gap: 10px; margin-bottom: 32px; padding-left: 12px; letter-spacing: -0.5px; }
-  .nav-link { display: flex; align-items: center; gap: 12px; padding: 10px 12px; color: var(--text-secondary); text-decoration: none; border-radius: var(--radius-md); font-size: 14px; font-weight: 500; margin-bottom: 4px; transition: all 0.2s ease; cursor: pointer; }
+  .nav-link { display: flex; align-items: center; gap: 12px; padding: 10px 12px; color: var(--text-secondary); text-decoration: none; border-radius: var(--radius-md); font-size: 14px; font-weight: 500; margin-bottom: 4px; transition: all 0.2s; cursor: pointer; }
   .nav-link:hover { background-color: var(--bg-app); color: var(--text-primary); transform: translateX(4px); }
   .nav-link.active { background-color: var(--primary-subtle); color: var(--primary); font-weight: 600; }
   .nav-link.active i { color: var(--primary); }
@@ -137,11 +193,18 @@
   .main-content { flex: 1; margin-left: 240px; padding: 32px 40px; max-width: 1600px; }
   
   .mobile-header { display: none; }
+  
   @media (max-width: 768px) {
     .sidebar { transform: translateX(-100%); border-right: none; box-shadow: var(--shadow-lg); }
     .sidebar.open { transform: translateX(0); }
     .main-content { margin-left: 0; padding: 16px; padding-top: 70px; }
-    .mobile-header { display: flex; align-items: center; justify-content: space-between; position: fixed; top: 0; left: 0; right: 0; height: 60px; background: rgba(255,255,255,0.95); backdrop-filter: blur(10px); border-bottom: 1px solid var(--border-medium); padding: 0 20px; z-index: 900; }
+    .mobile-header { 
+        display: flex; align-items: center; justify-content: space-between; 
+        position: fixed; top: 0; left: 0; right: 0; height: 60px; 
+        background: rgba(255,255,255,0.95); backdrop-filter: blur(10px); 
+        border-bottom: 1px solid var(--border-medium); padding: 0 20px; 
+        /* Le Z-Index est défini dans :root */
+    }
     
     .saas-table thead { display: none; }
     .saas-table, .saas-table tbody, .saas-table tr, .saas-table td { display: block; width: 100%; }
@@ -163,6 +226,7 @@
   /* Boutons */
   .btn-saas-primary { background-color: var(--primary); color: white; border: none; border-radius: var(--radius-sm); padding: 8px 16px; font-size: 14px; font-weight: 500; box-shadow: var(--shadow-sm); transition: all 0.2s; }
   .btn-saas-primary:hover { background-color: var(--primary-hover); transform: translateY(-1px); }
+  .btn-saas-primary:active { transform: scale(0.96); }
   .btn-saas-secondary { background-color: white; color: var(--text-primary); border: 1px solid var(--border-medium); border-radius: var(--radius-sm); padding: 8px 16px; font-size: 14px; font-weight: 500; transition: all 0.2s; }
   .btn-saas-secondary:hover { background-color: var(--bg-app); border-color: #D1D5DB; }
   .btn-saas-dark { background-color: #1F2937; color: white; border: none; border-radius: var(--radius-sm); padding: 8px 16px; font-size: 14px; font-weight: 500; box-shadow: var(--shadow-sm); transition: all 0.2s; }
@@ -187,13 +251,13 @@
   .saas-table tbody tr:last-child { border-bottom: none; }
   .saas-table tbody tr:hover { background-color: #F9FAFB; }
   .saas-table td { padding: 14px 24px; font-size: 13px; color: var(--text-primary); vertical-align: middle; }
+  
   .t-badge { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 500; }
   .t-badge-gray { background: #F3F4F6; color: #4B5563; border: 1px solid #E5E7EB; }
   .t-badge-red { background: #FEF2F2; color: #DC2626; border: 1px solid #FECACA; }
   .t-badge-orange { background: #FFFBEB; color: #D97706; border: 1px solid #FDE68A; }
 
-  /* --- LEGACY SUPPORT --- */
-  
+  /* --- LEGACY NOTION SUPPORT (PRESERVED) --- */
   .notion-list { max-height: 280px; overflow-y: auto; padding: 4px 0; }
   .notion-item { padding: 8px 12px; font-size: 13px; color: var(--text-primary); cursor: pointer; display: flex; align-items: center; justify-content: space-between; border-radius: 4px; transition: background 0.05s; }
   .notion-item:hover, .notion-item.selected { background-color: var(--bg-app); color: var(--primary); }
@@ -205,8 +269,6 @@
   .notion-popup-search { padding: 8px 10px; border-bottom: 1px solid rgba(0,0,0,0.06); background: #fbfbfa; }
   .notion-popup-search input { width: 100%; border: none; background: transparent; font-size: 13px; outline: none; color: var(--text-primary); }
 
-  .item-wrapper { background: white; border: 1px solid transparent; border-radius: var(--radius-sm); margin-bottom: 8px !important; transition: all 0.2s; }
-  .item-wrapper:hover { border-color: #E5E7EB; box-shadow: var(--shadow-sm); }
   .add-zone-line { height: 14px; margin: -7px 0; z-index: 10; position: relative; display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.2s; cursor: pointer; }
   .item-wrapper:hover .add-zone-line { opacity: 1; }
   .plus-icon { width: 20px; height: 20px; border-radius: 50%; background: var(--primary); color: white; display: flex; align-items: center; justify-content: center; font-size: 12px; box-shadow: var(--shadow-md); }
@@ -221,6 +283,7 @@
   .nav-pill { padding: 6px 12px; border-radius: 20px; background-color: white; border: 1px solid var(--border-medium); color: var(--text-secondary); font-size: 12px; font-weight: 500; cursor: pointer; transition: all 0.1s; }
   .nav-pill.active { background-color: var(--primary); color: white; border-color: var(--primary); }
 
+  /* PLANNING SPECIFIC STYLES (PRESERVED) */
   .pg-cell { background: white; border-right: 1px solid #f1f5f9; border-bottom: 1px solid #f1f5f9; box-sizing: border-box; display: flex; align-items: center; justify-content: center; padding: 0 4px; font-size: 13px; position: relative; transition: background 0.1s; }
   .pg-header { position: sticky; top: 0; z-index: 10; background: #fff; border-bottom: 1px solid #e2e8f0; color: #475569; font-weight: 700; font-size: 12px; text-align: center; box-shadow: 0 1px 2px rgba(0,0,0,0.05); text-transform: uppercase; letter-spacing: 0.5px; padding: 8px; line-height: 1.2; }
   .pg-date-col { position: sticky; left: 0; z-index: 5; background: #fff; border-right: 2px solid #e2e8f0; justify-content: flex-start !important; padding: 0 !important; }

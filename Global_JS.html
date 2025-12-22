@@ -1,43 +1,107 @@
 <script>
+/**
+ * GLOBAL JS - MODERN SAAS FRAMEWORK
+ */
+
 // --- STATE MANAGEMENT GLOBAL ---
-var APP_CONTEXT = ""; // 'TEMPLATE' ou 'PROGRAMME'
+var APP_CONTEXT = ""; 
+var APP_IS_DIRTY = false; // Flag unique pour toute l'application
 
 // Données Globales
 var DATA_TEMPLATE_BLOCKS = [];
 var DATA_PROGRAMME_BLOCKS = [];
 
+/**
+ * Définit l'état de modification et met à jour l'interface
+ */
+function setDirty(state) {
+    APP_IS_DIRTY = state;
+    
+    // INDICATEUR VISUEL (Programme)
+    const btnProg = document.querySelector('#toolbarEditMode .btn-dark');
+    if (btnProg) {
+        if (state && !btnProg.innerHTML.includes("●")) {
+            btnProg.innerHTML = "Enregistrer <span class='text-warning ms-1'>●</span>";
+        } else if (!state) {
+            btnProg.innerHTML = "Enregistrer";
+        }
+    }
+
+    // INDICATEUR VISUEL (Templates)
+    const btnTpl = document.querySelector('#panel-editor .btn-primary-notion');
+    if (btnTpl) {
+        if (state && !btnTpl.innerHTML.includes("●")) {
+            btnTpl.innerHTML = "Sauvegarder <span class='text-warning ms-1'>●</span>";
+        } else if (!state) {
+            btnTpl.innerHTML = "Sauvegarder";
+        }
+    }
+
+    // INDICATEUR VISUEL (Fanekena)
+    const btnFnk = document.getElementById('btnSaveFnk');
+    if (btnFnk) {
+        if (state) {
+            btnFnk.innerHTML = "Enregistrer <span class='text-warning ms-1'>●</span>";
+            btnFnk.classList.add('save-btn-dirty');
+        } else {
+            btnFnk.innerHTML = "Enregistrer";
+            btnFnk.classList.remove('save-btn-dirty');
+        }
+    }
+}
+
+/**
+ * Intercepteur de navigation
+ */
+function guardNavigation(callback) {
+    if (APP_IS_DIRTY) {
+        // On affiche la modale système
+        if(typeof pendingNavCallback !== 'undefined') {
+            pendingNavCallback = callback;
+            const modal = document.getElementById('sysNavModal');
+            const overlay = document.getElementById('sysNavOverlay');
+            if(modal && overlay) {
+                modal.style.display = 'block';
+                overlay.style.display = 'block';
+            } else {
+                // Fallback sécurité si Index.html n'est pas à jour
+                if(confirm("Modifications non enregistrées. Quitter ?")) {
+                    setDirty(false);
+                    callback();
+                }
+            }
+        }
+    } else {
+        callback();
+    }
+}
+
 // --- UTILS UI ---
 
 function autoResize(textarea) {
-if(!textarea) return;
-textarea.style.height = 'auto';
-textarea.style.height = (textarea.scrollHeight) + 'px';
+    if(!textarea) return;
+    textarea.style.height = 'auto';
+    textarea.style.height = (textarea.scrollHeight) + 'px';
 }
 
-// Animation des chiffres (Compteur) - Disponible partout
 function animateCounter(id, start, end, duration) {
-const obj = document.getElementById(id);
-if (!obj) return;
-if (start === end) { obj.innerText = end; return; }
+    const obj = document.getElementById(id);
+    if (!obj) return;
+    if (start === end) { obj.innerText = end; return; }
 
-let range = end - start;
-let current = start;
-let increment = end > start ? 1 : -1;
-let stepTime = Math.abs(Math.floor(duration / range));
-// Cap pour éviter que ça soit trop lent sur les petits nombres
-stepTime = Math.max(stepTime, 10);
+    let range = end - start;
+    let current = start;
+    let increment = end > start ? 1 : -1;
+    let stepTime = Math.max(Math.abs(Math.floor(duration / range)), 10);
 
-let timer = setInterval(function() {
-current += increment;
-obj.innerText = current;
-if (current == end) {
-clearInterval(timer);
-}
-}, stepTime);
+    let timer = setInterval(function() {
+        current += increment;
+        obj.innerText = current;
+        if (current == end) clearInterval(timer);
+    }, stepTime);
 }
 
-// Initialisation globale
 document.addEventListener("DOMContentLoaded", function() {
-document.querySelectorAll('textarea').forEach(el => autoResize(el));
+    document.querySelectorAll('textarea').forEach(el => autoResize(el));
 });
 </script>

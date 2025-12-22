@@ -1,21 +1,47 @@
 <script>
 /**
- * MOTEUR DE RENDU UNIFIÉ
- * V2 : Style Document & Mobile Responsive
+ * MOTEUR DE RENDU UNIFIÉ (VERSION INTÉGRALE)
+ * Gère l'affichage des blocs pour Programme et Templates
  */
 
 function getActiveDataArray() { return (APP_CONTEXT === 'TEMPLATE') ? DATA_TEMPLATE_BLOCKS : DATA_PROGRAMME_BLOCKS; }
 function getActiveContainerId() { return (APP_CONTEXT === 'TEMPLATE') ? 'blocksContainer' : 'docBlocksContainer'; }
 function refreshActiveView() { const data = getActiveDataArray(); const containerId = getActiveContainerId(); renderSharedBlocks(containerId, data, APP_CONTEXT); }
 
-// --- ACTIONS GLOBALES ---
-function removeBlock(index) { const data = getActiveDataArray(); data.splice(index, 1); refreshActiveView(); }
-function updateBlockField(index, field, value) { const data = getActiveDataArray(); if(data[index]) data[index][field] = value; }
-function updateBlockDataField(index, field, value) { const data = getActiveDataArray(); if(data[index]) { if(!data[index].data) data[index].data = {}; data[index].data[field] = value; } if(field === 'mode') refreshActiveView(); }
+// --- ACTIONS GLOBALES (AVEC SÉCURITÉ DIRTY) ---
+
+function removeBlock(index) { 
+    const data = getActiveDataArray(); 
+    data.splice(index, 1); 
+    setDirty(true); // Marque la modification
+    refreshActiveView(); 
+}
+
+function updateBlockField(index, field, value) { 
+    const data = getActiveDataArray(); 
+    if(data[index]) {
+        data[index][field] = value;
+        setDirty(true); // Marque la modification
+    }
+}
+
+function updateBlockDataField(index, field, value) { 
+    const data = getActiveDataArray(); 
+    if(data[index]) { 
+        if(!data[index].data) data[index].data = {}; 
+        data[index].data[field] = value; 
+        setDirty(true); // Marque la modification
+    } 
+    if(field === 'mode') refreshActiveView(); 
+}
 
 function resetSongBlock(index) {
     const data = getActiveDataArray();
-    if(data[index]) { data[index].data = { mode: 'recherche' }; refreshActiveView(); }
+    if(data[index]) { 
+        data[index].data = { mode: 'recherche' }; 
+        setDirty(true); // Marque la modification
+        refreshActiveView(); 
+    }
 }
 
 // --- INSERTION & MENUS ---
@@ -29,6 +55,7 @@ function insertBlock(type) {
     
     let newBlock = { type: type, label_mg: "", label_fr: "", role: "", data: {} };
     
+    // Valeurs par défaut
     if(type === 'TITRE') { newBlock.label_mg = "LOHATENIM-PIZARANA"; newBlock.label_fr = "Titre de section"; }
     if(type === 'CHANT') { newBlock.label_mg = "HIRA"; newBlock.label_fr = "Chant"; newBlock.data.mode = 'recherche'; }
     if(type === 'FANEKENA') { newBlock.label_mg = "FANEKEM-PINOANA"; newBlock.label_fr = "Confession de foi"; }
@@ -41,10 +68,11 @@ function insertBlock(type) {
     if(type === 'TEXTE_LIBRE') { newBlock.label_mg = ""; newBlock.label_fr = ""; }
     
     if (insertIdx === -1) data.push(newBlock); else data.splice(insertIdx + 1, 0, newBlock);
+    setDirty(true); // Marque la modification
     refreshActiveView();
 }
 
-// Positionnement Souris
+// Positionnement Souris pour les menus
 function openInsertMenu(index, btnElement, event) { window.insertIndex = index; openMenuAtMouse('insertMenu', btnElement, event); }
 
 function openRoleMenu(index, btnElement, event) {
@@ -88,7 +116,11 @@ function openRoleMenu(index, btnElement, event) {
 function setSharedBlockRole(roleName) { 
     const data = getActiveDataArray(); 
     const idx = window.roleEditIndex; 
-    if (idx > -1 && data[idx]) { data[idx].role = roleName; refreshActiveView(); } 
+    if (idx > -1 && data[idx]) { 
+        data[idx].role = roleName; 
+        setDirty(true); // Marque la modification
+        refreshActiveView(); 
+    } 
     closeAllMenus(); 
 }
 
@@ -119,7 +151,7 @@ function openMenuAtMouse(menuId, element, event) {
 
 function openMenuAtElementGeneric(menuId, element) { openMenuAtMouse(menuId, element, null); }
 
-// --- RENDERER PRINCIPAL (FIXED: Doc Style & Mobile Stack) ---
+// --- RENDERER PRINCIPAL ---
 function renderSharedBlocks(containerId, blocks, context) {
     const container = document.getElementById(containerId);
     if(!container) return;
@@ -151,13 +183,11 @@ function renderSharedBlocks(containerId, blocks, context) {
         }
 
         let extraFields = "";
-        // STYLE DOCUMENT : Bordures invisibles par défaut
         let contentStyle = 'style="font-size:14px; resize:none; overflow-y:hidden;"';
         let isProg = (context === 'PROGRAMME');
 
         // --- TYPE: CHANT ---
         if (block.type === 'CHANT') {
-             // Titres en ligne (MG/FR)
              let titleRow = '<div class="d-flex align-items-baseline gap-2 w-100 flex-wrap" style="padding-right: 70px;">';
              titleRow += '<input type="text" class="form-control doc-borderless input-mg p-0" style="width: auto;" value="' + block.label_mg + '" placeholder="TITRE MG" onchange="updateBlockField(' + index + ', \'label_mg\', this.value)">';
              titleRow += '<input type="text" class="form-control doc-borderless input-fr p-0" style="width: auto;" value="' + block.label_fr + '" placeholder="Titre FR" onchange="updateBlockField(' + index + ', \'label_fr\', this.value)">';
@@ -167,7 +197,6 @@ function renderSharedBlocks(containerId, blocks, context) {
              let mode = block.data?.mode || "recherche";
              
              if (mode === 'fixe' || block.data?.paroles_fixe) {
-                 // AFFICHAGE CHANT SÉLECTIONNÉ
                  let songInfo = "";
                  let isFromDB = !!block.data?.id;
                  let readonlyAttr = isFromDB ? "readonly" : "";
@@ -206,7 +235,6 @@ function renderSharedBlocks(containerId, blocks, context) {
                  }
                  
                  content = songInfo;
-                 // MOBILE STACK FIX: col-12 col-md-6
                  content += '<div class="row g-2 mt-1 border-start ps-2 ms-1">';
                  content += '<div class="col-12 col-md-6"><textarea class="form-control doc-borderless ' + bgClass + '" rows="2" ' + contentStyle + ' ' + readonlyAttr + ' placeholder="Paroles MG..." oninput="autoResize(this)" onchange="updateBlockDataField(' + index + ', \'paroles_fixe\', this.value)">' + (block.data?.paroles_fixe || '') + '</textarea></div>';
                  content += '<div class="col-12 col-md-6"><textarea class="form-control doc-borderless text-secondary ' + bgClass + '" rows="2" ' + contentStyle + ' ' + readonlyAttr + ' placeholder="Traduction..." oninput="autoResize(this)" onchange="updateBlockDataField(' + index + ', \'paroles_fr_fixe\', this.value)">' + (block.data?.paroles_fr_fixe || '') + '</textarea></div>';
@@ -223,7 +251,6 @@ function renderSharedBlocks(containerId, blocks, context) {
                      content = '<div class="text-muted small fst-italic mt-1 ms-1"><i class="bi bi-search me-1"></i>Recherche biblio (Mode Programme)</div>';
                  }
              }
-             // SUPPRESSION DU DOUBLON SWITCH "Chant Libre"
              extraFields = '<div>' + titleRow + content + '</div>';
         }
         
@@ -231,19 +258,15 @@ function renderSharedBlocks(containerId, blocks, context) {
         else if (block.type === 'FANEKENA') {
             let isFilled = block.data && block.data.id;
             let clickAction = (APP_CONTEXT === 'TEMPLATE') ? 'openFanekenaSelectorTemplate(' + index + ')' : 'openFanekenaSelectorProgramme(' + index + ')';
-            
             let selectorHtml = "";
             if (!isFilled) {
                 selectorHtml = '<div class="mt-2"><button class="btn btn-sm bg-white text-dark shadow-sm d-flex align-items-center gap-2 px-3" style="border: 1px solid #E1E1E1; color: #37352F;" onclick="' + clickAction + '"><i class="bi bi-search" style="color:#999;"></i> Choisir FANEKEM-PINOANA</button></div>';
             } else {
                 selectorHtml = '<div class="d-flex justify-content-between align-items-center mb-2 pt-1"><span class="fw-bold text-dark" style="font-size:13px; text-transform:uppercase; letter-spacing:0.5px;">' + block.data.titre + '</span><button class="btn btn-sm bg-white border text-secondary shadow-sm py-0 px-2" style="font-size:11px; border-color:#e1e1e1 !important;" onclick="' + clickAction + '">Changer</button></div>';
             }
-            
             let rows = isProg ? '4' : '1';
             let txtMG = '<textarea class="form-control doc-borderless" rows="' + rows + '" ' + contentStyle + ' placeholder="Texte MG..." oninput="autoResize(this)" onchange="updateBlockDataField(' + index + ', \'contenu_mg\', this.value)">' + (block.data?.contenu_mg || '') + '</textarea>';
             let txtFR = '<textarea class="form-control doc-borderless text-secondary" rows="' + rows + '" ' + contentStyle + ' placeholder="Texte FR..." oninput="autoResize(this)" onchange="updateBlockDataField(' + index + ', \'contenu_fr\', this.value)">' + (block.data?.contenu_fr || '') + '</textarea>';
-            
-            // MOBILE STACK FIX
             extraFields = '<div class="mt-1 ps-3 border-start border-2 border-primary border-opacity-25">' + selectorHtml + '<div class="row g-2"><div class="col-12 col-md-6">' + txtMG + '</div><div class="col-12 col-md-6">' + txtFR + '</div></div></div>';
         }
         
@@ -263,13 +286,8 @@ function renderSharedBlocks(containerId, blocks, context) {
             let rows = isProg ? '2' : '1';
             let txtMG = '<textarea class="form-control doc-borderless" rows="' + rows + '" ' + contentStyle + ' placeholder="Texte MG..." oninput="autoResize(this)" onchange="updateBlockDataField(' + index + ', \'texte_mg\', this.value)">' + (block.data?.texte_mg || '') + '</textarea>';
             let txtFR = '<textarea class="form-control doc-borderless text-secondary" rows="' + rows + '" ' + contentStyle + ' placeholder="Texte FR..." oninput="autoResize(this)" onchange="updateBlockDataField(' + index + ', \'texte_fr\', this.value)">' + (block.data?.texte_fr || '') + '</textarea>';
-            
-            // MOBILE STACK FIX
             extraFields = '<div class="mt-1 ps-3 border-start border-2 border-light">' + versetInput + '<div class="row g-2"><div class="col-12 col-md-6">' + txtMG + '</div><div class="col-12 col-md-6">' + txtFR + '</div></div></div>';
-            
-            if(block.type === 'TEXTE_LIBRE') {
-                extraFields = '<div class="row g-2"><div class="col-12 col-md-6">' + txtMG + '</div><div class="col-12 col-md-6">' + txtFR + '</div></div>';
-            }
+            if(block.type === 'TEXTE_LIBRE') extraFields = '<div class="row g-2"><div class="col-12 col-md-6">' + txtMG + '</div><div class="col-12 col-md-6">' + txtFR + '</div></div>';
         }
         else if (block.type === 'TITRE') {
              extraFields = '<input type="text" class="form-control doc-borderless text-muted fst-italic mt-0" style="font-size:14px;" placeholder="Commentaire..." value="' + (block.data?.comment || '') + '" onchange="updateBlockDataField(' + index + ', \'comment\', this.value)">'; 
@@ -286,11 +304,7 @@ function renderSharedBlocks(containerId, blocks, context) {
             : '<input type="text" class="form-control doc-borderless input-mg p-0" value="' + block.label_mg + '" placeholder="TITRE MG" onchange="updateBlockField(' + index + ', \'label_mg\', this.value)"><input type="text" class="form-control doc-borderless input-fr p-0" value="' + block.label_fr + '" placeholder="Titre FR" onchange="updateBlockField(' + index + ', \'label_fr\', this.value)">';
 
         const bottomContent = (block.type !== 'CHANT' && block.type !== 'TEXTE_LIBRE') ? '<div class="ps-1">' + extraFields + '</div>' : '';
-
-        let resetBtn = "";
-        if (block.type === 'CHANT' && (block.data?.id || block.data?.mode === 'fixe')) {
-            resetBtn = '<i class="bi bi-arrow-counterclockwise text-secondary opacity-50 hover-opacity-100 cursor-pointer small ms-2" onclick="resetSongBlock(' + index + ')" title="Réinitialiser le chant"></i>';
-        }
+        let resetBtn = (block.type === 'CHANT' && (block.data?.id || block.data?.mode === 'fixe')) ? '<i class="bi bi-arrow-counterclockwise text-secondary opacity-50 hover-opacity-100 cursor-pointer small ms-2" onclick="resetSongBlock(' + index + ')" title="Réinitialiser le chant"></i>' : "";
 
         container.innerHTML += '<div class="item-wrapper group-bloc position-relative hover-bg" data-index="' + index + '" style="display: block !important; margin-bottom: 13px !important; border-bottom: none !important;">' +
             

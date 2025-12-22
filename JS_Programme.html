@@ -1,4 +1,5 @@
 <script>
+  // --- VARIABLES GLOBALES ---
   let currentViewDate = new Date();
   let currentProgData = null; 
   let currentMultiEquipes = {};
@@ -16,46 +17,389 @@
   let FANEKENA_CONTEXT = { blockIndex: -1 };
   let activeRecueilFilter = "";
 
+  // --- INITIALISATION ---
   document.addEventListener("DOMContentLoaded", function() {
       closeAllModals();
+      
+      // Chargement des Widgets Dashboard/Calendrier si présents
       if(document.getElementById('nextCultWidgetContainer')) initNextCultWidget();
       if(document.getElementById('fullCalendarGrid')) renderFullCalendar();
       
+      // Chargement de la config
       google.script.run.withSuccessHandler(data => {
           VALIDATORS_LIST = data.valideurs || [];
           rolesListConfig = data.roles || [];
           populateRecueilFilter(); 
       }).getConfigData();
       
+      // Déplacement des menus dans le body pour éviter les problèmes de z-index
       ['insertMenu', 'menuOverlay', 'roleMenu'].forEach(id => {
           const el = document.getElementById(id);
           if (el && el.parentElement !== document.body) document.body.appendChild(el);
       });
+
+      // Gestionnaire Clic Outside (Pour fermer les menus)
+      const menuOverlay = document.getElementById('menuOverlay');
+      if (menuOverlay) {
+          menuOverlay.addEventListener('click', closeAllMenus);
+      }
   });
 
-  // --- HELPER FIX MODAL JUMP & SCROLL (SÉCURISÉ) ---
+  // --- SORTABLE JS (DRAG & DROP MODERN SAAS) ---
+  function initSortable() {
+      const el = document.getElementById('docBlocksContainer');
+      if (el) {
+          if(el._sortable) el._sortable.destroy();
+          
+          el._sortable = new Sortable(el, {
+              animation: 300, // Animation fluide (0.3s)
+              draggable: '.item-wrapper', // Cible uniquement les items
+              handle: '.drag-handle', // La poignée
+              ghostClass: 'sortable-ghost', // Style du trou
+              chosenClass: 'sortable-chosen', // Style de l'item cliqué
+              dragClass: 'sortable-drag', // Style de l'item en vol
+              forceFallback: false,
+              onStart: function() {
+                  document.body.style.cursor = 'grabbing';
+              },
+              onEnd: function(evt) {
+                  document.body.style.cursor = 'default';
+                  // Si l'ordre a changé
+                  if (evt.oldIndex !== evt.newIndex) {
+                    const item = DATA_PROGRAMME_BLOCKS.splice(evt.oldIndex, 1)[0];
+                    DATA_PROGRAMME_BLOCKS.splice(evt.newIndex, 0, item);
+                    setDirty(true); // ON MARQUE LA MODIFICATION
+                    renderCurrentTimeline(); // On redessine pour être propre
+                  }
+              }
+          });
+      }
+  }
+
+  // --- ACTIONS PROGRAMME (SAUVEGARDE & ÉDITION) ---
+
+  function saveProgramme() {
+      const btn = document.querySelector('#toolbarEditMode .btn-dark');
+      const originalText = "Enregistrer"; 
+      btn.innerText = "..."; 
+      btn.disabled = true;
+      document.getElementById('saveIndicator').innerText = "Enregistrement...";
+
+      // Récupération des rôles requis (Header)
+      const selectedRoles = [];
+      document.querySelectorAll('.role-check:checked').forEach(chk => selectedRoles.push(chk.value));
+
+      const form = {
+          rowIndex: document.getElementById('progRowIndex').value,
+          titre: safeGetValue('commonTitleInput'),
+          theme_mg: safeGetValue('docThemeMG'),
+          theme_fr: safeGetValue('docThemeFR'),
+          contenu: JSON.stringify(DATA_PROGRAMME_BLOCKS),
+          settings: JSON.stringify({ 
+              subTitle: safeGetValue('commonSubtitleInput'), 
+              requiredRoles: selectedRoles 
+          })
+      };
+
+      // Mise à jour locale immédiate pour éviter le scintillement
+      if(currentProgData) {
+          currentProgData.titre = form.titre;
+          currentProgData.theme_mg = form.theme_mg;
+          currentProgData.theme_fr = form.theme_fr;
+          if(!currentProgData.settings) currentProgData.settings = {};
+          currentProgData.settings.subTitle = safeGetValue('commonSubtitleInput');
+          currentProgData.settings.requiredRoles = selectedRoles;
+      }
+
+      google.script.run.withSuccessHandler((res) => {
+          setDirty(false); // IMPORTANT : On retire le flag dirty
+          document.getElementById('saveIndicator').innerText = "Enregistré";
+          btn.innerText = originalText; 
+          btn.disabled = false;
+          
+          setTimeout(() => { document.getElementById('saveIndicator').innerText = ""; }, 2000);
+          
+          if(res.status === 'draft') {
+              document.getElementById('editorStatusBadge').className = "status-badge draft";
+              document.getElementById('editorStatusBadge').innerText = "Brouillon";
+          }
+      }).saveProgrammeBackend(form);
+  }
+
+  function openEditor(id) { 
+      APP_CONTEXT = 'PROGRAMME'; 
+      // Bascule d'affichage
+      document.getElementById('calendar-view').classList.add('d-none'); 
+      document.getElementById('editor-view').classList.remove('d-none'); 
+      document.getElementById('editor-view').classList.add('d-flex');
+      
+      // Loader visuel
+      document.getElementById('docBlocksContainer').innerHTML = '<div class="text-center p-5"><div class="spinner-border"></div></div>';
+
+      // Header management
+      const sharedHeader = document.getElementById('sharedHeaderRoot'); 
+      const placeholder = document.getElementById('programmeHeaderPlaceholder'); 
+      if(sharedHeader && placeholder) placeholder.appendChild(sharedHeader);
+      if(typeof resetSharedHeader === 'function') resetSharedHeader();
+
+      // Chargement Données
+      google.script.run.withSuccessHandler(prog => { 
+          currentProgData = prog; 
+          currentMultiEquipes = prog.equipes || {}; 
+          
+          restoreProgrammeHeader();
+          
+          try { 
+              DATA_PROGRAMME_BLOCKS = JSON.parse(prog.contenu); 
+          } catch(e) { 
+              DATA_PROGRAMME_BLOCKS = []; 
+          }
+          
+          renderCurrentTimeline();
+          initSortable(); // Active le Drag & Drop
+          
+          // Mode Lecture ou Écriture selon validation
+          if(prog.status === 'final') setEditorMode('READ_ONLY', prog.validatedBy);
+          else setEditorMode('EDIT', null);
+          
+      }).getProgrammeDetails(id); 
+  }
+
+  function closeEditor(force = false) { 
+      const action = () => {
+          document.getElementById('editor-view').classList.add('d-none');
+          document.getElementById('editor-view').classList.remove('d-flex');
+          document.getElementById('calendar-view').classList.remove('d-none');
+          
+          // Rafraîchir le calendrier au retour
+          renderFullCalendar();
+          initNextCultWidget();
+      };
+
+      // Si force=true (vieux hack ou appel système), on ferme direct.
+      // Sinon, on passe par le système de garde (Alerte si modif).
+      if (force) action(); 
+      else guardNavigation(action);
+  }
+
+  // --- LOGIQUE CALENDRIER & WIDGETS ---
+
+  function initNextCultWidget() { 
+      const container = document.getElementById('nextCultWidgetContainer'); 
+      google.script.run.withSuccessHandler(res => { 
+          if(!res.found) { 
+              container.innerHTML = '<div class="hero-card p-4 text-center text-muted fst-italic w-100">Aucun événement à venir.</div>'; 
+              return; 
+          } 
+          
+          // Parsing Date
+          const parts = res.date.split('/'); 
+          const dObj = new Date(parts[2], parts[1]-1, parts[0]); 
+          const dayName = dObj.toLocaleDateString('fr-FR', {weekday:'long'}); 
+          const monthName = dObj.toLocaleDateString('fr-FR', {month:'long'}); 
+          const dayNum = parts[0]; 
+          
+          let stripClass = "strip-missing"; 
+          let actionBtn = ""; 
+          
+          if(res.status === 'draft') { 
+              stripClass = "strip-draft"; 
+              actionBtn = '<button class="btn btn-notion-black shadow-sm" onclick="openEditor(\'' + res.progId + '\')">Editer</button>'; 
+          } else if(res.status === 'final') { 
+              stripClass = "strip-final"; 
+              actionBtn = '<button class="btn btn-notion-outline shadow-sm" onclick="openEditor(\'' + res.progId + '\')">Ouvrir</button>'; 
+          } else { 
+              let h = (res.horaires && res.horaires.length>0) ? res.horaires[0] : "09:30"; 
+              actionBtn = '<button class="btn btn-notion-black shadow-sm" onclick="openCreationModal(\'' + res.date + '\', \'' + h + '\')">Créer</button>'; 
+          } 
+          
+          let hoursHtml = ""; 
+          if(res.horaires) res.horaires.forEach(h => hoursHtml += '<span class="time-badge">' + h + '</span>'); 
+          
+          let themesHtml = ""; 
+          if(res.theme_mg || res.theme_fr) { 
+              if(res.theme_mg) themesHtml += '<div class="theme-item"><span>MG</span> ' + res.theme_mg + '</div>'; 
+              if(res.theme_fr) themesHtml += '<div class="theme-item"><span>FR</span> ' + res.theme_fr + '</div>'; 
+          } else { 
+              themesHtml = '<div class="text-muted fst-italic small">Thèmes non définis</div>'; 
+          } 
+          
+          container.innerHTML = '<div class="hero-card"><div class="hero-strip ' + stripClass + '"></div><div class="hero-date"><div class="hd-day-name">' + dayName + '</div><div class="hd-day-num">' + dayNum + '</div><div class="hd-month">' + monthName + '</div></div><div class="hero-info"><div class="hero-badges">' + hoursHtml + '</div><div class="hero-title">' + res.titre + '</div><div class="hero-theme">' + themesHtml + '</div></div><div class="hero-action">' + actionBtn + '</div></div>'; 
+      }).getNextComingCulte(); 
+  }
+
+  function renderFullCalendar() { 
+      const year = currentViewDate.getFullYear(); 
+      const month = currentViewDate.getMonth(); 
+      const monthNames = ["JANVIER", "FÉVRIER", "MARS", "AVRIL", "MAI", "JUIN", "JUILLET", "AOÛT", "SEPTEMBRE", "OCTOBRE", "NOVEMBRE", "DÉCEMBRE"]; 
+      
+      document.getElementById('calTitle').innerText = monthNames[month] + " " + year; 
+      const grid = document.getElementById('fullCalendarGrid'); 
+      grid.innerHTML = '<div class="p-5 text-center text-muted w-100" style="grid-column: span 7;"><div class="spinner-border spinner-border-sm"></div></div>'; 
+      
+      google.script.run.withSuccessHandler(events => { 
+          buildGrid(events, month, year); 
+      }).getMonthOverview(month, year); 
+  }
+
+  function buildGrid(events, month, year) { 
+      const grid = document.getElementById('fullCalendarGrid'); 
+      grid.innerHTML = ""; 
+      
+      const daysInMonth = new Date(year, month + 1, 0).getDate(); 
+      let firstDay = new Date(year, month, 1).getDay(); 
+      let startOffset = (firstDay === 0) ? 6 : firstDay - 1; // Lundi = 0
+      
+      const now = new Date(); now.setHours(0,0,0,0); 
+      
+      // Cases vides début de mois
+      for(let i=0; i<startOffset; i++) {
+          grid.innerHTML += '<div class="cal-cell-wrapper is-empty d-none d-md-flex" style="background:#fcfcfc; cursor:default;"></div>'; 
+      }
+      
+      // Jours du mois
+      for(let d=1; d<=daysInMonth; d++) { 
+          let dateStr = ('0' + d).slice(-2) + '/' + ('0' + (month+1)).slice(-2) + '/' + year; 
+          let entry = events.find(e => e.date === dateStr); 
+          let dObj = new Date(year, month, d); 
+          
+          let wrapperClass = "cal-cell-wrapper"; 
+          if(!entry) wrapperClass += " is-empty"; 
+          if(dObj.getDay()===0) wrapperClass += " keep-visible"; // Dimanche toujours visible sur mobile
+          if(dObj.setHours(0,0,0,0) === now.getTime()) wrapperClass += " today"; 
+          if(dObj < now) wrapperClass += " is-past"; 
+          
+          let clickAction = 'openCreationModal(\'' + year + '-' + ('0' + (month+1)).slice(-2) + '-' + ('0' + d).slice(-2) + '\')'; 
+          let content = ""; 
+          
+          if(entry) { 
+              clickAction = entry.progId ? 'openEditor(\'' + entry.progId + '\')' : clickAction; 
+              if(entry.status === 'draft') wrapperClass += " bg-draft"; 
+              else if(entry.status === 'final') wrapperClass += " bg-final"; 
+              else if(entry.status === 'missing') wrapperClass += " bg-missing"; 
+              
+              let uniqueH = [...new Set(entry.horaires)]; 
+              content = '<div class="cal-content"><span class="ev-time">' + uniqueH.join(' / ') + '</span><span class="ev-title">' + entry.titre + '</span></div>'; 
+          } 
+          
+          grid.innerHTML += '<div class="' + wrapperClass + '" onclick="' + clickAction + '"><div class="d-flex flex-column d-md-block align-items-center justify-content-center me-3 me-md-0"><div class="cal-day-num">' + d + '</div></div><div class="w-100">' + content + '</div></div>'; 
+      } 
+      
+      // Cases vides fin de mois (pour compléter la grille)
+      let remaining = 7 - ((startOffset + daysInMonth) % 7); 
+      if(remaining < 7) {
+          for(let k=0; k<remaining; k++) grid.innerHTML += '<div class="cal-cell-wrapper is-empty d-none d-md-flex" style="background:#fcfcfc; cursor:default;"></div>'; 
+      }
+  }
+
+  function navCalendar(delta) { 
+      currentViewDate.setMonth(currentViewDate.getMonth() + delta); 
+      renderFullCalendar(); 
+  }
+  
+  function navCalendarToToday() { 
+      currentViewDate = new Date(); 
+      renderFullCalendar(); 
+  }
+
+  // --- HELPERS UI EDITOR (HEADER & TIMELINE) ---
+
+  function restoreProgrammeHeader() { 
+      if(!currentProgData) return; 
+      document.getElementById('progId').value = currentProgData.id; 
+      document.getElementById('progRowIndex').value = currentProgData.rowIndex; 
+      document.getElementById('editorDateBadge').innerText = currentProgData.date; 
+      
+      const [d, m, y] = currentProgData.date.split('/'); 
+      const dObj = new Date(y, m-1, d); 
+      document.getElementById('headerDateDisplay').innerText = dObj.toLocaleDateString('fr-FR', {weekday:'long', day:'numeric', month:'long', year:'numeric'}); 
+      
+      safeSetValue('commonTitleInput', currentProgData.titre); 
+      safeSetValue('commonSubtitleInput', currentProgData.settings?.subTitle || ""); 
+      safeSetValue('docThemeMG', currentProgData.theme_mg); 
+      safeSetValue('docThemeFR', currentProgData.theme_fr); 
+      
+      const times = Object.keys(currentMultiEquipes).sort(); 
+      if(!currentSelectedTime || !times.includes(currentSelectedTime)) { 
+          currentSelectedTime = times.length > 0 ? times[0] : ""; 
+      } 
+      renderTimeSwitcher(times, currentSelectedTime); 
+      switchTeamView(currentSelectedTime); 
+  }
+
+  function renderTimeSwitcher(times, activeTime) { 
+      const container = document.getElementById('headerTimeSwitcherContainer'); 
+      if (!container) return; 
+      container.innerHTML = ""; 
+      if (times.length <= 1) return; 
+      
+      times.forEach(t => { 
+          const btn = document.createElement('button'); 
+          btn.className = 'time-switch-btn ' + (t === activeTime ? 'active' : ''); 
+          btn.innerText = t; 
+          btn.onclick = (e) => { 
+              if(e) { e.preventDefault(); e.stopPropagation(); } 
+              switchTeamView(t); 
+          }; 
+          container.appendChild(btn); 
+      }); 
+  }
+
+  function switchTeamView(time) { 
+      currentSelectedTime = time; 
+      document.querySelectorAll('.time-switch-btn').forEach(btn => { 
+          btn.classList.toggle('active', btn.innerText === time); 
+      }); 
+      renderSharedRoles('PROGRAMME', rolesListConfig, currentProgData?.settings?.requiredRoles || [], currentMultiEquipes[time] || {}); 
+  }
+
+  function renderCurrentTimeline() { 
+      renderSharedBlocks('docBlocksContainer', DATA_PROGRAMME_BLOCKS, 'PROGRAMME'); 
+  }
+
+  function setEditorMode(mode, signature) { 
+      const container = document.getElementById('editorPaper'); 
+      const badge = document.getElementById('editorStatusBadge'); 
+      const toolEdit = document.getElementById('toolbarEditMode'); 
+      const toolRead = document.getElementById('toolbarReadMode'); 
+      const txtSign = document.getElementById('signedByText'); 
+      
+      if(mode === 'READ_ONLY') { 
+          container.classList.add('read-only-mode'); 
+          badge.className = "status-badge final"; 
+          badge.innerText = "Validé"; 
+          toolEdit.className = "d-none"; 
+          toolRead.className = "d-flex align-items-center"; 
+          txtSign.innerText = "Validé par " + (signature || "Inconnu"); 
+      } else { 
+          container.classList.remove('read-only-mode'); 
+          badge.className = "status-badge draft"; 
+          badge.innerText = "Brouillon"; 
+          toolEdit.className = "d-flex gap-2"; 
+          toolRead.className = "d-none"; 
+          txtSign.innerText = ""; 
+      } 
+  }
+
+  // --- MODALES STANDARD & CREATION ---
+
   function openCustomModal(modalId, overlayId) {
       const modal = document.getElementById(modalId);
       const overlay = document.getElementById(overlayId);
-      
       if (modal && modal.parentElement !== document.body) {
-          document.body.appendChild(modal); // Déplace au body pour éviter le relatif
+          document.body.appendChild(modal); 
       }
       if (overlay && overlay.parentElement !== document.body) {
           document.body.appendChild(overlay);
       }
-      
       if(modal) {
-          modal.style.display = 'flex'; // FORCE FLEX POUR CENTRAGE
-          // Force Z-Index via JS pour être sûr, même si CSS le fait
+          modal.style.display = 'flex'; 
           modal.style.zIndex = '10060';
       }
       if(overlay) {
           overlay.style.display = 'block';
           overlay.style.zIndex = '10055';
       }
-      
-      // LOCK SCROLL
       document.body.classList.add('modal-open');
   }
 
@@ -67,44 +411,205 @@
       document.body.classList.remove('modal-open');
   }
 
-  function populateRecueilFilter() {
-      google.script.run.withSuccessHandler(list => {
-          const container = document.getElementById('recueilPillsContainer');
-          if(!container) return;
-          container.innerHTML = "";
-          container.appendChild(createPill("Tous", "", true));
-          list.forEach(r => { container.appendChild(createPill(r, r, false)); });
-      }).getRecueilsFilterList();
-  }
-  function createPill(label, value, isActive) {
-      const btn = document.createElement('button');
-      btn.className = 'nav-pill ' + (isActive ? 'active' : ''); btn.innerText = label;
-      btn.onclick = () => { document.querySelectorAll('.nav-pill').forEach(p => p.classList.remove('active')); btn.classList.add('active'); activeRecueilFilter = value; searchSongsForSelector(document.getElementById('songSelectorSearch').value); };
-      return btn;
+  function closeAllModals() { 
+      ['creationModal', 'securityModal', 'deleteModal', 'progCreatorOverlay', 'songSelectorModal', 'fanekenaSelectorModal'].forEach(id => { 
+          const el = document.getElementById(id); 
+          if(el) el.style.display = 'none'; 
+      }); 
+      document.body.classList.remove('modal-open');
   }
 
-  function initProgrammeView() { }
-  function initNextCultWidget() { const container = document.getElementById('nextCultWidgetContainer'); google.script.run.withSuccessHandler(res => { if(!res.found) { container.innerHTML = '<div class="hero-card p-4 text-center text-muted fst-italic w-100">Aucun événement à venir.</div>'; return; } const parts = res.date.split('/'); const dObj = new Date(parts[2], parts[1]-1, parts[0]); const dayName = dObj.toLocaleDateString('fr-FR', {weekday:'long'}); const monthName = dObj.toLocaleDateString('fr-FR', {month:'long'}); const dayNum = parts[0]; let stripClass = "strip-missing"; let actionBtn = ""; if(res.status === 'draft') { stripClass = "strip-draft"; actionBtn = '<button class="btn btn-notion-black shadow-sm" onclick="openEditor(\'' + res.progId + '\')">Editer</button>'; } else if(res.status === 'final') { stripClass = "strip-final"; actionBtn = '<button class="btn btn-notion-outline shadow-sm" onclick="openEditor(\'' + res.progId + '\')">Ouvrir</button>'; } else { let h = (res.horaires && res.horaires.length>0) ? res.horaires[0] : "09:30"; actionBtn = '<button class="btn btn-notion-black shadow-sm" onclick="openCreationModal(\'' + res.date + '\', \'' + h + '\')">Créer</button>'; } let hoursHtml = ""; if(res.horaires) res.horaires.forEach(h => hoursHtml += '<span class="time-badge">' + h + '</span>'); let themesHtml = ""; if(res.theme_mg || res.theme_fr) { if(res.theme_mg) themesHtml += '<div class="theme-item"><span>MG</span> ' + res.theme_mg + '</div>'; if(res.theme_fr) themesHtml += '<div class="theme-item"><span>FR</span> ' + res.theme_fr + '</div>'; } else { themesHtml = '<div class="text-muted fst-italic small">Thèmes non définis</div>'; } container.innerHTML = '<div class="hero-card"><div class="hero-strip ' + stripClass + '"></div><div class="hero-date"><div class="hd-day-name">' + dayName + '</div><div class="hd-day-num">' + dayNum + '</div><div class="hd-month">' + monthName + '</div></div><div class="hero-info"><div class="hero-badges">' + hoursHtml + '</div><div class="hero-title">' + res.titre + '</div><div class="hero-theme">' + themesHtml + '</div></div><div class="hero-action">' + actionBtn + '</div></div>'; }).getNextComingCulte(); }
-  function renderFullCalendar() { const year = currentViewDate.getFullYear(); const month = currentViewDate.getMonth(); const monthNames = ["JANVIER", "FÉVRIER", "MARS", "AVRIL", "MAI", "JUIN", "JUILLET", "AOÛT", "SEPTEMBRE", "OCTOBRE", "NOVEMBRE", "DÉCEMBRE"]; document.getElementById('calTitle').innerText = monthNames[month] + " " + year; const grid = document.getElementById('fullCalendarGrid'); grid.innerHTML = '<div class="p-5 text-center text-muted w-100" style="grid-column: span 7;"><div class="spinner-border spinner-border-sm"></div></div>'; google.script.run.withSuccessHandler(events => { buildGrid(events, month, year); }).getMonthOverview(month, year); }
-  function buildGrid(events, month, year) { const grid = document.getElementById('fullCalendarGrid'); grid.innerHTML = ""; const daysInMonth = new Date(year, month + 1, 0).getDate(); let firstDay = new Date(year, month, 1).getDay(); let startOffset = (firstDay === 0) ? 6 : firstDay - 1; const now = new Date(); now.setHours(0,0,0,0); for(let i=0; i<startOffset; i++) grid.innerHTML += '<div class="cal-cell-wrapper is-empty d-none d-md-flex" style="background:#fcfcfc; cursor:default;"></div>'; for(let d=1; d<=daysInMonth; d++) { let dateStr = ('0' + d).slice(-2) + '/' + ('0' + (month+1)).slice(-2) + '/' + year; let entry = events.find(e => e.date === dateStr); let dObj = new Date(year, month, d); let wrapperClass = "cal-cell-wrapper"; if(!entry) wrapperClass += " is-empty"; if(dObj.getDay()===0) wrapperClass += " keep-visible"; if(dObj.setHours(0,0,0,0) === now.getTime()) wrapperClass += " today"; if(dObj < now) wrapperClass += " is-past"; let clickAction = 'openCreationModal(\'' + year + '-' + ('0' + (month+1)).slice(-2) + '-' + ('0' + d).slice(-2) + '\')'; let content = ""; if(entry) { clickAction = entry.progId ? 'openEditor(\'' + entry.progId + '\')' : clickAction; if(entry.status === 'draft') wrapperClass += " bg-draft"; else if(entry.status === 'final') wrapperClass += " bg-final"; else if(entry.status === 'missing') wrapperClass += " bg-missing"; let uniqueH = [...new Set(entry.horaires)]; content = '<div class="cal-content"><span class="ev-time">' + uniqueH.join(' / ') + '</span><span class="ev-title">' + entry.titre + '</span></div>'; } grid.innerHTML += '<div class="' + wrapperClass + '" onclick="' + clickAction + '"><div class="d-flex flex-column d-md-block align-items-center justify-content-center me-3 me-md-0"><div class="cal-day-num">' + d + '</div></div><div class="w-100">' + content + '</div></div>'; } let remaining = 7 - ((startOffset + daysInMonth) % 7); if(remaining < 7) for(let k=0; k<remaining; k++) grid.innerHTML += '<div class="cal-cell-wrapper is-empty d-none d-md-flex" style="background:#fcfcfc; cursor:default;"></div>'; }
-  function navCalendar(delta) { currentViewDate.setMonth(currentViewDate.getMonth() + delta); renderFullCalendar(); }
-  function navCalendarToToday() { currentViewDate = new Date(); renderFullCalendar(); }
-  function openEditor(id) { APP_CONTEXT = 'PROGRAMME'; document.getElementById('calendar-view').classList.add('d-none'); document.getElementById('editor-view').classList.remove('d-none'); document.getElementById('editor-view').classList.add('d-flex'); document.getElementById('docBlocksContainer').innerHTML = '<div class="text-center p-5"><div class="spinner-border"></div></div>'; const sharedHeader = document.getElementById('sharedHeaderRoot'); const placeholder = document.getElementById('programmeHeaderPlaceholder'); if(sharedHeader && placeholder) placeholder.appendChild(sharedHeader); if(typeof resetSharedHeader === 'function') resetSharedHeader(); google.script.run.withSuccessHandler(prog => { currentProgData = prog; currentMultiEquipes = prog.equipes || {}; restoreProgrammeHeader(); try { DATA_PROGRAMME_BLOCKS = JSON.parse(prog.contenu); } catch(e){ DATA_PROGRAMME_BLOCKS = []; } renderCurrentTimeline(); initSortable(); if(prog.status === 'final') setEditorMode('READ_ONLY', prog.validatedBy); else setEditorMode('EDIT', null); }).getProgrammeDetails(id); }
-  function initSortable() { const el = document.getElementById('docBlocksContainer'); if (el) { if(el._sortable) el._sortable.destroy(); el._sortable = new Sortable(el, { animation: 150, draggable: '.item-wrapper', handle: '.drag-handle', ghostClass: 'sortable-ghost', forceFallback: true, onEnd: function(evt) { const item = DATA_PROGRAMME_BLOCKS.splice(evt.oldIndex, 1)[0]; DATA_PROGRAMME_BLOCKS.splice(evt.newIndex, 0, item); renderCurrentTimeline(); } }); } }
-  function restoreProgrammeHeader() { if(!currentProgData) return; document.getElementById('progId').value = currentProgData.id; document.getElementById('progRowIndex').value = currentProgData.rowIndex; document.getElementById('editorDateBadge').innerText = currentProgData.date; const [d, m, y] = currentProgData.date.split('/'); const dObj = new Date(y, m-1, d); document.getElementById('headerDateDisplay').innerText = dObj.toLocaleDateString('fr-FR', {weekday:'long', day:'numeric', month:'long', year:'numeric'}); safeSetValue('commonTitleInput', currentProgData.titre); safeSetValue('commonSubtitleInput', currentProgData.settings?.subTitle || ""); safeSetValue('docThemeMG', currentProgData.theme_mg); safeSetValue('docThemeFR', currentProgData.theme_fr); const times = Object.keys(currentMultiEquipes).sort(); if(!currentSelectedTime || !times.includes(currentSelectedTime)) { currentSelectedTime = times.length > 0 ? times[0] : ""; } renderTimeSwitcher(times, currentSelectedTime); switchTeamView(currentSelectedTime); }
-  function renderTimeSwitcher(times, activeTime) { const container = document.getElementById('headerTimeSwitcherContainer'); if (!container) return; container.innerHTML = ""; if (times.length <= 1) return; times.forEach(t => { const btn = document.createElement('button'); btn.className = 'time-switch-btn ' + (t === activeTime ? 'active' : ''); btn.innerText = t; btn.onclick = (e) => { if(e) { e.preventDefault(); e.stopPropagation(); } switchTeamView(t); }; container.appendChild(btn); }); }
-  function switchTeamView(time) { currentSelectedTime = time; document.querySelectorAll('.time-switch-btn').forEach(btn => { btn.classList.toggle('active', btn.innerText === time); }); renderSharedRoles('PROGRAMME', rolesListConfig, currentProgData?.settings?.requiredRoles || [], currentMultiEquipes[time] || {}); }
-  function renderCurrentTimeline() { renderSharedBlocks('docBlocksContainer', DATA_PROGRAMME_BLOCKS, 'PROGRAMME'); }
-  function saveProgramme() { const btn = document.querySelector('#toolbarEditMode .btn-dark'); const originalText = btn.innerText; btn.innerText = "..."; btn.disabled = true; document.getElementById('saveIndicator').innerText = "Enregistrement..."; const selectedRoles = []; document.querySelectorAll('.role-check:checked').forEach(chk => selectedRoles.push(chk.value)); const form = { rowIndex: document.getElementById('progRowIndex').value, titre: safeGetValue('commonTitleInput'), theme_mg: safeGetValue('docThemeMG'), theme_fr: safeGetValue('docThemeFR'), contenu: JSON.stringify(DATA_PROGRAMME_BLOCKS), settings: JSON.stringify({ subTitle: safeGetValue('commonSubtitleInput'), requiredRoles: selectedRoles }) }; if(currentProgData) { currentProgData.titre = form.titre; currentProgData.theme_mg = form.theme_mg; currentProgData.theme_fr = form.theme_fr; if(!currentProgData.settings) currentProgData.settings = {}; currentProgData.settings.subTitle = safeGetValue('commonSubtitleInput'); currentProgData.settings.requiredRoles = selectedRoles; } google.script.run.withSuccessHandler((res) => { document.getElementById('saveIndicator').innerText = "Enregistré"; btn.innerText = originalText; btn.disabled = false; setTimeout(() => { document.getElementById('saveIndicator').innerText = ""; }, 2000); if(res.status === 'draft') { document.getElementById('editorStatusBadge').className = "status-badge draft"; document.getElementById('editorStatusBadge').innerText = "Brouillon"; } }).saveProgrammeBackend(form); }
-  function closeEditor() { document.getElementById('editor-view').classList.add('d-none'); document.getElementById('editor-view').classList.remove('d-flex'); document.getElementById('calendar-view').classList.remove('d-none'); renderFullCalendar(); initNextCultWidget(); }
-  function setEditorMode(mode, signature) { const container = document.getElementById('editorPaper'); const badge = document.getElementById('editorStatusBadge'); const toolEdit = document.getElementById('toolbarEditMode'); const toolRead = document.getElementById('toolbarReadMode'); const txtSign = document.getElementById('signedByText'); if(mode === 'READ_ONLY') { container.classList.add('read-only-mode'); badge.className = "status-badge final"; badge.innerText = "Validé"; toolEdit.className = "d-none"; toolRead.className = "d-flex align-items-center"; txtSign.innerText = "Validé par " + (signature || "Inconnu"); } else { container.classList.remove('read-only-mode'); badge.className = "status-badge draft"; badge.innerText = "Brouillon"; toolEdit.className = "d-flex gap-2"; toolRead.className = "d-none"; txtSign.innerText = ""; } }
+  function openCreationModal(dateIso, defaultTime) { 
+      if(dateIso) { 
+          if(dateIso.includes('/')) { 
+              let p = dateIso.split('/'); dateIso = `${p[2]}-${p[1]}-${p[0]}`; 
+          } 
+          document.getElementById('createDateInput').value = dateIso; 
+      } 
+      document.getElementById('createMethodSelect').value = "blank"; 
+      document.getElementById('selectedDuplicateId').value = ""; 
+      updateCreationMethodUI(); 
+      openCustomModal('creationModal', 'progCreatorOverlay');
+  }
+  
+  function updateCreationMethodUI() { 
+      const method = document.getElementById('createMethodSelect').value; 
+      document.getElementById('zoneTemplate').classList.add('d-none'); 
+      document.getElementById('zoneDuplicate').classList.add('d-none'); 
+      document.getElementById('zoneBlank').classList.add('d-none'); 
+      
+      if(method === 'template') { 
+          document.getElementById('zoneTemplate').classList.remove('d-none'); 
+          const sel = document.getElementById('templateSelect'); 
+          if(sel.options.length === 0) { 
+              google.script.run.withSuccessHandler(list => { 
+                  sel.innerHTML = ""; 
+                  if(list.length === 0) sel.innerHTML = "<option disabled>Aucun modèle trouvé</option>"; 
+                  else list.forEach(t => sel.innerHTML += `<option value="${t.id}">${t.titre}</option>`); 
+              }).getSelectableTemplates(); 
+          } 
+      } else if(method === 'duplicate') { 
+          document.getElementById('zoneDuplicate').classList.remove('d-none'); 
+      } else { 
+          document.getElementById('zoneBlank').classList.remove('d-none'); 
+      } 
+  }
 
-  // --- SÉLECTEUR DE FANEKENA (Programme) ---
+  function searchProgArchives(query) { 
+      const container = document.getElementById('duplicateResults'); 
+      if(query.length < 2) return; 
+      container.innerHTML = `<div class="text-center py-2 text-muted"><div class="spinner-border spinner-border-sm"></div></div>`; 
+      google.script.run.withSuccessHandler(results => { 
+          container.innerHTML = ""; 
+          if(results.length === 0) { 
+              container.innerHTML = `<div class="text-center py-2 text-muted small fst-italic">Aucun résultat.</div>`; 
+              return; 
+          } 
+          results.forEach(prog => { 
+              const div = document.createElement('div'); 
+              div.className = "p-2 border-bottom hover-bg-light cursor-pointer"; 
+              div.innerHTML = `<div class="fw-bold small">${prog.date} - ${prog.titre}</div>`; 
+              div.onclick = function() { 
+                  document.getElementById('selectedDuplicateId').value = prog.id; 
+                  Array.from(container.children).forEach(c => c.classList.remove('bg-primary-subtle')); 
+                  div.classList.add('bg-primary-subtle'); 
+              }; 
+              container.appendChild(div); 
+          }); 
+      }).searchArchivedProgrammes(query); 
+  }
+
+  function submitCreationForm() { 
+      const dateVal = document.getElementById('createDateInput').value; 
+      if(!dateVal) { showNotionToast("Veuillez choisir une date.", "error"); return; } 
+      
+      const parts = dateVal.split('-'); 
+      const dateFR = `${parts[2]}/${parts[1]}/${parts[0]}`; 
+      const method = document.getElementById('createMethodSelect').value; 
+      let sourceId = null; 
+      
+      if(method === 'template') { 
+          sourceId = document.getElementById('templateSelect').value; 
+          if(!sourceId) { showNotionToast("Veuillez choisir un modèle.", "error"); return; } 
+      } 
+      if(method === 'duplicate') { 
+          sourceId = document.getElementById('selectedDuplicateId').value; 
+          if(!sourceId) { showNotionToast("Veuillez sélectionner un culte à copier.", "error"); return; } 
+      } 
+      
+      const btn = document.querySelector('#creationModal .btn-dark'); 
+      const originalTxt = btn.innerText; 
+      btn.innerText = "Création..."; btn.disabled = true; 
+      
+      const params = { date: dateFR, method: method, sourceId: sourceId }; 
+      google.script.run.withSuccessHandler(res => { 
+          closeAllModals(); 
+          btn.innerText = originalTxt; 
+          btn.disabled = false; 
+          if(res.success) { 
+              openEditor(res.id); 
+              renderFullCalendar(); 
+              initNextCultWidget(); 
+          } else { 
+              showNotionToast("Erreur: " + res.message, "error"); 
+          } 
+      }).createNewProgramme(params); 
+  }
+
+  // --- SECURITE & VALIDATION ---
+
+  function askUnlock() { 
+      SECURITY_CONTEXT = "UNLOCK"; 
+      openSecurityModal("Déverrouiller le programme", "Toute modification repassera le statut en Brouillon.", true); 
+  }
+  
+  function askValidation() { 
+      SECURITY_CONTEXT = "VALIDATE"; 
+      openSecurityModal("Valider le Programme", "Cette action verrouillera le programme pour diffusion.", false); 
+  }
+  
+  function openSecurityModal(title, subtitle, allowResp) { 
+      document.getElementById('secuTitle').innerText = title; 
+      document.getElementById('secuSubtitle').innerText = subtitle; 
+      const sel = document.getElementById('secuIdentitySelect'); 
+      sel.innerHTML = ""; 
+      
+      if(allowResp) { 
+          const opt = document.createElement('option'); opt.value = "EQUIPE"; opt.text = "Responsable / Équipe"; sel.appendChild(opt); 
+      } 
+      
+      VALIDATORS_LIST.forEach(v => { 
+          const opt = document.createElement('option'); opt.value = "VALIDEUR|" + v.nom; opt.text = v.nom; sel.appendChild(opt); 
+      }); 
+      
+      document.getElementById('secuCodeInput').value = ""; 
+      openCustomModal('securityModal', 'progCreatorOverlay'); 
+  }
+  
+  function submitSecurityAction() { 
+      const selVal = document.getElementById('secuIdentitySelect').value; 
+      const code = document.getElementById('secuCodeInput').value; 
+      const btn = document.getElementById('secuActionBtn'); 
+      
+      let authType = "EQUIPE"; 
+      let authName = ""; 
+      if(selVal.startsWith("VALIDEUR|")) { 
+          authType = "VALIDEUR"; 
+          authName = selVal.split("|")[1]; 
+      } 
+      
+      btn.innerText = "Vérification..."; btn.disabled = true; 
+      
+      const onSuccess = (res) => { 
+          btn.innerText = "Confirmer"; btn.disabled = false; 
+          closeAllModals(); 
+          if(SECURITY_CONTEXT === "UNLOCK") { 
+              setEditorMode('EDIT'); 
+              showNotionToast("Programme déverrouillé.", "success"); 
+          } else if (SECURITY_CONTEXT === "VALIDATE") { 
+              currentProgData.validatedBy = authName + " le " + new Date().toLocaleDateString(); 
+              setEditorMode('READ_ONLY', currentProgData.validatedBy); 
+              renderFullCalendar(); 
+              showNotionToast("Programme validé !", "success"); 
+          } 
+      }; 
+      
+      const onFailure = (err) => { 
+          btn.innerText = "Confirmer"; btn.disabled = false; 
+          const inp = document.getElementById('secuCodeInput'); 
+          inp.classList.add('is-invalid'); 
+          inp.value = ""; inp.focus(); 
+      }; 
+      
+      if(SECURITY_CONTEXT === "UNLOCK") { 
+          google.script.run.withSuccessHandler(isOk => { if(isOk) onSuccess(); else onFailure({message: "Code incorrect"}); }).checkAuthForUnlock(authType, authName, code); 
+      } else if (SECURITY_CONTEXT === "VALIDATE") { 
+          const progId = document.getElementById('progId').value; 
+          google.script.run.withSuccessHandler(onSuccess).withFailureHandler(onFailure).validateProgrammeBackend(progId, authName, code); 
+      } 
+  }
+  
+  function deleteProgramme() { 
+      openCustomModal('deleteModal', 'progCreatorOverlay'); 
+  }
+  
+  function confirmDeleteAction() { 
+      const id = document.getElementById('progId').value; 
+      const btn = document.querySelector('#deleteModal .btn-danger'); 
+      btn.innerText = "..."; btn.disabled = true; 
+      
+      google.script.run.withSuccessHandler(() => { 
+          btn.innerText = "Supprimer"; btn.disabled = false; 
+          closeAllModals(); 
+          closeEditor(true); 
+      }).deleteProgrammeBackend(id); 
+  }
+
+  // --- SÉLECTEURS (FANEKENA & CHANT) ---
+
   function openFanekenaSelectorProgramme(index) {
       FANEKENA_CONTEXT.blockIndex = index;
-      // FIX: Utilisation du helper
       openCustomModal('fanekenaSelectorModal', 'progCreatorOverlay');
-      
       const container = document.getElementById('fanekenaSelectList');
       container.innerHTML = '<div class="text-center py-4"><div class="spinner-border spinner-border-sm"></div></div>';
       
@@ -125,10 +630,7 @@
       if(clickedElement) {
           clickedElement.innerHTML = '<div class="d-flex align-items-center gap-2 text-primary fw-bold"><div class="spinner-border spinner-border-sm"></div><span>Insertion...</span></div>';
           clickedElement.style.pointerEvents = 'none';
-          const siblings = clickedElement.parentElement.children;
-          for(let sib of siblings) { if(sib !== clickedElement) sib.style.opacity = '0.5'; }
       }
-
       const idx = FANEKENA_CONTEXT.blockIndex;
       if (idx > -1 && DATA_PROGRAMME_BLOCKS[idx]) {
           google.script.run.withSuccessHandler(data => {
@@ -137,81 +639,161 @@
               DATA_PROGRAMME_BLOCKS[idx].data.titre = data.titre;
               DATA_PROGRAMME_BLOCKS[idx].data.contenu_mg = data.contenu_mg;
               DATA_PROGRAMME_BLOCKS[idx].data.contenu_fr = data.contenu_fr;
-              
+              setDirty(true); // Modif
               renderCurrentTimeline(); 
-              closeAllModals(); // Fermeture globale
+              closeAllModals(); 
               showNotionToast("Confession insérée.", "success");
           }).getFanekenaDetails(id);
       }
   }
 
-  // --- SÉLECTEUR DE CHANT ---
   function openSongSelector(index) { 
       SONG_SELECTOR_CONTEXT.blockIndex = index; 
       SONG_SELECTOR_CONTEXT.selectedSong = null; 
       SONG_SELECTOR_CONTEXT.selectedSequence = []; 
+      
       document.getElementById('songSelectorSearch').value = ""; 
       document.getElementById('songSelectorResults').innerHTML = '<div class="text-center py-4 text-muted small fst-italic">Recherchez un chant...</div>'; 
       document.getElementById('songSelectorPreviewPanel').innerHTML = '<div class="h-100 d-flex align-items-center justify-content-center text-muted small fst-italic">Sélectionnez un chant à gauche.</div>'; 
       document.getElementById('songSelectorStatus').innerText = ""; 
       document.getElementById('btnConfirmSong').disabled = true; 
+      
       showMobileSongList(); 
-      
-      // FIX: Utilisation du helper
       openCustomModal('songSelectorModal', 'progCreatorOverlay');
-      
       setTimeout(() => document.getElementById('songSelectorSearch').focus(), 100); 
   }
-  function showMobileSongList() { const colSearch = document.getElementById('colSearch'); const colConfig = document.getElementById('colConfig'); colSearch.classList.remove('d-none'); colConfig.classList.add('d-none'); colConfig.classList.remove('d-flex'); }
-  function showMobileSongConfig() { const colSearch = document.getElementById('colSearch'); const colConfig = document.getElementById('colConfig'); if (window.innerWidth < 768) { colSearch.classList.add('d-none'); colConfig.classList.remove('d-none'); colConfig.classList.add('d-flex'); } }
+  
+  function showMobileSongList() { 
+      const colSearch = document.getElementById('colSearch'); 
+      const colConfig = document.getElementById('colConfig'); 
+      colSearch.classList.remove('d-none'); 
+      colConfig.classList.add('d-none'); colConfig.classList.remove('d-flex'); 
+  }
+  
+  function showMobileSongConfig() { 
+      const colSearch = document.getElementById('colSearch'); 
+      const colConfig = document.getElementById('colConfig'); 
+      if (window.innerWidth < 768) { 
+          colSearch.classList.add('d-none'); 
+          colConfig.classList.remove('d-none'); colConfig.classList.add('d-flex'); 
+      } 
+  }
+  
   let songSearchTimer = null;
-  function searchSongsForSelector(query) { if(songSearchTimer) clearTimeout(songSearchTimer); songSearchTimer = setTimeout(() => { const container = document.getElementById('songSelectorResults'); container.innerHTML = '<div class="text-center py-3"><div class="spinner-border spinner-border-sm text-muted"></div></div>'; google.script.run.withSuccessHandler(results => { container.innerHTML = ""; if(results.length === 0) { container.innerHTML = '<div class="text-center py-3 text-muted small">Aucun résultat.</div>'; return; } results.forEach(song => { const div = document.createElement('div'); div.className = "song-item"; let snippetHtml = ""; if (song.snippet) { snippetHtml = '<div class="text-truncate text-muted small mt-1" style="font-size: 11px;">' + highlightText(song.snippet, query) + '</div>'; } div.innerHTML = '<div class="w-100"><div class="d-flex align-items-center"><span class="song-ref">' + song.recueil + ' ' + song.numero + '</span><span class="fw-bold small text-dark">' + highlightText(song.titre, query) + '</span></div>' + snippetHtml + '</div><i class="bi bi-chevron-right small text-muted ms-2"></i>'; div.onclick = function() { document.querySelectorAll('.song-item').forEach(el => el.classList.remove('active')); div.classList.add('active'); selectSongForConfig(song); }; container.appendChild(div); }); }).searchChantsBackend(query, activeRecueilFilter); }, 300); }
-  function highlightText(text, query) { if (!query || query.length < 2) return text; const regex = new RegExp('(' + query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi'); return text.replace(regex, '<span class="bg-warning bg-opacity-25">$1</span>'); }
-  function selectSongForConfig(song) { showMobileSongConfig(); const mobileTitle = document.getElementById('mobileConfigTitle'); if(mobileTitle) mobileTitle.innerText = song.titre; document.getElementById('songSelectorPreviewPanel').innerHTML = '<div class="h-100 d-flex align-items-center justify-content-center"><div class="spinner-border text-secondary"></div></div>'; google.script.run.withSuccessHandler(fullSong => { SONG_SELECTOR_CONTEXT.selectedSong = fullSong; renderSongConfigPanel(fullSong); }).getChantDetails(song.id); }
-  function renderSongConfigPanel(song) { const panel = document.getElementById('songSelectorPreviewPanel'); const structureArr = (song.structure || "").split(','); const textMG = (song.paroles_mg || "").split(" /// "); let chipsHTML = ""; let stanzaCount = 1; if(structureArr.length === 0 || (structureArr.length === 1 && structureArr[0] === "")) { chipsHTML = '<div class="text-muted small fst-italic">Aucune structure définie.</div>'; } else { structureArr.forEach((type, idx) => { const t = type.trim().toUpperCase(); if (t === 'R') return; let label = (t === 'C' ? 'Strophe ' + (stanzaCount++) : 'Pont'); let excerpt = textMG[idx] ? textMG[idx] : ""; let refrainHtml = ""; if (idx + 1 < structureArr.length && structureArr[idx+1].trim().toUpperCase() === 'R') { let refText = (textMG[idx+1] || "").trim(); if(refText.length > 50) refText = refText.substring(0, 50) + "..."; refrainHtml = '<div class="refrain-mini">' + refText + '</div>'; } chipsHTML += '<div class="stanza-card" id="chip_' + idx + '" onclick="toggleChip(' + idx + ')"><div class="card-header-area"><div class="d-flex align-items-center gap-2"><div class="card-check"><i class="bi bi-check2" style="font-size:12px;"></i></div><span class="fw-bold small text-primary">' + label + '</span></div><span class="badge bg-light text-secondary border fw-normal" style="font-size:9px;">' + t + '</span></div><div class="card-body-area">' + excerpt + refrainHtml + '</div></div>'; }); } panel.innerHTML = '<div class="d-flex flex-column h-100"><div class="p-3 border-bottom bg-white d-none d-md-block"><h6 class="fw-bold mb-1 w-100" style="line-height:1.4;">' + song.titre + '</h6><div class="small text-muted mb-2">' + song.recueil + ' ' + song.numero + (song.tonalite ? ' • ' + song.tonalite : '') + '</div><div class="d-flex gap-2"><button class="btn-notion-outline" onclick="selectAllChips(true)">Tout cocher</button><button class="btn-notion-outline" onclick="selectAllChips(false)">Tout décocher</button></div></div><div class="d-md-none p-2 border-bottom bg-light d-flex gap-2 overflow-x-auto"><button class="btn-notion-outline flex-fill" onclick="selectAllChips(true)">Tout cocher</button><button class="btn-notion-outline flex-fill" onclick="selectAllChips(false)">Tout décocher</button></div><div class="flex-grow-1 overflow-auto p-3 custom-scrollbar" style="background-color: #fafafa;">' + chipsHTML + '</div></div>'; document.getElementById('btnConfirmSong').disabled = false; selectAllChips(true); }
+  function searchSongsForSelector(query) { 
+      if(songSearchTimer) clearTimeout(songSearchTimer); 
+      songSearchTimer = setTimeout(() => { 
+          const container = document.getElementById('songSelectorResults'); 
+          container.innerHTML = '<div class="text-center py-3"><div class="spinner-border spinner-border-sm text-muted"></div></div>'; 
+          google.script.run.withSuccessHandler(results => { 
+              container.innerHTML = ""; 
+              if(results.length === 0) { container.innerHTML = '<div class="text-center py-3 text-muted small">Aucun résultat.</div>'; return; } 
+              results.forEach(song => { 
+                  const div = document.createElement('div'); div.className = "song-item"; 
+                  let snippetHtml = ""; 
+                  if (song.snippet) { snippetHtml = '<div class="text-truncate text-muted small mt-1" style="font-size: 11px;">' + highlightText(song.snippet, query) + '</div>'; } 
+                  div.innerHTML = '<div class="w-100"><div class="d-flex align-items-center"><span class="song-ref">' + song.recueil + ' ' + song.numero + '</span><span class="fw-bold small text-dark">' + highlightText(song.titre, query) + '</span></div>' + snippetHtml + '</div><i class="bi bi-chevron-right small text-muted ms-2"></i>'; 
+                  div.onclick = function() { 
+                      document.querySelectorAll('.song-item').forEach(el => el.classList.remove('active')); 
+                      div.classList.add('active'); 
+                      selectSongForConfig(song); 
+                  }; 
+                  container.appendChild(div); 
+              }); 
+          }).searchChantsBackend(query, activeRecueilFilter); 
+      }, 300); 
+  }
+  
+  function highlightText(text, query) { 
+      if (!query || query.length < 2) return text; 
+      const regex = new RegExp('(' + query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi'); 
+      return text.replace(regex, '<span class="bg-warning bg-opacity-25">$1</span>'); 
+  }
+  
+  function selectSongForConfig(song) { 
+      showMobileSongConfig(); 
+      const mobileTitle = document.getElementById('mobileConfigTitle'); 
+      if(mobileTitle) mobileTitle.innerText = song.titre; 
+      document.getElementById('songSelectorPreviewPanel').innerHTML = '<div class="h-100 d-flex align-items-center justify-content-center"><div class="spinner-border text-secondary"></div></div>'; 
+      google.script.run.withSuccessHandler(fullSong => { 
+          SONG_SELECTOR_CONTEXT.selectedSong = fullSong; 
+          renderSongConfigPanel(fullSong); 
+      }).getChantDetails(song.id); 
+  }
+  
+  function renderSongConfigPanel(song) { 
+      const panel = document.getElementById('songSelectorPreviewPanel'); 
+      const structureArr = (song.structure || "").split(','); 
+      const textMG = (song.paroles_mg || "").split(" /// "); 
+      let chipsHTML = ""; let stanzaCount = 1; 
+      if(structureArr.length === 0 || (structureArr.length === 1 && structureArr[0] === "")) { 
+          chipsHTML = '<div class="text-muted small fst-italic">Aucune structure définie.</div>'; 
+      } else { 
+          structureArr.forEach((type, idx) => { 
+              const t = type.trim().toUpperCase(); 
+              if (t === 'R') return; 
+              let label = (t === 'C' ? 'Strophe ' + (stanzaCount++) : 'Pont'); 
+              let excerpt = textMG[idx] ? textMG[idx] : ""; 
+              let refrainHtml = ""; 
+              if (idx + 1 < structureArr.length && structureArr[idx+1].trim().toUpperCase() === 'R') { 
+                  let refText = (textMG[idx+1] || "").trim(); 
+                  if(refText.length > 50) refText = refText.substring(0, 50) + "..."; 
+                  refrainHtml = '<div class="refrain-mini">' + refText + '</div>'; 
+              } 
+              chipsHTML += '<div class="stanza-card" id="chip_' + idx + '" onclick="toggleChip(' + idx + ')"><div class="card-header-area"><div class="d-flex align-items-center gap-2"><div class="card-check"><i class="bi bi-check2" style="font-size:12px;"></i></div><span class="fw-bold small text-primary">' + label + '</span></div><span class="badge bg-light text-secondary border fw-normal" style="font-size:9px;">' + t + '</span></div><div class="card-body-area">' + excerpt + refrainHtml + '</div></div>'; 
+          }); 
+      } 
+      panel.innerHTML = '<div class="d-flex flex-column h-100"><div class="p-3 border-bottom bg-white d-none d-md-block"><h6 class="fw-bold mb-1 w-100" style="line-height:1.4;">' + song.titre + '</h6><div class="small text-muted mb-2">' + song.recueil + ' ' + song.numero + (song.tonalite ? ' • ' + song.tonalite : '') + '</div><div class="d-flex gap-2"><button class="btn-notion-outline" onclick="selectAllChips(true)">Tout cocher</button><button class="btn-notion-outline" onclick="selectAllChips(false)">Tout décocher</button></div></div><div class="d-md-none p-2 border-bottom bg-light d-flex gap-2 overflow-x-auto"><button class="btn-notion-outline flex-fill" onclick="selectAllChips(true)">Tout cocher</button><button class="btn-notion-outline flex-fill" onclick="selectAllChips(false)">Tout décocher</button></div><div class="flex-grow-1 overflow-auto p-3 custom-scrollbar" style="background-color: #fafafa;">' + chipsHTML + '</div></div>'; 
+      document.getElementById('btnConfirmSong').disabled = false; 
+      selectAllChips(true); 
+  }
+  
   function toggleChip(index) { const chip = document.getElementById('chip_' + index); if(!chip) return; chip.classList.toggle('selected'); updateSelectionStatus(); }
   function selectAllChips(state) { const chips = document.querySelectorAll('.stanza-card'); chips.forEach(chip => { if(state) chip.classList.add('selected'); else chip.classList.remove('selected'); }); updateSelectionStatus(); }
   function updateSelectionStatus() { const checked = document.querySelectorAll('.stanza-card.selected'); document.getElementById('songSelectorStatus').innerText = checked.length + ' strophe(s)'; }
-  function confirmSongSelection() { const song = SONG_SELECTOR_CONTEXT.selectedSong; if(!song) return; const chips = document.querySelectorAll('.stanza-card.selected'); const sequenceIndices = []; chips.forEach((chip) => { let idx = parseInt(chip.id.replace('chip_', '')); sequenceIndices.push(idx); const structArr = (song.structure || "").split(','); if (idx + 1 < structArr.length && structArr[idx+1].trim().toUpperCase() === 'R') { sequenceIndices.push(idx + 1); } }); if(sequenceIndices.length === 0) { showNotionToast("Veuillez sélectionner au moins une strophe.", "error"); return; } const textMGArr = (song.paroles_mg || "").split(" /// "); const textFRArr = (song.paroles_fr || "").split(" /// "); const structArr = (song.structure || "").split(","); let fullTextMG = ""; let fullTextFR = ""; let cleanSequence = []; let displayLabels = {}; let cCount = 1; let totalCouplets = 0; structArr.forEach((t, i) => { if(t.trim().toUpperCase() === 'C') { displayLabels[i] = cCount++; totalCouplets++; } else if(t.trim().toUpperCase() === 'R') displayLabels[i] = "Ref"; else displayLabels[i] = ""; }); sequenceIndices.forEach((idx, i) => { const txtM = textMGArr[idx] || ""; const txtF = textFRArr[idx] || ""; let label = displayLabels[idx] ? displayLabels[idx] + ". " : ""; if(i > 0) { fullTextMG += "\n\n"; fullTextFR += "\n\n"; } fullTextMG += label + txtM; if(txtF.trim() !== "") { fullTextFR += label + txtF; } if(structArr[idx] && structArr[idx].trim().toUpperCase() === 'C') cleanSequence.push(displayLabels[idx]); }); let summaryStr = (cleanSequence.length === totalCouplets) ? "Tout" : cleanSequence.join(", "); const idx = SONG_SELECTOR_CONTEXT.blockIndex; if(idx > -1 && DATA_PROGRAMME_BLOCKS[idx]) { if(!DATA_PROGRAMME_BLOCKS[idx].data) DATA_PROGRAMME_BLOCKS[idx].data = {}; Object.assign(DATA_PROGRAMME_BLOCKS[idx].data, { id: song.id, titre: song.titre, recueil: song.recueil, numero: song.numero, sequenceSummary: summaryStr, tonalite: song.tonalite, transStatus: song.transStatus, sequence: sequenceIndices, paroles_fixe: fullTextMG, paroles_fr_fixe: fullTextFR, mode: "fixe" }); renderCurrentTimeline(); closeAllModals(); showNotionToast("Chant inséré avec succès !", "success"); } }
-
-  // --- STANDARD FUNCTIONS ---
-  function openCreationModal(dateIso, defaultTime) { 
-      if(dateIso) { if(dateIso.includes('/')) { let p = dateIso.split('/'); dateIso = `${p[2]}-${p[1]}-${p[0]}`; } document.getElementById('createDateInput').value = dateIso; } 
-      document.getElementById('createMethodSelect').value = "blank"; document.getElementById('selectedDuplicateId').value = ""; updateCreationMethodUI(); 
-      
-      openCustomModal('creationModal', 'progCreatorOverlay');
-  }
   
-  function updateCreationMethodUI() { const method = document.getElementById('createMethodSelect').value; document.getElementById('zoneTemplate').classList.add('d-none'); document.getElementById('zoneDuplicate').classList.add('d-none'); document.getElementById('zoneBlank').classList.add('d-none'); if(method === 'template') { document.getElementById('zoneTemplate').classList.remove('d-none'); const sel = document.getElementById('templateSelect'); if(sel.options.length === 0) { google.script.run.withSuccessHandler(list => { sel.innerHTML = ""; if(list.length === 0) sel.innerHTML = "<option disabled>Aucun modèle trouvé</option>"; else list.forEach(t => sel.innerHTML += `<option value="${t.id}">${t.titre}</option>`); }).getSelectableTemplates(); } } else if(method === 'duplicate') { document.getElementById('zoneDuplicate').classList.remove('d-none'); } else { document.getElementById('zoneBlank').classList.remove('d-none'); } }
-  function searchProgArchives(query) { const container = document.getElementById('duplicateResults'); if(query.length < 2) return; container.innerHTML = `<div class="text-center py-2 text-muted"><div class="spinner-border spinner-border-sm"></div></div>`; google.script.run.withSuccessHandler(results => { container.innerHTML = ""; if(results.length === 0) { container.innerHTML = `<div class="text-center py-2 text-muted small fst-italic">Aucun résultat.</div>`; return; } results.forEach(prog => { const div = document.createElement('div'); div.className = "p-2 border-bottom hover-bg-light cursor-pointer"; div.innerHTML = `<div class="fw-bold small">${prog.date} - ${prog.titre}</div>`; div.onclick = function() { document.getElementById('selectedDuplicateId').value = prog.id; Array.from(container.children).forEach(c => c.classList.remove('bg-primary-subtle')); div.classList.add('bg-primary-subtle'); }; container.appendChild(div); }); }).searchArchivedProgrammes(query); }
-  function submitCreationForm() { const dateVal = document.getElementById('createDateInput').value; if(!dateVal) { showNotionToast("Veuillez choisir une date.", "error"); return; } const parts = dateVal.split('-'); const dateFR = `${parts[2]}/${parts[1]}/${parts[0]}`; const method = document.getElementById('createMethodSelect').value; let sourceId = null; if(method === 'template') { sourceId = document.getElementById('templateSelect').value; if(!sourceId) { showNotionToast("Veuillez choisir un modèle.", "error"); return; } } if(method === 'duplicate') { sourceId = document.getElementById('selectedDuplicateId').value; if(!sourceId) { showNotionToast("Veuillez sélectionner un culte à copier.", "error"); return; } } const btn = document.querySelector('#creationModal .btn-dark'); const originalTxt = btn.innerText; btn.innerText = "Création..."; btn.disabled = true; const params = { date: dateFR, method: method, sourceId: sourceId }; google.script.run.withSuccessHandler(res => { closeAllModals(); btn.innerText = originalTxt; btn.disabled = false; if(res.success) { openEditor(res.id); renderFullCalendar(); initNextCultWidget(); } else { showNotionToast("Erreur: " + res.message, "error"); } }).createNewProgramme(params); }
-  
-  // FIX CLOSING GLOBAL
-  function closeAllModals() { 
-      ['creationModal', 'securityModal', 'deleteModal', 'progCreatorOverlay', 'songSelectorModal', 'fanekenaSelectorModal'].forEach(id => { 
-          const el = document.getElementById(id); 
-          if(el) el.style.display = 'none'; 
+  function confirmSongSelection() { 
+      const song = SONG_SELECTOR_CONTEXT.selectedSong; if(!song) return; 
+      const chips = document.querySelectorAll('.stanza-card.selected'); 
+      const sequenceIndices = []; 
+      chips.forEach((chip) => { 
+          let idx = parseInt(chip.id.replace('chip_', '')); 
+          sequenceIndices.push(idx); 
+          const structArr = (song.structure || "").split(','); 
+          if (idx + 1 < structArr.length && structArr[idx+1].trim().toUpperCase() === 'R') { 
+              sequenceIndices.push(idx + 1); 
+          } 
       }); 
-      document.body.classList.remove('modal-open');
+      
+      if(sequenceIndices.length === 0) { showNotionToast("Veuillez sélectionner au moins une strophe.", "error"); return; } 
+      
+      const textMGArr = (song.paroles_mg || "").split(" /// "); 
+      const textFRArr = (song.paroles_fr || "").split(" /// "); 
+      const structArr = (song.structure || "").split(","); 
+      let fullTextMG = ""; let fullTextFR = ""; let cleanSequence = []; let displayLabels = {}; let cCount = 1; let totalCouplets = 0; 
+      structArr.forEach((t, i) => { if(t.trim().toUpperCase() === 'C') { displayLabels[i] = cCount++; totalCouplets++; } else if(t.trim().toUpperCase() === 'R') displayLabels[i] = "Ref"; else displayLabels[i] = ""; }); 
+      sequenceIndices.forEach((idx, i) => { 
+          const txtM = textMGArr[idx] || ""; const txtF = textFRArr[idx] || ""; let label = displayLabels[idx] ? displayLabels[idx] + ". " : ""; 
+          if(i > 0) { fullTextMG += "\n\n"; fullTextFR += "\n\n"; } 
+          fullTextMG += label + txtM; if(txtF.trim() !== "") { fullTextFR += label + txtF; } 
+          if(structArr[idx] && structArr[idx].trim().toUpperCase() === 'C') cleanSequence.push(displayLabels[idx]); 
+      }); 
+      let summaryStr = (cleanSequence.length === totalCouplets) ? "Tout" : cleanSequence.join(", "); 
+      
+      const idx = SONG_SELECTOR_CONTEXT.blockIndex; 
+      if(idx > -1 && DATA_PROGRAMME_BLOCKS[idx]) { 
+          if(!DATA_PROGRAMME_BLOCKS[idx].data) DATA_PROGRAMME_BLOCKS[idx].data = {}; 
+          Object.assign(DATA_PROGRAMME_BLOCKS[idx].data, { id: song.id, titre: song.titre, recueil: song.recueil, numero: song.numero, sequenceSummary: summaryStr, tonalite: song.tonalite, transStatus: song.transStatus, sequence: sequenceIndices, paroles_fixe: fullTextMG, paroles_fr_fixe: fullTextFR, mode: "fixe" }); 
+          setDirty(true); 
+          renderCurrentTimeline(); 
+          closeAllModals(); 
+          showNotionToast("Chant inséré avec succès !", "success"); 
+      } 
   }
-  
-  function closeAllMenus() { document.getElementById('insertMenu').style.display = 'none'; document.getElementById('roleMenu').style.display = 'none'; document.getElementById('menuOverlay').style.display = 'none'; }
+
+  // --- UTILS ---
+  function showNotionToast(msg, type) { const container = document.getElementById('notionToastContainer'); if(!container) return; const toast = document.createElement('div'); toast.className = 'notion-toast ' + (type === 'error' ? 'error' : ''); toast.innerHTML = '<i class="bi ' + (type === 'error' ? 'bi-exclamation-circle-fill' : 'bi-check-circle-fill') + '"></i><span>' + msg + '</span>'; container.appendChild(toast); setTimeout(() => { toast.style.opacity = '0'; toast.style.transform = 'translateY(10px)'; setTimeout(() => toast.remove(), 300); }, 3000); }
   function safeSetValue(id, value) { const el = document.getElementById(id); if (el) el.value = value || ""; }
   function safeGetValue(id) { const el = document.getElementById(id); return el ? el.value : ""; }
-  function askUnlock() { SECURITY_CONTEXT = "UNLOCK"; openSecurityModal("Déverrouiller le programme", "Toute modification repassera le statut en Brouillon.", true); }
-  function askValidation() { SECURITY_CONTEXT = "VALIDATE"; openSecurityModal("Valider le Programme", "Cette action verrouillera le programme pour diffusion.", false); }
-  
-  function openSecurityModal(title, subtitle, allowResp) { 
-      document.getElementById('secuTitle').innerText = title; document.getElementById('secuSubtitle').innerText = subtitle; 
-      const sel = document.getElementById('secuIdentitySelect'); sel.innerHTML = ""; if(allowResp) { const opt = document.createElement('option'); opt.value = "EQUIPE"; opt.text = "Responsable / Équipe"; sel.appendChild(opt); } VALIDATORS_LIST.forEach(v => { const opt = document.createElement('option'); opt.value = "VALIDEUR|" + v.nom; opt.text = v.nom; sel.appendChild(opt); }); document.getElementById('secuCodeInput').value = ""; 
-      
-      openCustomModal('securityModal', 'progCreatorOverlay');
-  }
-  
-  function submitSecurityAction() { const selVal = document.getElementById('secuIdentitySelect').value; const code = document.getElementById('secuCodeInput').value; const btn = document.getElementById('secuActionBtn'); let authType = "EQUIPE"; let authName = ""; if(selVal.startsWith("VALIDEUR|")) { authType = "VALIDEUR"; authName = selVal.split("|")[1]; } btn.innerText = "Vérification..."; btn.disabled = true; const onSuccess = (res) => { btn.innerText = "Confirmer"; btn.disabled = false; closeAllModals(); if(SECURITY_CONTEXT === "UNLOCK") { setEditorMode('EDIT'); showNotionToast("Programme déverrouillé.", "success"); } else if (SECURITY_CONTEXT === "VALIDATE") { currentProgData.validatedBy = authName + " le " + new Date().toLocaleDateString(); setEditorMode('READ_ONLY', currentProgData.validatedBy); renderFullCalendar(); showNotionToast("Programme validé !", "success"); } }; const onFailure = (err) => { btn.innerText = "Confirmer"; btn.disabled = false; const inp = document.getElementById('secuCodeInput'); inp.classList.add('is-invalid'); inp.value = ""; inp.focus(); }; if(SECURITY_CONTEXT === "UNLOCK") { google.script.run.withSuccessHandler(isOk => { if(isOk) onSuccess(); else onFailure({message: "Code incorrect"}); }).checkAuthForUnlock(authType, authName, code); } else if (SECURITY_CONTEXT === "VALIDATE") { const progId = document.getElementById('progId').value; google.script.run.withSuccessHandler(onSuccess).withFailureHandler(onFailure).validateProgrammeBackend(progId, authName, code); } }
-  function showNotionToast(msg, type) { const container = document.getElementById('notionToastContainer'); if(!container) return; const toast = document.createElement('div'); toast.className = 'notion-toast ' + (type === 'error' ? 'error' : ''); toast.innerHTML = '<i class="bi ' + (type === 'error' ? 'bi-exclamation-circle-fill' : 'bi-check-circle-fill') + '"></i><span>' + msg + '</span>'; container.appendChild(toast); setTimeout(() => { toast.style.opacity = '0'; toast.style.transform = 'translateY(10px)'; setTimeout(() => toast.remove(), 300); }, 3000); }
-  function deleteProgramme() { 
-      openCustomModal('deleteModal', 'progCreatorOverlay');
-  }
-  function confirmDeleteAction() { const id = document.getElementById('progId').value; const btn = document.querySelector('#deleteModal .btn-danger'); btn.innerText = "..."; btn.disabled = true; google.script.run.withSuccessHandler(() => { btn.innerText = "Supprimer"; btn.disabled = false; closeAllModals(); closeEditor(); }).deleteProgrammeBackend(id); }
+  function closeAllMenus() { ['insertMenu', 'roleMenu'].forEach(id => { const el = document.getElementById(id); if(el) el.style.display = 'none'; }); const overlay = document.getElementById('menuOverlay'); if (overlay) overlay.style.display = 'none'; }
 </script>
