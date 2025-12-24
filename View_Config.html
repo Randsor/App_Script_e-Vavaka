@@ -1,161 +1,263 @@
 <style>
-  /* CONFIG LAYOUT RESPONSIVE */
-  .cfg-container { padding: 20px; height: 100%; display: flex; flex-direction: column; background: #fff; }
-  
-  .cfg-header-bar { 
-      display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;
-      margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid #e1e1e1;
+  /* --- LAYOUT GLOBAL --- */
+  .cfg-container { 
+      display: flex; flex-direction: column; 
+      background: #fff; height: 100%; overflow: hidden;
   }
   
-  /* LOCK STATE */
-  .is-locked .cfg-input, .is-locked .cfg-select { 
-      pointer-events: none; opacity: 0.7; color: #666; 
+  /* HEADER */
+  .cfg-header { 
+      padding: 15px 25px; border-bottom: 1px solid #E5E7EB; 
+      display: flex; justify-content: space-between; align-items: center;
+      background: #fff; flex-shrink: 0; z-index: 20;
   }
-  .is-locked .btn-add, .is-locked .btn-delete, .is-locked .pass-toggle { display: none !important; }
-  .is-locked .cfg-card { background: #fafafa; border-color: #eee; }
-  
-  /* RESPONSIVE GRID (Auto-fit : 1, 2 ou 3 colonnes selon écran) */
-  .cfg-grid { 
-      display: grid; 
-      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); 
-      gap: 20px; 
-      flex-grow: 1; 
-      overflow-y: auto; padding-bottom: 20px;
-  }
-  
-  /* CARDS (Notion Style) */
-  .cfg-card {
-      background: white; border: 1px solid #e1e1e1; border-radius: 6px;
-      display: flex; flex-direction: column; overflow: hidden;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.02);
-      transition: all 0.2s;
-  }
-  .cfg-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
 
-  .cfg-card-head { 
-      padding: 10px 14px; background: #fff; border-bottom: 1px solid #f0f0f0;
-      font-weight: 600; color: #999; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;
+  /* BODY (Menu + Contenu) */
+  .cfg-body { 
+      display: flex; flex: 1; overflow: hidden; position: relative;
+  }
+
+  /* SIDEBAR / TABS */
+  .cfg-sidebar {
+      width: 240px; background: #F9FAFB; border-right: 1px solid #E5E7EB;
+      padding: 20px 10px; display: flex; flex-direction: column; gap: 4px;
+      flex-shrink: 0; overflow-y: auto;
+  }
+
+  .cfg-menu-item {
+      display: flex; align-items: center; gap: 12px; padding: 10px 14px;
+      border-radius: 8px; color: #6B7280; font-size: 14px; font-weight: 500;
+      cursor: pointer; transition: all 0.2s cubic-bezier(0.2, 0, 0, 1);
+  }
+  .cfg-menu-item:hover { background-color: #F3F4F6; color: #111827; }
+  .cfg-menu-item.active { background-color: #EFF6FF; color: #2563EB; font-weight: 600; }
+  
+  /* CONTENT */
+  .cfg-content {
+      flex: 1; padding: 30px; 
+      overflow-y: auto; 
+      background: #fff; scroll-behavior: smooth;
+  }
+
+  /* SECTIONS */
+  .cfg-section { display: none; animation: fadeInUp 0.4s ease forwards; }
+  .cfg-section.active { display: block; }
+  .cfg-section-title { font-size: 20px; font-weight: 700; color: #111827; margin-bottom: 10px; }
+  .cfg-section-desc { color: #6B7280; font-size: 13px; margin-bottom: 25px; }
+
+  /* MASONRY LAYOUT */
+  .roles-masonry { column-count: 1; column-gap: 24px; }
+  
+  .role-group-card {
+      background: #fff; border: 1px solid #E5E7EB; border-radius: 10px;
+      overflow: hidden; break-inside: avoid; margin-bottom: 24px;
+      transition: transform 0.2s;
+  }
+  .role-group-card:hover { border-color: #D1D5DB; transform: translateY(-2px); }
+  
+  .role-group-header {
+      padding: 10px 15px; background: #F9FAFB; border-bottom: 1px solid #E5E7EB;
+      font-size: 11px; font-weight: 700; text-transform: uppercase; color: #6B7280; letter-spacing: 1px;
       display: flex; justify-content: space-between; align-items: center;
   }
-  .cfg-card-body { flex-grow: 1; overflow-y: auto; padding: 10px; }
-  
+
   /* ITEMS */
   .cfg-item { 
-      display: flex; align-items: center; gap: 8px; padding: 4px 8px; 
-      background: white; border-radius: 4px; margin-bottom: 2px;
-      transition: background 0.1s;
+      display: flex; align-items: center; gap: 8px; padding: 8px 12px; 
+      border-bottom: 1px solid #F3F4F6; background: white; transition: background 0.2s;
   }
-  .cfg-item:hover { background: #f7f7f5; }
+  .cfg-item:last-child { border-bottom: none; }
+  .cfg-item:hover { background: #F9FAFB; }
   
-  .cfg-input { 
-      border: none; background: transparent; width: 100%; font-size: 13px; color: #37352F;
-      outline: none; padding: 4px 0;
+  .cfg-input { border: none; background: transparent; width: 100%; font-size: 13px; color: #374151; outline: none; padding: 0; font-weight: 500; }
+  
+  /* BOUTON AJOUT DANS CARTE */
+  .btn-add-row {
+      width: 100%; text-align: left; background: transparent; border: none;
+      color: #6B7280; font-size: 12px; font-weight: 500; padding: 10px 15px;
+      transition: all 0.2s; display: flex; align-items: center; gap: 8px;
+      cursor: pointer;
   }
-  .cfg-input::placeholder { color: #d3d3d3; }
-  
-  .code-badge { font-family: 'Consolas', monospace; background: #f0f0f0; padding: 2px 6px; border-radius: 4px; font-size: 12px; letter-spacing: 1px; }
-  
-  /* Password Wrapper */
-  .pass-wrapper {
-      display: flex; align-items: center; background: #fff; border: 1px solid #e1e1e1; 
-      border-radius: 4px; padding: 4px 8px; transition: border-color 0.2s;
-  }
-  .pass-wrapper:focus-within { border-color: #2383E2; box-shadow: 0 0 0 2px rgba(35, 131, 226, 0.1); }
-  
-  /* Boutons */
-  .btn-icon-hover { opacity: 0.5; transition: opacity 0.2s; cursor: pointer; }
-  .btn-icon-hover:hover { opacity: 1; }
+  .btn-add-row:hover { background-color: #F3F4F6; color: #111827; }
 
-  /* Mobile Tweaks */
-  @media (max-width: 600px) {
-      .cfg-container { padding: 10px; }
-      .cfg-grid { grid-template-columns: 1fr; } 
+  /* LOCK STATE */
+  .is-locked .cfg-input { pointer-events: none; opacity: 0.7; }
+  .is-locked .btn-delete, 
+  .is-locked .btn-add, 
+  .is-locked .pass-toggle, 
+  .is-locked .btn-add-row,
+  .is-locked .btn-action-danger { 
+      display: none !important; 
+  }
+
+  @keyframes fadeInUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+  .cascade-item { opacity: 0; animation: fadeInUp 0.3s ease forwards; }
+
+  /* MOBILE */
+  @media (min-width: 992px) { .roles-masonry { column-count: 2; } }
+  @media (max-width: 768px) {
+      .cfg-header { padding: 15px; flex-direction: column; gap: 10px; align-items: stretch; }
+      .cfg-header > div:last-child { justify-content: flex-end; }
+      .cfg-body { flex-direction: column; }
+      .cfg-sidebar { width: 100%; height: auto; flex-direction: row; overflow-x: auto; white-space: nowrap; border-right: none; border-bottom: 1px solid #E5E7EB; padding: 5px 10px; }
+      .cfg-menu-item { padding: 8px 12px; font-size: 13px; background: #F3F4F6; border-radius: 20px; margin-right: 5px; }
+      .cfg-menu-item.active { background: #111827; color: #fff; }
+      .cfg-menu-item i, .section-label { display: none; }
+      .cfg-content { padding: 15px; padding-bottom: 80px; }
   }
 </style>
 
 <div class="cfg-container" id="configViewRoot">
     
-    <div class="cfg-header-bar">
+    <!-- HEADER -->
+    <div class="cfg-header">
         <div>
-            <h5 class="m-0 fw-bold text-dark"><i class="bi bi-sliders2 me-2"></i>Administration</h5>
-            <div class="small mt-1" id="lockStatusText" style="font-size: 11px; color: #999;">
-                <i class="bi bi-lock-fill me-1"></i>LECTURE SEULE
-            </div>
+            <div class="fw-bold text-dark fs-5">Paramètres</div>
+            <div id="lockStatusText" class="small text-muted" style="font-size: 11px;"><i class="bi bi-lock-fill me-1"></i>Mode Lecture</div>
         </div>
         <div class="d-flex gap-2">
-            <button class="btn btn-sm btn-outline-danger hidden shadow-sm" id="btnLock" onclick="toggleAdminMode(false)">
-                <i class="bi bi-lock-fill me-1"></i>Verrouiller
-            </button>
-            <button class="btn btn-sm btn-dark shadow-sm" id="btnUnlock" onclick="askAdminCode()">
-                <i class="bi bi-unlock-fill me-1"></i>Mode Admin
-            </button>
-            <button class="btn btn-sm btn-primary-notion hidden shadow-sm" id="btnSaveAll" onclick="saveAllConfig()">
-                <i class="bi bi-cloud-arrow-up-fill me-1"></i>Enregistrer
-            </button>
+            <button class="btn btn-sm btn-outline-secondary hidden" id="btnLock" onclick="attemptLock()">Verrouiller</button>
+            <button class="btn btn-sm btn-dark px-3" id="btnUnlock" onclick="askAdminCode()"><i class="bi bi-shield-lock-fill me-2"></i>Admin</button>
+            <button class="btn btn-sm btn-primary hidden px-3" id="btnSaveAll" onclick="saveAllConfig(false)">Enregistrer</button>
         </div>
     </div>
 
-    <div class="cfg-grid is-locked" id="configGrid">
+    <!-- BODY -->
+    <div class="cfg-body is-locked" id="configGrid">
         
-        <div class="cfg-card">
-            <div class="cfg-card-head">
-                <span>Rôles & Types</span>
-                <i class="bi bi-plus-lg btn-add btn-icon-hover" onclick="addRole()"></i>
-            </div>
-            <div class="cfg-card-body custom-scrollbar" id="rolesContainer"></div>
+        <!-- SIDEBAR -->
+        <div class="cfg-sidebar custom-scrollbar">
+            <div class="section-label small fw-bold text-secondary px-3 mb-2 mt-2" style="font-size: 10px; letter-spacing: 1px;">DONNÉES</div>
+            <div class="cfg-menu-item active" onclick="switchConfigTab('roles', this)"><i class="bi bi-person-badge"></i> Rôles</div>
+            <div class="cfg-menu-item" onclick="switchConfigTab('participants', this)"><i class="bi bi-people"></i> Participants</div>
+
+            <div class="section-label small fw-bold text-secondary px-3 mb-2 mt-4" style="font-size: 10px; letter-spacing: 1px;">SYSTÈME</div>
+            <div class="cfg-menu-item" onclick="switchConfigTab('pdf', this)"><i class="bi bi-file-earmark-pdf"></i> Export PDF</div>
+            <div class="cfg-menu-item" onclick="switchConfigTab('security', this)"><i class="bi bi-shield-lock"></i> Sécurité</div>
         </div>
 
-        <div class="cfg-card">
-            <div class="cfg-card-head">
-                <span>Base Participants</span>
-                <i class="bi bi-plus-lg btn-add btn-icon-hover" onclick="addNom()"></i>
-            </div>
-            <div class="cfg-card-body custom-scrollbar" id="nomsContainer"></div>
-        </div>
-
-        <div class="cfg-card" style="border-top: 3px solid #EB5757;">
-            <div class="cfg-card-head text-danger">
-                <span><i class="bi bi-shield-lock me-2"></i>Sécurité</span>
-            </div>
-            <div class="cfg-card-body custom-scrollbar">
+        <!-- CONTENT -->
+        <div class="cfg-content custom-scrollbar">
+            
+            <!-- 1. ROLES -->
+            <div id="tab-roles" class="cfg-section active">
+                <h3 class="cfg-section-title">Rôles & Types</h3>
+                <p class="cfg-section-desc">Définissez les rôles par catégorie. Ajoutez des rôles directement dans les colonnes ou créez un nouveau type.</p>
                 
-                <div class="mb-4">
-                    <label class="small fw-bold text-muted mb-2" style="font-size:10px;">MOT DE PASSE "RESPONSABLE"</label>
-                    <div class="pass-wrapper">
-                        <i class="bi bi-key text-secondary me-2 small"></i>
-                        <input type="password" id="respCodeInput" class="cfg-input fw-bold text-dark" placeholder="Définir un code...">
-                        <i class="bi bi-eye-slash pass-toggle btn-icon-hover ms-2" onclick="togglePassVisibility(this, 'respCodeInput')"></i>
-                    </div>
-                    <div class="mt-1 text-muted" style="font-size:10px; line-height:1.2;">
-                        Code unique partagé à l'équipe (Louange, Tech...) pour l'édition simple.
-                    </div>
+                <div class="d-flex justify-content-end mb-3 btn-add">
+                    <button class="btn btn-sm btn-outline-dark shadow-sm" onclick="openNewTypeModal()"><i class="bi bi-folder-plus me-2"></i>Créer nouveau Type</button>
                 </div>
 
-                <hr class="opacity-10 my-3">
-
-                <div class="d-flex justify-content-between align-items-center mb-2 px-1">
-                    <span class="small fw-bold text-muted" style="font-size:10px;">LISTE DES VALIDEURS</span>
-                    <i class="bi bi-person-plus-fill btn-add btn-icon-hover text-danger" onclick="addValideur()"></i>
+                <div id="rolesGridContainer" class="roles-masonry">
+                    <div class="skeleton" style="height: 150px; border-radius: 10px; margin-bottom:20px;"></div>
+                    <div class="skeleton" style="height: 100px; border-radius: 10px; margin-bottom:20px;"></div>
                 </div>
-                <div id="valideursContainer"></div>
-
             </div>
-        </div>
 
+            <!-- 2. PARTICIPANTS -->
+            <div id="tab-participants" class="cfg-section">
+                <h3 class="cfg-section-title">Base Participants</h3>
+                <p class="cfg-section-desc">Annuaire des personnes assignables.</p>
+                <div class="role-group-card mb-4">
+                    <div class="role-group-header">
+                        <span>LISTE COMPLÈTE</span>
+                        <i class="bi bi-plus-lg cursor-pointer btn-add text-success fs-6" onclick="addNom()" title="Ajouter"></i>
+                    </div>
+                    <div id="nomsContainer">
+                        <div class="skeleton" style="height: 40px; margin: 10px;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3. PDF -->
+            <div id="tab-pdf" class="cfg-section">
+                <h3 class="cfg-section-title">Module PDF</h3>
+                <p class="cfg-section-desc">Configuration de la génération des feuilles de culte.</p>
+                <div class="role-group-card p-4">
+                    <div class="mb-4">
+                        <label class="small fw-bold text-dark mb-2">ID DOSSIER DRIVE</label>
+                        <div class="d-flex align-items-center bg-light border rounded px-3 py-2">
+                            <i class="bi bi-folder-fill text-warning me-3 fs-5"></i>
+                            <input type="text" id="pdfFolderId" class="cfg-input fw-medium" placeholder="ID du dossier..." oninput="setDirty(true)">
+                        </div>
+                    </div>
+                    <div class="mb-2">
+                        <label class="small fw-bold text-dark mb-2">ID TEMPLATE DOC</label>
+                        <div class="d-flex align-items-center bg-light border rounded px-3 py-2">
+                            <i class="bi bi-file-word-fill text-primary me-3 fs-5"></i>
+                            <input type="text" id="pdfTemplateId" class="cfg-input fw-medium" placeholder="ID du fichier Doc..." oninput="setDirty(true)">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 4. SECURITE -->
+            <div id="tab-security" class="cfg-section">
+                <h3 class="cfg-section-title">Sécurité</h3>
+                <p class="cfg-section-desc">Gestion des accès et validations.</p>
+                
+                <div class="role-group-card p-4 mb-4">
+                    <label class="small fw-bold text-dark mb-2">CODE ÉQUIPE</label>
+                    <div class="d-flex align-items-center bg-light border rounded px-3 py-2">
+                        <i class="bi bi-key-fill text-secondary me-3 fs-5"></i>
+                        <input type="password" id="respCodeInput" class="cfg-input fw-bold" placeholder="" oninput="setDirty(true)" autocomplete="new-password">
+                        <i class="bi bi-eye-slash cursor-pointer pass-toggle" onclick="togglePassVisibility(this, 'respCodeInput')"></i>
+                    </div>
+                </div>
+
+                <div class="role-group-card">
+                    <div class="role-group-header">
+                        <span>VALIDEURS</span>
+                        <i class="bi bi-person-plus-fill cursor-pointer btn-add text-danger fs-6" onclick="addValideur()"></i>
+                    </div>
+                    <div id="valideursContainer">
+                        <div class="skeleton" style="height: 40px; margin: 10px;"></div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
     </div>
 </div>
 
-<div id="adminAuthModal" class="notion-dialog" style="display:none; width: 300px; padding: 24px;">
-    <div class="text-center mb-3">
-        <div class="bg-light rounded-circle d-inline-flex align-items-center justify-content-center mb-2" style="width:40px; height:40px;">
-            <i class="bi bi-shield-lock-fill text-dark fs-5"></i>
+<!-- AUTH MODAL -->
+<div id="adminAuthModal" class="notion-dialog" style="display:none; width: 320px; padding: 30px;">
+    <div class="text-center mb-4">
+        <div class="bg-dark text-white rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width:60px; height:60px;">
+            <i class="bi bi-shield-lock-fill fs-3"></i>
         </div>
-        <h6 class="fw-bold m-0">Accès Administrateur</h6>
+        <h5 class="fw-bold m-0">Accès Admin</h5>
     </div>
-    <input type="password" id="adminCodeInput" class="form-control text-center fw-bold letter-spacing-2 mb-3 shadow-sm" placeholder="••••">
+    <div class="mb-4">
+        <input type="password" id="adminCodeInput" class="form-control text-center fw-bold letter-spacing-2 shadow-sm border-2" placeholder="" autocomplete="new-password" onkeydown="if(event.key === 'Enter') submitAdminAuth()">
+    </div>
     <div class="d-grid gap-2">
-        <button class="btn btn-dark btn-sm" onclick="submitAdminAuth()">Déverrouiller</button>
-        <button class="btn btn-link btn-sm text-secondary text-decoration-none" onclick="closeAdminModal()">Annuler</button>
+        <button class="btn btn-dark" onclick="submitAdminAuth()">Déverrouiller</button>
+        <button class="btn btn-link text-secondary" onclick="closeAdminModal()">Annuler</button>
     </div>
 </div>
-<div id="configOverlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:1050; backdrop-filter: blur(2px);" onclick="closeAdminModal()"></div>
+
+<!-- CONFIRMATION MODAL -->
+<div id="cfgConfirmModal" class="notion-dialog" style="display:none; width: 350px; padding: 25px; text-align: center; z-index: 10070;">
+    <div class="mb-3">
+        <i class="bi bi-exclamation-circle text-warning fs-1"></i>
+        <h6 class="fw-bold mt-3" id="cfgConfirmTitle">Confirmation</h6>
+        <p class="text-muted small mb-0" id="cfgConfirmMsg">...</p>
+    </div>
+    <div id="cfgConfirmActions" class="d-grid gap-2"></div>
+</div>
+
+<!-- NOUVEAU TYPE MODAL -->
+<div id="newTypeModal" class="notion-dialog" style="display:none; width: 320px; padding: 25px; z-index: 10070;">
+    <div class="mb-3">
+        <h6 class="fw-bold mb-3">Nouveau Type de Rôle</h6>
+        <label class="small text-muted mb-1">NOM DE LA CATÉGORIE</label>
+        <input type="text" id="newTypeInput" class="form-control" placeholder="ex: Accueil, Logistique..." onkeydown="if(event.key === 'Enter') confirmNewType()">
+    </div>
+    <div class="d-flex justify-content-end gap-2">
+        <button class="btn btn-link text-secondary btn-sm" onclick="closeNewTypeModal()">Annuler</button>
+        <button class="btn btn-dark btn-sm" onclick="confirmNewType()">Créer</button>
+    </div>
+</div>
+
+<div id="configOverlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:10060; backdrop-filter: blur(4px);" onclick="closeAllAdminModals()"></div>

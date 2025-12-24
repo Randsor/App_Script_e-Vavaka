@@ -2,141 +2,373 @@
   let IS_ADMIN_MODE = false;
   let ADMIN_CODE_SESSION = ""; 
   let CONFIG_CACHE = null;
+  let PENDING_CONFIRM_ACTION = null;
 
   function initConfigView() {
       loadConfigData();
   }
 
+  function switchConfigTab(tabName, clickedEl) {
+      document.querySelectorAll('.cfg-menu-item').forEach(el => el.classList.remove('active'));
+      if(clickedEl) clickedEl.classList.add('active');
+      document.querySelectorAll('.cfg-section').forEach(el => el.classList.remove('active'));
+      const target = document.getElementById('tab-' + tabName);
+      if(target) target.classList.add('active');
+  }
+
   function loadConfigData() {
-      const loaders = ['rolesContainer', 'nomsContainer', 'valideursContainer'];
-      loaders.forEach(id => {
-          const el = document.getElementById(id);
-          if(el) el.innerHTML = '<div class="text-center py-5 opacity-25"><div class="spinner-border spinner-border-sm"></div></div>';
-      });
-      
       google.script.run.withSuccessHandler(data => {
           CONFIG_CACHE = data;
           renderAll(data);
           toggleAdminMode(false);
+          setDirty(false);
+      }).withFailureHandler(err => {
+          showNotionToast("Erreur: " + err.message, "error");
       }).getConfigData();
   }
 
-  // --- RENDU ---
+  // --- RENDU LOGIQUE METIER ---
   
   function renderAll(data) {
-      // Roles
-      const cRoles = document.getElementById('rolesContainer');
-      if(cRoles) {
-          cRoles.innerHTML = "";
-          data.roles.forEach(r => {
-              cRoles.innerHTML += `
-                <div class="cfg-item role-item">
-                    <input type="text" class="cfg-input fw-bold" value="${r.name}" placeholder="Nom rôle">
-                    <div class="vr mx-2 opacity-25"></div>
-                    <input type="text" class="cfg-input text-secondary text-end" value="${r.type}" placeholder="Type" style="width:60px; font-size:11px;">
-                    <i class="bi bi-x text-danger btn-delete btn-icon-hover ms-2" onclick="this.parentElement.remove()"></i>
-                </div>`;
-          });
-      }
-
-      // Noms
+      renderRolesByGroup(data.roles);
+      
       const cNoms = document.getElementById('nomsContainer');
       if(cNoms) {
           cNoms.innerHTML = "";
-          data.noms.forEach(n => {
-              cNoms.innerHTML += `
-                <div class="cfg-item nom-item">
-                    <i class="bi bi-person text-secondary small me-2 opacity-50"></i>
-                    <input type="text" class="cfg-input" value="${n}" placeholder="Nom Prénom">
-                    <i class="bi bi-x text-danger btn-delete btn-icon-hover ms-2" onclick="this.parentElement.remove()"></i>
-                </div>`;
-          });
+          if(!data.noms || data.noms.length === 0) {
+              cNoms.innerHTML = '<div class="text-center py-4 text-muted small">Vide</div>';
+          } else {
+              data.noms.forEach((n, idx) => {
+                  cNoms.innerHTML += `
+                    <div class="cfg-item cascade-item" style="animation-delay: ${idx * 0.01}s">
+                        <div class="bg-primary bg-opacity-10 text-primary rounded-circle d-flex align-items-center justify-content-center fw-bold" style="width:28px; height:28px; font-size:10px;">${getInitials(n)}</div>
+                        <input type="text" class="cfg-input ms-2" value="${n}" placeholder="Nom Prénom" oninput="setDirty(true)">
+                        <i class="bi bi-trash3 text-muted opacity-25 btn-action-danger ms-auto" onclick="confirmRemoveItem(this)"></i>
+                    </div>`;
+              });
+          }
       }
 
-      // Sécurité
-      const inpResp = document.getElementById('respCodeInput');
-      if(inpResp) inpResp.value = data.respCode || "";
+      safeSetValue('pdfFolderId', data.pdfFolderId);
+      safeSetValue('pdfTemplateId', data.pdfTemplateId);
+      safeSetValue('respCodeInput', data.respCode);
       
       const cVal = document.getElementById('valideursContainer');
       if(cVal) {
           cVal.innerHTML = "";
-          data.valideurs.forEach(v => {
-              // MODIFICATION ICI : type="password" pour masquer le code
-              cVal.innerHTML += `
-                <div class="cfg-item val-item mb-1">
-                    <input type="text" class="cfg-input fw-bold text-dark" value="${v.nom}" placeholder="Nom Valideur">
-                    <input type="password" class="cfg-input code-badge text-center text-danger mx-2" value="${v.code}" placeholder="Code" style="width:50px;">
-                    <i class="bi bi-trash text-danger btn-delete btn-icon-hover" onclick="this.parentElement.remove()"></i>
-                </div>`;
+          if(!data.valideurs || data.valideurs.length === 0) {
+              cVal.innerHTML = '<div class="text-center py-4 text-muted small">Aucun valideur</div>';
+          } else {
+              data.valideurs.forEach(v => {
+                  cVal.innerHTML += `
+                    <div class="cfg-item mb-1 border-bottom val-item">
+                        <i class="bi bi-person-check-fill text-success"></i>
+                        <input type="text" class="cfg-input fw-bold ms-2 validation-name" value="${v.nom}" placeholder="Nom" oninput="setDirty(true)">
+                        <input type="password" class="cfg-input code-badge text-center text-danger validation-code" value="${v.code}" placeholder="Code" style="width:60px;" oninput="setDirty(true)" autocomplete="new-password">
+                        <i class="bi bi-trash3 text-muted opacity-25 btn-action-danger" onclick="confirmRemoveItem(this)"></i>
+                    </div>`;
+              });
+          }
+      }
+  }
+
+  function safeSetValue(id, val) {
+      const el = document.getElementById(id);
+      if(el) el.value = val || "";
+  }
+
+  // --- RÔLES DYNAMIQUES (CORRIGÉ : PAS DE TYPES FORCÉS) ---
+  function renderRolesByGroup(roles) {
+      const container = document.getElementById('rolesGridContainer');
+      if(!container) return;
+      container.innerHTML = "";
+
+      const groups = {};
+      
+      // 1. Scan des données réelles
+      if(roles) {
+          roles.forEach(r => {
+              let type = r.type ? r.type.charAt(0).toUpperCase() + r.type.slice(1) : "Autre";
+              if(!groups[type]) groups[type] = [];
+              groups[type].push(r);
           });
       }
+
+      // 2. Ordre d'affichage (Esthétique uniquement, n'ajoute pas de données)
+      const sortOrder = ["Liturgie", "Musique", "Technique", "Accueil"];
+      const allTypes = Object.keys(groups);
+      
+      allTypes.sort((a, b) => {
+          const idxA = sortOrder.indexOf(a);
+          const idxB = sortOrder.indexOf(b);
+          if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+          if (idxA !== -1) return -1;
+          if (idxB !== -1) return 1;
+          return a.localeCompare(b);
+      });
+
+      // 3. Rendu
+      allTypes.forEach((gName, gIdx) => {
+          const groupRoles = groups[gName];
+          
+          // STRICT : Si vide et pas "Autre", on n'affiche pas.
+          if ((!groupRoles || groupRoles.length === 0) && gName !== "Autre") return;
+
+          let roleItemsHtml = "";
+          if(groupRoles) {
+              groupRoles.forEach(r => {
+                  roleItemsHtml += buildRoleItemHtml(r.name, gName);
+              });
+          }
+
+          const card = document.createElement('div');
+          card.className = "role-group-card cascade-item";
+          card.style.animationDelay = (gIdx * 0.1) + "s";
+          
+          let colorClass = "text-secondary";
+          if(gName === "Liturgie") colorClass = "text-primary";
+          if(gName === "Musique") colorClass = "text-success";
+          if(gName === "Technique") colorClass = "text-danger";
+
+          // ID unique pour injection directe sans rechargement
+          const groupId = "group-body-" + gName.replace(/\s+/g, '-');
+
+          card.innerHTML = `
+              <div class="role-group-header ${colorClass}">
+                  <span>${gName}</span>
+                  <span class="badge bg-light text-dark border role-count-badge">${groupRoles ? groupRoles.length : 0}</span>
+              </div>
+              <div class="role-group-body p-0" id="${groupId}">
+                  ${roleItemsHtml}
+                  <button class="btn-add-row btn-add" onclick="addRole('${gName}')">
+                      <i class="bi bi-plus-lg"></i> Ajouter un rôle
+                  </button>
+              </div>
+          `;
+          container.appendChild(card);
+      });
   }
 
-  // --- UI UTILS ---
+  // HTML Helper pour une ligne
+  function buildRoleItemHtml(name, type) {
+      return `
+        <div class="cfg-item role-item">
+            <input type="text" class="cfg-input fw-medium" value="${name}" placeholder="Nom rôle" oninput="setDirty(true)">
+            <input type="hidden" class="role-type-input" value="${type}">
+            <i class="bi bi-trash3 text-muted opacity-25 btn-action-danger ms-auto" onclick="confirmRemoveItem(this)"></i>
+        </div>`;
+  }
+
+  function getInitials(name) { return name ? name.substring(0, 2).toUpperCase() : ".."; }
+  
   function togglePassVisibility(icon, inputId) {
       const input = document.getElementById(inputId);
-      if (input.type === "password") {
-          input.type = "text";
-          icon.classList.remove("bi-eye-slash");
-          icon.classList.add("bi-eye");
+      if (input.type === "password") { input.type = "text"; icon.classList.replace("bi-eye-slash", "bi-eye"); } 
+      else { input.type = "password"; icon.classList.replace("bi-eye", "bi-eye-slash"); }
+  }
+
+  // --- ACTIONS (ADD/REMOVE) ---
+  
+  function confirmRemoveItem(btn) {
+      if (!IS_ADMIN_MODE) return;
+      openConfirmModal("Suppression", "Voulez-vous vraiment supprimer cet élément ?", () => {
+          const item = btn.closest('.cfg-item');
+          if(item) {
+              const groupCard = item.closest('.role-group-card');
+              item.remove();
+              if (groupCard) updateGroupCount(groupCard);
+          }
+          setDirty(true);
+      });
+  }
+
+  // CORRECTION : AJOUT FLUIDE SANS RECHARGEMENT
+  function addRole(targetType) {
+      if (!IS_ADMIN_MODE) return;
+      
+      const type = targetType || "Autre";
+      
+      // Update cache
+      if(!CONFIG_CACHE.roles) CONFIG_CACHE.roles = [];
+      CONFIG_CACHE.roles.push({name: "", type: type});
+      
+      const groupId = 'group-body-' + type.replace(/\s+/g, '-');
+      const container = document.getElementById(groupId);
+      
+      if (container) {
+          // Injection DOM
+          const btnAdd = container.querySelector('.btn-add-row');
+          const tempDiv = document.createElement('div');
+          tempDiv.innerHTML = buildRoleItemHtml("", type);
+          const newItem = tempDiv.firstElementChild;
+          
+          // Insert Before Button
+          container.insertBefore(newItem, btnAdd);
+          
+          // Focus
+          const inp = newItem.querySelector('input[type="text"]');
+          if(inp) inp.focus();
+          
+          // Update Count
+          const card = container.closest('.role-group-card');
+          updateGroupCount(card);
       } else {
-          input.type = "password";
-          icon.classList.remove("bi-eye");
-          icon.classList.add("bi-eye-slash");
+          // Si le groupe n'existe pas encore (ex: 1er ajout dans Autre), on recharge tout
+          renderRolesByGroup(CONFIG_CACHE.roles);
+      }
+      
+      setDirty(true);
+  }
+
+  function updateGroupCount(card) {
+      if (!card) return;
+      const countBadge = card.querySelector('.role-count-badge');
+      const items = card.querySelectorAll('.role-item');
+      if (countBadge) countBadge.innerText = items.length;
+  }
+
+  function addNom() {
+      if (!IS_ADMIN_MODE) return;
+      const container = document.getElementById('nomsContainer');
+      const div = document.createElement('div'); 
+      div.className = "cfg-item nom-item animation-fade-in";
+      div.innerHTML = `<div class="bg-gray-200 text-secondary rounded-circle d-flex align-items-center justify-content-center" style="width:28px; height:28px; font-size:10px;">?</div><input type="text" class="cfg-input ms-2" placeholder="Nouveau participant" oninput="setDirty(true)"><i class="bi bi-trash3 text-muted opacity-25 btn-action-danger ms-auto" onclick="confirmRemoveItem(this)"></i>`;
+      container.prepend(div);
+      const inp = div.querySelector('input');
+      if(inp) inp.focus();
+      setDirty(true);
+  }
+
+  function addValideur() {
+      if (!IS_ADMIN_MODE) return;
+      const container = document.getElementById('valideursContainer');
+      const div = document.createElement('div'); div.className = "cfg-item val-item mb-1 border-bottom animation-fade-in";
+      div.innerHTML = `<i class="bi bi-person-check-fill text-success"></i><input type="text" class="cfg-input fw-bold ms-2 validation-name" placeholder="Nom" oninput="setDirty(true)"><input type="password" class="cfg-input code-badge text-center text-danger validation-code" placeholder="Code" style="width:60px;" oninput="setDirty(true)" autocomplete="new-password"><i class="bi bi-trash3 text-muted opacity-25 btn-action-danger" onclick="confirmRemoveItem(this)"></i>`;
+      container.appendChild(div);
+      const inp = div.querySelector('input');
+      if(inp) inp.focus();
+      setDirty(true);
+  }
+
+  // --- MODALS ---
+  
+  function openNewTypeModal() {
+      if (!IS_ADMIN_MODE) return;
+      const m = document.getElementById('newTypeModal');
+      const o = document.getElementById('configOverlay');
+      if (m && m.parentElement !== document.body) document.body.appendChild(m);
+      if (o && o.parentElement !== document.body) document.body.appendChild(o);
+      m.style.display = 'block'; o.style.display = 'block';
+      const input = document.getElementById('newTypeInput');
+      input.value = "";
+      setTimeout(() => input.focus(), 100);
+  }
+  function closeNewTypeModal() {
+      document.getElementById('newTypeModal').style.display = 'none';
+      checkCloseOverlay();
+  }
+  function confirmNewType() {
+      const val = document.getElementById('newTypeInput').value.trim();
+      if(val) {
+          const typeFormatted = val.charAt(0).toUpperCase() + val.slice(1);
+          closeNewTypeModal();
+          // Ici on recharge car c'est une nouvelle structure
+          addRole(typeFormatted);
       }
   }
 
-  // --- AJOUTS ---
-  function addRole() {
-      const div = document.createElement('div'); div.className = "cfg-item role-item";
-      div.innerHTML = `<input type="text" class="cfg-input fw-bold" placeholder="Rôle"><div class="vr mx-2 opacity-25"></div><input type="text" class="cfg-input text-secondary text-end" placeholder="Type" style="width:60px; font-size:11px;"><i class="bi bi-x text-danger btn-delete btn-icon-hover ms-2" onclick="this.parentElement.remove()"></i>`;
-      document.getElementById('rolesContainer').prepend(div);
-      div.querySelector('input').focus();
-  }
-  function addNom() {
-      const div = document.createElement('div'); div.className = "cfg-item nom-item";
-      div.innerHTML = `<i class="bi bi-person text-secondary small me-2 opacity-50"></i><input type="text" class="cfg-input" placeholder="Nouveau participant"><i class="bi bi-x text-danger btn-delete btn-icon-hover ms-2" onclick="this.parentElement.remove()"></i>`;
-      document.getElementById('nomsContainer').prepend(div);
-      div.querySelector('input').focus();
-  }
-  function addValideur() {
-      const div = document.createElement('div'); div.className = "cfg-item val-item mb-1";
-      // MODIFICATION ICI : type="password" pour les nouveaux ajouts
-      div.innerHTML = `<input type="text" class="cfg-input fw-bold text-dark" placeholder="Nom Valideur"><input type="password" class="cfg-input code-badge text-center text-danger mx-2" placeholder="Code" style="width:50px;"><i class="bi bi-trash text-danger btn-delete btn-icon-hover" onclick="this.parentElement.remove()"></i>`;
-      document.getElementById('valideursContainer').appendChild(div);
-      div.querySelector('input').focus();
+  function openConfirmModal(title, msg, actions) {
+      document.getElementById('cfgConfirmTitle').innerText = title;
+      document.getElementById('cfgConfirmMsg').innerText = msg;
+      
+      const actionsContainer = document.getElementById('cfgConfirmActions');
+      actionsContainer.innerHTML = "";
+      
+      if (Array.isArray(actions)) {
+          actions.forEach(act => {
+              const btn = document.createElement('button');
+              btn.className = "btn " + (act.class || "btn-light border");
+              btn.innerText = act.label;
+              btn.onclick = () => { if (act.action) act.action(); if (act.close !== false) closeConfirmModal(); };
+              actionsContainer.appendChild(btn);
+          });
+      } else {
+          const confirmBtn = document.createElement('button');
+          confirmBtn.className = "btn btn-dark";
+          confirmBtn.innerText = "Confirmer";
+          confirmBtn.onclick = () => { if(actions) actions(); closeConfirmModal(); };
+          const cancelBtn = document.createElement('button');
+          cancelBtn.className = "btn btn-link text-secondary";
+          cancelBtn.innerText = "Annuler";
+          cancelBtn.onclick = closeConfirmModal;
+          actionsContainer.appendChild(confirmBtn);
+          actionsContainer.appendChild(cancelBtn);
+      }
+      
+      const m = document.getElementById('cfgConfirmModal');
+      const o = document.getElementById('configOverlay');
+      if (m && m.parentElement !== document.body) document.body.appendChild(m);
+      if (o && o.parentElement !== document.body) document.body.appendChild(o);
+      m.style.display = 'block'; o.style.display = 'block';
   }
 
-  // --- AUTH ADMIN ---
-  function askAdminCode() {
-      document.getElementById('adminAuthModal').style.display = 'block';
-      document.getElementById('configOverlay').style.display = 'block';
-      document.getElementById('adminCodeInput').value = "";
-      setTimeout(() => document.getElementById('adminCodeInput').focus(), 100);
+  function closeConfirmModal() {
+      document.getElementById('cfgConfirmModal').style.display = 'none';
+      PENDING_CONFIRM_ACTION = null;
+      checkCloseOverlay();
   }
   
-  function closeAdminModal() {
-      document.getElementById('adminAuthModal').style.display = 'none';
-      document.getElementById('configOverlay').style.display = 'none';
+  function checkCloseOverlay() {
+      const modals = ['adminAuthModal', 'cfgConfirmModal', 'newTypeModal'];
+      let anyOpen = false;
+      modals.forEach(id => {
+          const el = document.getElementById(id);
+          if(el && el.style.display === 'block') anyOpen = true;
+      });
+      if(!anyOpen) document.getElementById('configOverlay').style.display = 'none';
+  }
+  
+  function closeAllAdminModals() {
+      closeAdminModal();
+      closeConfirmModal();
+      closeNewTypeModal();
   }
 
+  // --- ADMIN AUTH & LOCK ---
+  function askAdminCode() {
+      const modal = document.getElementById('adminAuthModal');
+      const overlay = document.getElementById('configOverlay');
+      if (modal && modal.parentElement !== document.body) document.body.appendChild(modal);
+      if (overlay && overlay.parentElement !== document.body) document.body.appendChild(overlay);
+      if(modal) modal.style.display = 'block';
+      if(overlay) overlay.style.display = 'block';
+      const input = document.getElementById('adminCodeInput');
+      if(input) { input.value = ""; setTimeout(() => input.focus(), 100); }
+  }
+  function closeAdminModal() {
+      document.getElementById('adminAuthModal').style.display = 'none';
+      checkCloseOverlay();
+  }
   function submitAdminAuth() {
-      const code = document.getElementById('adminCodeInput').value;
+      const inp = document.getElementById('adminCodeInput');
+      const code = inp.value;
       const btn = document.querySelector('#adminAuthModal .btn-dark');
       const originalTxt = btn.innerText;
       
+      if (!code) { inp.classList.add('shake-error'); setTimeout(() => inp.classList.remove('shake-error'), 500); return; }
+      
       btn.innerText = "..."; btn.disabled = true;
-
       google.script.run.withSuccessHandler(isValid => {
           btn.innerText = originalTxt; btn.disabled = false;
           if (isValid) {
               ADMIN_CODE_SESSION = code;
               toggleAdminMode(true);
               closeAdminModal();
+              showNotionToast("Mode Admin activé", "success");
           } else {
-              const inp = document.getElementById('adminCodeInput');
-              inp.classList.add('is-invalid');
-              setTimeout(() => inp.classList.remove('is-invalid'), 500);
+              inp.classList.add('shake-error');
+              inp.value = ""; inp.focus();
+              setTimeout(() => inp.classList.remove('shake-error'), 500);
           }
       }).checkAdminCode(code);
   }
@@ -145,94 +377,118 @@
       IS_ADMIN_MODE = isAdmin;
       const grid = document.getElementById('configGrid');
       const status = document.getElementById('lockStatusText');
-      
       if (isAdmin) {
           grid.classList.remove('is-locked');
           status.innerHTML = `<span class="text-success fw-bold"><i class="bi bi-unlock-fill me-1"></i>MODE ÉDITION</span>`;
+          document.getElementById('btnUnlock').classList.add('hidden');
           document.getElementById('btnLock').classList.remove('hidden');
           document.getElementById('btnSaveAll').classList.remove('hidden');
-          document.getElementById('btnUnlock').classList.add('hidden');
       } else {
           grid.classList.add('is-locked');
-          status.innerHTML = `<i class="bi bi-lock-fill me-1"></i>LECTURE SEULE`;
+          status.innerHTML = `<i class="bi bi-lock-fill me-1"></i>Lecture seule`;
+          document.getElementById('btnUnlock').classList.remove('hidden');
           document.getElementById('btnLock').classList.add('hidden');
           document.getElementById('btnSaveAll').classList.add('hidden');
-          document.getElementById('btnUnlock').classList.remove('hidden');
           ADMIN_CODE_SESSION = ""; 
-          
-          // Re-masquer le mot de passe
           const respInp = document.getElementById('respCodeInput');
-          if(respInp) {
-              respInp.type = "password";
-              const icon = respInp.parentElement.querySelector('i.pass-toggle');
-              if(icon) {
-                 icon.classList.remove("bi-eye");
-                 icon.classList.add("bi-eye-slash");
-              }
-          }
+          if(respInp) { respInp.type = "password"; }
       }
   }
 
-  // --- SAUVEGARDE SECURISEE ---
-  function saveAllConfig() {
-      if(!IS_ADMIN_MODE || !ADMIN_CODE_SESSION) return;
-      
-      const btn = document.getElementById('btnSaveAll');
-      btn.innerText = "Sauvegarde..."; btn.disabled = true;
+  function attemptLock() {
+      if (APP_IS_DIRTY) {
+          openConfirmModal(
+              "Modifications non enregistrées", 
+              "Vous avez des changements en attente. Que voulez-vous faire ?", 
+              [
+                  {
+                      label: "Enregistrer & Verrouiller",
+                      class: "btn-success text-white",
+                      action: () => saveAllConfig(true)
+                  },
+                  {
+                      label: "Ne pas enregistrer",
+                      class: "btn-danger text-white",
+                      action: () => {
+                          setDirty(false);
+                          loadConfigData();
+                          toggleAdminMode(false);
+                      }
+                  },
+                  {
+                      label: "Annuler",
+                      class: "btn-light border text-secondary",
+                      action: () => {}
+                  }
+              ]
+          );
+      } else {
+          toggleAdminMode(false);
+      }
+  }
 
-      // 1. Collecte Roles (Avec sécurité anti-crash)
+  // --- SAUVEGARDE ROBUSTE ---
+  function saveAllConfig(lockAfter = false) {
+      if(!IS_ADMIN_MODE || !ADMIN_CODE_SESSION) return;
+      const btn = document.getElementById('btnSaveAll');
+      const originalText = btn.innerHTML;
+      btn.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span>...`; btn.disabled = true;
+
+      // 1. Roles
       const roles = [];
       document.querySelectorAll('.role-item').forEach(el => {
-          const inps = el.querySelectorAll('input');
-          // On vérifie que les inputs existent bien
-          if(inps.length > 0 && inps[0].value) {
-              const t = (inps.length > 1) ? inps[1].value : "";
-              roles.push({name: inps[0].value, type: t});
+          const nameInput = el.querySelector('input[type="text"]');
+          const typeInput = el.querySelector('.role-type-input');
+          if(nameInput && nameInput.value) {
+              roles.push({name: nameInput.value, type: typeInput ? typeInput.value : "Autre"});
           }
       });
 
-      // 2. Collecte Noms
+      // 2. Noms
       const noms = [];
-      document.querySelectorAll('.nom-item input').forEach(inp => {
-          if(inp && inp.value) noms.push(inp.value);
-      });
+      const nomContainer = document.getElementById('nomsContainer');
+      if (nomContainer) {
+          nomContainer.querySelectorAll('input[type="text"]').forEach(inp => {
+              if(inp.value && inp.value.trim() !== "") noms.push(inp.value.trim());
+          });
+      }
 
-      // 3. Collecte Valideurs (Avec sécurité)
+      // 3. Valideurs
       const valideurs = [];
-      document.querySelectorAll('.val-item').forEach(el => {
-          const inps = el.querySelectorAll('input');
-          // On vérifie qu'on a bien Nom ET Code
-          if(inps.length > 1 && inps[0].value && inps[1].value) {
-              valideurs.push({nom: inps[0].value, code: inps[1].value});
-          }
-      });
-
-      // 4. Code Resp
-      const respInp = document.getElementById('respCodeInput');
-      const respCode = respInp ? respInp.value : "";
+      const valContainer = document.getElementById('valideursContainer');
+      if (valContainer) {
+          valContainer.querySelectorAll('.val-item').forEach(el => {
+              const nameInp = el.querySelector('.validation-name');
+              const codeInp = el.querySelector('.validation-code');
+              if(nameInp && codeInp && nameInp.value) {
+                  valideurs.push({nom: nameInp.value, code: codeInp.value});
+              }
+          });
+      }
 
       const payload = {
           roles: roles,
           noms: noms,
           valideurs: valideurs,
-          respCode: respCode
+          respCode: document.getElementById('respCodeInput').value,
+          pdfFolderId: document.getElementById('pdfFolderId').value,
+          pdfTemplateId: document.getElementById('pdfTemplateId').value
       };
 
-      google.script.run
-        .withSuccessHandler(msg => {
-            btn.innerHTML = `<i class="bi bi-check-lg me-1"></i>Enregistré`;
-            setTimeout(() => { 
-                btn.innerHTML = `<i class="bi bi-cloud-arrow-up-fill me-1"></i>Enregistrer`; 
-                btn.disabled = false;
-                toggleAdminMode(false); // Re-lock pour sécurité
-                loadConfigData(); // Reload pour être sûr
-            }, 1000);
-        })
-        .withFailureHandler(err => {
-            alert("Erreur: " + err.message);
-            btn.innerHTML = `<i class="bi bi-cloud-arrow-up-fill me-1"></i>Enregistrer`;
-            btn.disabled = false;
-        })
-        .saveConfigFull(ADMIN_CODE_SESSION, payload);
+      google.script.run.withSuccessHandler(msg => {
+          btn.innerHTML = `<i class="bi bi-check-lg me-2"></i>OK`;
+          setTimeout(() => { 
+              btn.innerHTML = originalText; btn.disabled = false;
+              setDirty(false);
+              showNotionToast("Configuration enregistrée !", "success");
+              if (lockAfter) {
+                  toggleAdminMode(false);
+                  loadConfigData();
+              }
+          }, 800);
+      }).withFailureHandler(err => {
+          showNotionToast("Erreur: " + err.message, "error");
+          btn.innerHTML = originalText; btn.disabled = false;
+      }).saveConfigFull(ADMIN_CODE_SESSION, payload);
   }
 </script>

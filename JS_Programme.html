@@ -412,7 +412,8 @@
   }
 
   function closeAllModals() { 
-      ['creationModal', 'securityModal', 'deleteModal', 'progCreatorOverlay', 'songSelectorModal', 'fanekenaSelectorModal'].forEach(id => { 
+      // Ajout de 'exportPdfModal' à la liste des modales gérées
+      ['creationModal', 'securityModal', 'deleteModal', 'progCreatorOverlay', 'songSelectorModal', 'fanekenaSelectorModal', 'exportPdfModal'].forEach(id => { 
           const el = document.getElementById(id); 
           if(el) el.style.display = 'none'; 
       }); 
@@ -725,38 +726,103 @@
       const panel = document.getElementById('songSelectorPreviewPanel'); 
       const structureArr = (song.structure || "").split(','); 
       const textMG = (song.paroles_mg || "").split(" /// "); 
+      
       let chipsHTML = ""; let stanzaCount = 1; 
+      
       if(structureArr.length === 0 || (structureArr.length === 1 && structureArr[0] === "")) { 
           chipsHTML = '<div class="text-muted small fst-italic">Aucune structure définie.</div>'; 
       } else { 
           structureArr.forEach((type, idx) => { 
               const t = type.trim().toUpperCase(); 
               if (t === 'R') return; 
+              
               let label = (t === 'C' ? 'Strophe ' + (stanzaCount++) : 'Pont'); 
               let excerpt = textMG[idx] ? textMG[idx] : ""; 
+              
+              // Détection Refrain (regarde la suite)
               let refrainHtml = ""; 
               if (idx + 1 < structureArr.length && structureArr[idx+1].trim().toUpperCase() === 'R') { 
                   let refText = (textMG[idx+1] || "").trim(); 
                   if(refText.length > 50) refText = refText.substring(0, 50) + "..."; 
-                  refrainHtml = '<div class="refrain-mini">' + refText + '</div>'; 
+                  refrainHtml = '<div class="mt-2 pt-2 border-top border-secondary border-opacity-10 text-success small fst-italic"><i class="bi bi-arrow-return-right me-1"></i>Ref: ' + refText + '</div>'; 
               } 
-              chipsHTML += '<div class="stanza-card" id="chip_' + idx + '" onclick="toggleChip(' + idx + ')"><div class="card-header-area"><div class="d-flex align-items-center gap-2"><div class="card-check"><i class="bi bi-check2" style="font-size:12px;"></i></div><span class="fw-bold small text-primary">' + label + '</span></div><span class="badge bg-light text-secondary border fw-normal" style="font-size:9px;">' + t + '</span></div><div class="card-body-area">' + excerpt + refrainHtml + '</div></div>'; 
+              
+              // HTML CARD GENERATION (Nouvelle version visuelle)
+              chipsHTML += `
+              <div class="stanza-card selected" id="chip_${idx}" onclick="toggleChip(${idx})">
+                  <div class="d-flex justify-content-between align-items-center mb-2">
+                      <div class="d-flex align-items-center gap-2">
+                          <div class="stanza-check-circle"><i class="bi bi-check-lg"></i></div>
+                          <span class="fw-bold small text-dark">${label}</span>
+                      </div>
+                      <span class="badge bg-light text-secondary border fw-normal" style="font-size:9px;">${t}</span>
+                  </div>
+                  <div class="text-muted small" style="line-height:1.4;">
+                      ${excerpt}
+                      ${refrainHtml}
+                  </div>
+              </div>`;
           }); 
       } 
-      panel.innerHTML = '<div class="d-flex flex-column h-100"><div class="p-3 border-bottom bg-white d-none d-md-block"><h6 class="fw-bold mb-1 w-100" style="line-height:1.4;">' + song.titre + '</h6><div class="small text-muted mb-2">' + song.recueil + ' ' + song.numero + (song.tonalite ? ' • ' + song.tonalite : '') + '</div><div class="d-flex gap-2"><button class="btn-notion-outline" onclick="selectAllChips(true)">Tout cocher</button><button class="btn-notion-outline" onclick="selectAllChips(false)">Tout décocher</button></div></div><div class="d-md-none p-2 border-bottom bg-light d-flex gap-2 overflow-x-auto"><button class="btn-notion-outline flex-fill" onclick="selectAllChips(true)">Tout cocher</button><button class="btn-notion-outline flex-fill" onclick="selectAllChips(false)">Tout décocher</button></div><div class="flex-grow-1 overflow-auto p-3 custom-scrollbar" style="background-color: #fafafa;">' + chipsHTML + '</div></div>'; 
+      
+      panel.innerHTML = `
+      <div class="d-flex flex-column h-100">
+          <div class="p-3 border-bottom bg-white d-none d-md-block">
+              <h6 class="fw-bold mb-1 w-100" style="line-height:1.4;">${song.titre}</h6>
+              <div class="small text-muted mb-2">${song.recueil} ${song.numero} ${song.tonalite ? ' • ' + song.tonalite : ''}</div>
+              <div class="d-flex gap-2">
+                  <button class="btn-notion-outline" onclick="selectAllChips(true)">Tout cocher</button>
+                  <button class="btn-notion-outline" onclick="selectAllChips(false)">Tout décocher</button>
+              </div>
+          </div>
+          
+          <div class="d-md-none p-2 border-bottom bg-light d-flex gap-2 overflow-x-auto">
+              <button class="btn-notion-outline flex-fill" onclick="selectAllChips(true)">Tout cocher</button>
+              <button class="btn-notion-outline flex-fill" onclick="selectAllChips(false)">Tout décocher</button>
+          </div>
+          
+          <div class="flex-grow-1 overflow-auto p-3 custom-scrollbar" style="background-color: #fafafa;">
+              ${chipsHTML}
+          </div>
+      </div>`;
+      
       document.getElementById('btnConfirmSong').disabled = false; 
-      selectAllChips(true); 
+      updateSelectionStatus();
   }
   
-  function toggleChip(index) { const chip = document.getElementById('chip_' + index); if(!chip) return; chip.classList.toggle('selected'); updateSelectionStatus(); }
-  function selectAllChips(state) { const chips = document.querySelectorAll('.stanza-card'); chips.forEach(chip => { if(state) chip.classList.add('selected'); else chip.classList.remove('selected'); }); updateSelectionStatus(); }
-  function updateSelectionStatus() { const checked = document.querySelectorAll('.stanza-card.selected'); document.getElementById('songSelectorStatus').innerText = checked.length + ' strophe(s)'; }
+  function toggleChip(index) { 
+      const chip = document.getElementById('chip_' + index); 
+      if(!chip) return; 
+      chip.classList.toggle('selected'); 
+      updateSelectionStatus(); 
+  }
+  
+  function selectAllChips(state) { 
+      const chips = document.querySelectorAll('.stanza-card'); 
+      chips.forEach(chip => { 
+          if(state) chip.classList.add('selected'); 
+          else chip.classList.remove('selected'); 
+      }); 
+      updateSelectionStatus(); 
+  }
+  
+  function updateSelectionStatus() { 
+      const checked = document.querySelectorAll('.stanza-card.selected'); 
+      document.getElementById('songSelectorStatus').innerText = checked.length + ' strophe(s)'; 
+      document.getElementById('btnConfirmSong').disabled = (checked.length === 0);
+  }
   
   function confirmSongSelection() { 
       const song = SONG_SELECTOR_CONTEXT.selectedSong; if(!song) return; 
       const chips = document.querySelectorAll('.stanza-card.selected'); 
       const sequenceIndices = []; 
-      chips.forEach((chip) => { 
+      
+      // On trie les chips par ID pour garder l'ordre logique
+      const sortedChips = Array.from(chips).sort((a, b) => {
+          return parseInt(a.id.replace('chip_', '')) - parseInt(b.id.replace('chip_', ''));
+      });
+
+      sortedChips.forEach((chip) => { 
           let idx = parseInt(chip.id.replace('chip_', '')); 
           sequenceIndices.push(idx); 
           const structArr = (song.structure || "").split(','); 

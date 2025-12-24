@@ -313,7 +313,8 @@ function renderSharedBlocks(containerId, blocks, context) {
                 roleHTML +
                 '<span class="badge rounded-1 fw-normal border ' + badgeClass + '" style="font-size:9px; padding: 2px 4px;">' + block.type + '</span>' +
                 resetBtn +
-                '<i class="bi bi-x-lg text-danger opacity-0 hover-opacity-100 cursor-pointer small ms-2 no-print" onclick="removeBlock(' + index + ')" title="Supprimer"></i>' +
+                // MODIFICATION : ICÔNE SUPPRESSION REVUE
+                '<i class="bi bi-trash3 text-secondary opacity-25 cursor-pointer small ms-2 no-print btn-action-danger" onclick="removeBlock(' + index + ')" title="Supprimer"></i>' +
             '</div>' +
 
             '<div class="d-flex align-items-start gap-2 ps-0 pe-2 w-100 py-1">' +

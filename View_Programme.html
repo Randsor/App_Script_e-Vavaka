@@ -176,6 +176,7 @@
                   <button class="btn btn-sm btn-light border text-danger" onclick="deleteProgramme()"><i class="bi bi-trash"></i></button>
                   <button class="btn btn-sm btn-dark" onclick="saveProgramme()">Enregistrer</button>
                   <button class="btn btn-sm btn-success text-white" onclick="askValidation()"><i class="bi bi-check2-circle me-1"></i>Valider</button>
+                  <button class="btn btn-sm btn-white border shadow-sm text-danger" onclick="openExportModal()" title="Export PDF"><i class="bi bi-file-earmark-pdf-fill"></i></button>
               </div>
               <div id="toolbarReadMode" class="d-none">
                    <span class="text-muted small fst-italic me-2" id="signedByText"></span>
@@ -263,13 +264,16 @@
       </div>
   </div>
   
-  <!-- SÉLECTEURS -->
-  <div id="songSelectorModal" class="notion-dialog-wrapper" style="display:none;">
+  <!-- SÉLECTEURS (AJUSTEMENT LARGEUR MODALE + SCROLL FIX) -->
+  <!-- SÉLECTEUR DE CHANT (CORRIGÉ : Largeur + Scroll Flexbox) -->
+  <div id="songSelectorModal" class="notion-dialog-wrapper" style="display:none; width: 950px; max-width: 95vw;">
       <div class="modal-notion-header">
           <div class="modal-title-wrap"><div class="modal-icon-box"><i class="bi bi-music-note-beamed"></i></div><span>Sélectionner un chant</span></div>
           <button class="btn-close small" aria-label="Close" onclick="closeAllModals()"></button>
       </div>
-      <div class="row g-0 flex-grow-1 overflow-hidden" style="height: 100%;">
+      
+      <!-- FIX SCROLL : min-height: 0 est CRUCIAL ici pour que le flexbox scroll fonctionne -->
+      <div class="row g-0 flex-grow-1 overflow-hidden" style="min-height: 0;">
           <div id="colSearch" class="col-12 col-md-5 border-end d-flex flex-column h-100 bg-white">
               <div class="p-3 border-bottom bg-white">
                   <div id="recueilPillsContainer" class="pills-container"></div>
@@ -285,6 +289,7 @@
               <div id="songSelectorPreviewPanel" class="flex-grow-1 overflow-hidden d-flex flex-column"><div class="h-100 d-flex align-items-center justify-content-center text-muted small fst-italic">Sélectionnez un chant à gauche.</div></div>
           </div>
       </div>
+      
       <div class="p-3 border-top bg-white d-flex justify-content-between align-items-center">
           <span class="small text-muted" id="songSelectorStatus"></span>
           <div class="d-flex gap-2">
@@ -302,6 +307,13 @@
       <div class="p-2 flex-grow-1 overflow-auto custom-scrollbar bg-light" id="fanekenaSelectList">
           <div class="text-center py-4 text-muted"><div class="spinner-border spinner-border-sm"></div></div>
       </div>
+  </div>
+
+  <div id="exportPdfModal" class="notion-dialog" style="display:none; width: 380px; padding: 25px; flex-direction: column;">
+    <div style="position: absolute; top: 15px; right: 15px; cursor: pointer;" onclick="closeCustomModal('exportPdfModal', 'progCreatorOverlay')">
+        <i class="bi bi-x-lg text-secondary"></i>
+    </div>
+    <div id="exportModalContent"></div>
   </div>
 
   <div id="progCreatorOverlay" style="position:fixed; inset:0; display:none;" onclick="closeAllModals()"></div>
