@@ -608,6 +608,8 @@
 
   // --- SÉLECTEURS (FANEKENA & CHANT) ---
 
+  // --- SÉLECTEURS (FANEKENA & CHANT) ---
+
   function openFanekenaSelectorProgramme(index) {
       FANEKENA_CONTEXT.blockIndex = index;
       openCustomModal('fanekenaSelectorModal', 'progCreatorOverlay');
@@ -633,228 +635,331 @@
           clickedElement.style.pointerEvents = 'none';
       }
       const idx = FANEKENA_CONTEXT.blockIndex;
-      if (idx > -1 && DATA_PROGRAMME_BLOCKS[idx]) {
+      // GESTION CONTEXTE (Template vs Programme)
+      const targetData = (APP_CONTEXT === 'TEMPLATE') ? DATA_TEMPLATE_BLOCKS : DATA_PROGRAMME_BLOCKS;
+      
+      if (idx > -1 && targetData[idx]) {
           google.script.run.withSuccessHandler(data => {
-              if(!DATA_PROGRAMME_BLOCKS[idx].data) DATA_PROGRAMME_BLOCKS[idx].data = {};
-              DATA_PROGRAMME_BLOCKS[idx].data.id = data.id;
-              DATA_PROGRAMME_BLOCKS[idx].data.titre = data.titre;
-              DATA_PROGRAMME_BLOCKS[idx].data.contenu_mg = data.contenu_mg;
-              DATA_PROGRAMME_BLOCKS[idx].data.contenu_fr = data.contenu_fr;
-              setDirty(true); // Modif
-              renderCurrentTimeline(); 
+              if(!targetData[idx].data) targetData[idx].data = {};
+              targetData[idx].data.id = data.id;
+              targetData[idx].data.titre = data.titre;
+              targetData[idx].data.contenu_mg = data.contenu_mg;
+              targetData[idx].data.contenu_fr = data.contenu_fr;
+              setDirty(true); 
+              
+              if(APP_CONTEXT === 'TEMPLATE') renderSharedBlocks('blocksContainer', targetData, 'TEMPLATE');
+              else renderCurrentTimeline();
+              
               closeAllModals(); 
               showNotionToast("Confession insérée.", "success");
           }).getFanekenaDetails(id);
       }
   }
 
-  function openSongSelector(index) { 
-      SONG_SELECTOR_CONTEXT.blockIndex = index; 
-      SONG_SELECTOR_CONTEXT.selectedSong = null; 
-      SONG_SELECTOR_CONTEXT.selectedSequence = []; 
+  // --- NOUVEAU SÉLECTEUR DE CHANT (MODERN SAAS) ---
+
+  let SS_STATE = { index: -1, song: null, recueilFilter: "ALL", searchTimer: null };
+
+  function openSongSelector(index) {
+      SS_STATE.index = index;
+      SS_STATE.song = null;
+      SS_STATE.recueilFilter = "ALL";
       
-      document.getElementById('songSelectorSearch').value = ""; 
-      document.getElementById('songSelectorResults').innerHTML = '<div class="text-center py-4 text-muted small fst-italic">Recherchez un chant...</div>'; 
-      document.getElementById('songSelectorPreviewPanel').innerHTML = '<div class="h-100 d-flex align-items-center justify-content-center text-muted small fst-italic">Sélectionnez un chant à gauche.</div>'; 
-      document.getElementById('songSelectorStatus').innerText = ""; 
-      document.getElementById('btnConfirmSong').disabled = true; 
+      // Reset UI
+      document.getElementById('ssSearchInput').value = "";
+      document.getElementById('ssResultsList').innerHTML = '<div class="text-center py-5 text-muted small fst-italic">Recherchez un titre ou un numéro...</div>';
+      document.getElementById('ssEmptyState').classList.remove('d-none');
+      document.getElementById('ssDetailsView').classList.add('d-none');
+      document.getElementById('ssDetailsView').classList.remove('d-flex');
       
-      showMobileSongList(); 
-      openCustomModal('songSelectorModal', 'progCreatorOverlay');
-      setTimeout(() => document.getElementById('songSelectorSearch').focus(), 100); 
+      toggleSongSelectorView('LIST');
+      renderRecueilFilters();
+      
+      if(typeof openCustomModal === 'function') openCustomModal('songSelectorModal', 'progCreatorOverlay');
+      else { 
+          // Fallback Template view safety
+          document.getElementById('songSelectorModal').style.display='flex';
+          document.getElementById('progCreatorOverlay').style.display='block';
+      }
+      
+      setTimeout(() => document.getElementById('ssSearchInput').focus(), 100);
+      handleSongSearch("");
   }
-  
-  function showMobileSongList() { 
-      const colSearch = document.getElementById('colSearch'); 
-      const colConfig = document.getElementById('colConfig'); 
-      colSearch.classList.remove('d-none'); 
-      colConfig.classList.add('d-none'); colConfig.classList.remove('d-flex'); 
+
+  function toggleSongSelectorView(view) {
+      const container = document.getElementById('ssContainer');
+      if (view === 'DETAILS') container.classList.add('show-details');
+      else container.classList.remove('show-details');
   }
-  
-  function showMobileSongConfig() { 
-      const colSearch = document.getElementById('colSearch'); 
-      const colConfig = document.getElementById('colConfig'); 
-      if (window.innerWidth < 768) { 
-          colSearch.classList.add('d-none'); 
-          colConfig.classList.remove('d-none'); colConfig.classList.add('d-flex'); 
-      } 
+
+  function renderRecueilFilters() {
+      const container = document.getElementById('ssFilterContainer');
+      container.innerHTML = "";
+      
+      // "val" est ce qui est envoyé au backend, "label" est ce qui est affiché
+      const filters = [
+          { val: "ALL", label: "Tout" },
+          { val: "Fihirana", label: "Fihirana" },
+          { val: "Fihirana Fanampiny", label: "Fihirana Fanampiny" },
+          { val: "Antema", label: "Antema" },
+          { val: "Tsanta", label: "Tsanta" }
+      ];
+      
+      filters.forEach(f => {
+          const pill = document.createElement('div');
+          pill.className = `filter-pill ${SS_STATE.recueilFilter === f.val ? 'active' : ''}`;
+          pill.innerText = f.label;
+          pill.onclick = () => {
+              SS_STATE.recueilFilter = f.val;
+              renderRecueilFilters();
+              handleSongSearch(document.getElementById('ssSearchInput').value);
+          };
+          container.appendChild(pill);
+      });
   }
-  
-  let songSearchTimer = null;
-  function searchSongsForSelector(query) { 
-      if(songSearchTimer) clearTimeout(songSearchTimer); 
-      songSearchTimer = setTimeout(() => { 
-          const container = document.getElementById('songSelectorResults'); 
-          container.innerHTML = '<div class="text-center py-3"><div class="spinner-border spinner-border-sm text-muted"></div></div>'; 
-          google.script.run.withSuccessHandler(results => { 
-              container.innerHTML = ""; 
-              if(results.length === 0) { container.innerHTML = '<div class="text-center py-3 text-muted small">Aucun résultat.</div>'; return; } 
-              results.forEach(song => { 
-                  const div = document.createElement('div'); div.className = "song-item"; 
-                  let snippetHtml = ""; 
-                  if (song.snippet) { snippetHtml = '<div class="text-truncate text-muted small mt-1" style="font-size: 11px;">' + highlightText(song.snippet, query) + '</div>'; } 
-                  div.innerHTML = '<div class="w-100"><div class="d-flex align-items-center"><span class="song-ref">' + song.recueil + ' ' + song.numero + '</span><span class="fw-bold small text-dark">' + highlightText(song.titre, query) + '</span></div>' + snippetHtml + '</div><i class="bi bi-chevron-right small text-muted ms-2"></i>'; 
-                  div.onclick = function() { 
-                      document.querySelectorAll('.song-item').forEach(el => el.classList.remove('active')); 
-                      div.classList.add('active'); 
-                      selectSongForConfig(song); 
-                  }; 
-                  container.appendChild(div); 
-              }); 
-          }).searchChantsBackend(query, activeRecueilFilter); 
-      }, 300); 
+
+  function handleSongSearch(query) {
+      if(SS_STATE.searchTimer) clearTimeout(SS_STATE.searchTimer);
+      
+      // Feedback immédiat (Skeleton)
+      if (query.length > 0 || SS_STATE.recueilFilter !== 'ALL') {
+          document.getElementById('ssResultsList').classList.add('hidden');
+          document.getElementById('ssSkeletonList').classList.remove('hidden');
+      }
+
+      SS_STATE.searchTimer = setTimeout(() => {
+          google.script.run.withSuccessHandler(results => {
+              // Switch Vue
+              document.getElementById('ssSkeletonList').classList.add('hidden');
+              document.getElementById('ssResultsList').classList.remove('hidden');
+              
+              const container = document.getElementById('ssResultsList');
+              container.innerHTML = "";
+              
+              if(results.length === 0) { 
+                  container.innerHTML = '<div class="text-center py-5 text-muted small">Aucun résultat trouvé.</div>'; 
+                  return; 
+              }
+              
+              results.forEach(song => {
+                  const div = document.createElement('div');
+                  div.className = "ss-song-item";
+                  if (SS_STATE.song && SS_STATE.song.id === song.id) div.classList.add('active');
+                  
+                  // --- RÈGLES DE BADGE & NUMÉROTATION ---
+                  let recueilClean = (song.recueil || "").toLowerCase().trim();
+                  let displayBadge = "";
+                  
+                  if(recueilClean === 'fihirana') {
+                      // Règle a: Fihirana -> 3 digits (001)
+                      displayBadge = String(song.numero).padStart(3, '0');
+                  } else {
+                      // Règles b, c, d : Préfixe + Numéro
+                      let prefix = "XX";
+                      if(recueilClean.includes('fanampiny')) prefix = "FF";
+                      else if(recueilClean.includes('antema')) prefix = "AN";
+                      else if(recueilClean.includes('tsanta')) prefix = "TS";
+                      
+                      displayBadge = `${prefix} ${song.numero}`;
+                  }
+                  
+                  // Construction HTML du Badge
+                  // Fihirana en bleu, les autres en gris
+                  let badgeClass = (recueilClean === 'fihirana') 
+                      ? "bg-primary-subtle text-primary border-primary border-opacity-25" 
+                      : "bg-light text-secondary border";
+                  
+                  let badgeHtml = `<span class="badge ${badgeClass} me-3" style="min-width: 50px; font-size:12px;">${displayBadge}</span>`;
+                  
+                  // --- GESTION SNIPPET (Paroles) ---
+                  let snippetHtml = "";
+                  if (song.snippet) {
+                      // On affiche l'extrait en petit, italique, grisé
+                      snippetHtml = `<div class="text-muted fst-italic mt-1 text-truncate small" style="font-size:11px; opacity:0.8;">${highlightText(song.snippet, query)}</div>`;
+                  }
+
+                  div.innerHTML = `
+                      <div class="d-flex align-items-center overflow-hidden w-100">
+                          ${badgeHtml}
+                          <div class="d-flex flex-column overflow-hidden flex-grow-1">
+                              <span class="fw-bold text-dark text-truncate" style="font-size:13px;">${highlightText(song.titre, query)}</span>
+                              ${snippetHtml}
+                          </div>
+                      </div>
+                      <i class="bi bi-chevron-right small text-muted opacity-25 ms-2"></i>
+                  `;
+                  
+                  div.onclick = () => {
+                      document.querySelectorAll('.ss-song-item').forEach(el => el.classList.remove('active'));
+                      div.classList.add('active');
+                      loadSongDetails(song);
+                  };
+                  container.appendChild(div);
+              });
+          }).searchChantsBackend(query, SS_STATE.recueilFilter === 'ALL' ? '' : SS_STATE.recueilFilter);
+      }, 300);
   }
-  
+
   function highlightText(text, query) { 
       if (!query || query.length < 2) return text; 
       const regex = new RegExp('(' + query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi'); 
       return text.replace(regex, '<span class="bg-warning bg-opacity-25">$1</span>'); 
   }
-  
-  function selectSongForConfig(song) { 
-      showMobileSongConfig(); 
-      const mobileTitle = document.getElementById('mobileConfigTitle'); 
-      if(mobileTitle) mobileTitle.innerText = song.titre; 
-      document.getElementById('songSelectorPreviewPanel').innerHTML = '<div class="h-100 d-flex align-items-center justify-content-center"><div class="spinner-border text-secondary"></div></div>'; 
-      google.script.run.withSuccessHandler(fullSong => { 
-          SONG_SELECTOR_CONTEXT.selectedSong = fullSong; 
-          renderSongConfigPanel(fullSong); 
-      }).getChantDetails(song.id); 
+
+  function loadSongDetails(songStub) {
+      toggleSongSelectorView('DETAILS');
+      
+      document.getElementById('ssEmptyState').classList.add('d-none');
+      document.getElementById('ssDetailsView').classList.remove('d-none');
+      document.getElementById('ssDetailsView').classList.add('d-flex');
+      
+      // Squelette
+      document.getElementById('ssStanzasList').classList.add('hidden');
+      document.getElementById('ssSkeletonDetails').classList.remove('hidden');
+      
+      // --- 3. FORMATAGE STRICT DU BADGE (Comme demandé) ---
+      let recueilClean = (songStub.recueil || "").toLowerCase().trim();
+      let displayBadge = "";
+      
+      if(recueilClean === 'fihirana') {
+          // Règle: Fihirana 002
+          displayBadge = "Fihirana " + String(songStub.numero).padStart(3, '0');
+      } else {
+          // Règles: FF 8, AN 2...
+          let prefix = "XX";
+          if(recueilClean.includes('fanampiny')) prefix = "FF";
+          else if(recueilClean.includes('antema')) prefix = "AN";
+          else if(recueilClean.includes('tsanta')) prefix = "TS";
+          displayBadge = `${prefix} ${songStub.numero}`;
+      }
+
+      document.getElementById('ssDetailTitle').innerText = songStub.titre;
+      document.getElementById('ssDetailRefBadge').innerText = displayBadge; // Applique le formatage
+      document.getElementById('ssMobileTitle').innerText = songStub.titre;
+      document.getElementById('ssDetailTonalite').innerText = songStub.tonalite ? `Tonalité : ${songStub.tonalite}` : "";
+      
+      google.script.run.withSuccessHandler(fullSong => {
+          SS_STATE.song = fullSong;
+          document.getElementById('ssSkeletonDetails').classList.add('hidden');
+          document.getElementById('ssStanzasList').classList.remove('hidden');
+          renderStanzasCheckboxes(fullSong);
+      }).getChantDetails(songStub.id);
   }
-  
-  function renderSongConfigPanel(song) { 
-      const panel = document.getElementById('songSelectorPreviewPanel'); 
+
+  function renderStanzasCheckboxes(song) {
+      const container = document.getElementById('ssStanzasList');
+      container.innerHTML = "";
+      
       const structureArr = (song.structure || "").split(','); 
-      const textMG = (song.paroles_mg || "").split(" /// "); 
-      
-      let chipsHTML = ""; let stanzaCount = 1; 
-      
+      const textMG = (song.paroles_mg || "").split(" /// ");
+      let stanzaCount = 1;
+
       if(structureArr.length === 0 || (structureArr.length === 1 && structureArr[0] === "")) { 
-          chipsHTML = '<div class="text-muted small fst-italic">Aucune structure définie.</div>'; 
-      } else { 
-          structureArr.forEach((type, idx) => { 
-              const t = type.trim().toUpperCase(); 
-              if (t === 'R') return; 
-              
-              let label = (t === 'C' ? 'Strophe ' + (stanzaCount++) : 'Pont'); 
-              let excerpt = textMG[idx] ? textMG[idx] : ""; 
-              
-              // Détection Refrain (regarde la suite)
-              let refrainHtml = ""; 
-              if (idx + 1 < structureArr.length && structureArr[idx+1].trim().toUpperCase() === 'R') { 
-                  let refText = (textMG[idx+1] || "").trim(); 
-                  if(refText.length > 50) refText = refText.substring(0, 50) + "..."; 
-                  refrainHtml = '<div class="mt-2 pt-2 border-top border-secondary border-opacity-10 text-success small fst-italic"><i class="bi bi-arrow-return-right me-1"></i>Ref: ' + refText + '</div>'; 
-              } 
-              
-              // HTML CARD GENERATION (Nouvelle version visuelle)
-              chipsHTML += `
-              <div class="stanza-card selected" id="chip_${idx}" onclick="toggleChip(${idx})">
-                  <div class="d-flex justify-content-between align-items-center mb-2">
-                      <div class="d-flex align-items-center gap-2">
-                          <div class="stanza-check-circle"><i class="bi bi-check-lg"></i></div>
-                          <span class="fw-bold small text-dark">${label}</span>
-                      </div>
-                      <span class="badge bg-light text-secondary border fw-normal" style="font-size:9px;">${t}</span>
-                  </div>
-                  <div class="text-muted small" style="line-height:1.4;">
-                      ${excerpt}
+          container.innerHTML = '<div class="text-muted small fst-italic p-3">Aucune structure définie.</div>'; 
+          return;
+      }
+
+      structureArr.forEach((type, idx) => { 
+          const t = type.trim().toUpperCase(); 
+          if (t === 'R') return; 
+          
+          let label = (t === 'C' ? 'Andininy ' + (stanzaCount++) : 'Pont'); 
+          
+          // --- 2. TEXTE COMPLET (Plus de substring) ---
+          // On affiche tout le texte brut
+          let fullText = textMG[idx] || "";
+          
+          let refrainHtml = ""; 
+          if (idx + 1 < structureArr.length && structureArr[idx+1].trim().toUpperCase() === 'R') { 
+              // Pour le refrain attaché, on garde un extrait pour ne pas surcharger la carte
+              // Sauf si tu veux tout le refrain aussi ? Ici je mets un extrait long (100 cars)
+              let refContent = (textMG[idx+1] || "");
+              refrainHtml = `<div class="mt-2 pt-2 border-top border-secondary border-opacity-10 text-success small fst-italic"><i class="bi bi-arrow-return-right me-1"></i>Ref: ${refContent}</div>`; 
+          }
+
+          const card = document.createElement('div');
+          card.className = "ss-stanza-card selected";
+          card.id = `stz_card_${idx}`;
+          card.onclick = () => toggleStanzaSelection(card);
+          
+          card.innerHTML = `
+              <div class="d-flex justify-content-between align-items-start">
+                  <div class="w-100 pe-3">
+                      <div class="fw-bold text-dark small mb-2">${label}</div>
+                      <!-- Classe CSS stanza-text-full pour l'affichage complet -->
+                      <div class="stanza-text-full">${fullText}</div>
                       ${refrainHtml}
                   </div>
-              </div>`;
-          }); 
-      } 
-      
-      panel.innerHTML = `
-      <div class="d-flex flex-column h-100">
-          <div class="p-3 border-bottom bg-white d-none d-md-block">
-              <h6 class="fw-bold mb-1 w-100" style="line-height:1.4;">${song.titre}</h6>
-              <div class="small text-muted mb-2">${song.recueil} ${song.numero} ${song.tonalite ? ' • ' + song.tonalite : ''}</div>
-              <div class="d-flex gap-2">
-                  <button class="btn-notion-outline" onclick="selectAllChips(true)">Tout cocher</button>
-                  <button class="btn-notion-outline" onclick="selectAllChips(false)">Tout décocher</button>
+                  <div class="ss-check-circle flex-shrink-0"><i class="bi bi-check-lg"></i></div>
               </div>
-          </div>
-          
-          <div class="d-md-none p-2 border-bottom bg-light d-flex gap-2 overflow-x-auto">
-              <button class="btn-notion-outline flex-fill" onclick="selectAllChips(true)">Tout cocher</button>
-              <button class="btn-notion-outline flex-fill" onclick="selectAllChips(false)">Tout décocher</button>
-          </div>
-          
-          <div class="flex-grow-1 overflow-auto p-3 custom-scrollbar" style="background-color: #fafafa;">
-              ${chipsHTML}
-          </div>
-      </div>`;
+          `;
+          container.appendChild(card);
+      });
       
-      document.getElementById('btnConfirmSong').disabled = false; 
-      updateSelectionStatus();
+      updateSelectionCount();
   }
-  
-  function toggleChip(index) { 
-      const chip = document.getElementById('chip_' + index); 
-      if(!chip) return; 
-      chip.classList.toggle('selected'); 
-      updateSelectionStatus(); 
+
+  function toggleStanzaSelection(card) { card.classList.toggle('selected'); updateSelectionCount(); }
+  function toggleAllStanzas(state) { document.querySelectorAll('.ss-stanza-card').forEach(c => { if(state) c.classList.add('selected'); else c.classList.remove('selected'); }); updateSelectionCount(); }
+
+  function updateSelectionCount() {
+      const count = document.querySelectorAll('.ss-stanza-card.selected').length;
+      document.getElementById('ssSelectionCount').innerText = count + " sélectionné(s)";
+      document.getElementById('btnConfirmSelection').disabled = (count === 0);
+      const all = document.querySelectorAll('.ss-stanza-card').length;
+      if(count === all) { document.getElementById('btnSelectAll').classList.add('d-none'); document.getElementById('btnDeselectAll').classList.remove('d-none'); }
+      else { document.getElementById('btnSelectAll').classList.remove('d-none'); document.getElementById('btnDeselectAll').classList.add('d-none'); }
   }
-  
-  function selectAllChips(state) { 
-      const chips = document.querySelectorAll('.stanza-card'); 
-      chips.forEach(chip => { 
-          if(state) chip.classList.add('selected'); 
-          else chip.classList.remove('selected'); 
-      }); 
-      updateSelectionStatus(); 
-  }
-  
-  function updateSelectionStatus() { 
-      const checked = document.querySelectorAll('.stanza-card.selected'); 
-      document.getElementById('songSelectorStatus').innerText = checked.length + ' strophe(s)'; 
-      document.getElementById('btnConfirmSong').disabled = (checked.length === 0);
-  }
-  
-  function confirmSongSelection() { 
-      const song = SONG_SELECTOR_CONTEXT.selectedSong; if(!song) return; 
-      const chips = document.querySelectorAll('.stanza-card.selected'); 
-      const sequenceIndices = []; 
+
+  function confirmSongSelection() {
+      const song = SS_STATE.song;
+      if(!song) return;
+      const cards = document.querySelectorAll('.ss-stanza-card.selected');
+      const sequenceIndices = [];
+      const sortedCards = Array.from(cards).sort((a, b) => parseInt(a.id.replace('stz_card_', '')) - parseInt(b.id.replace('stz_card_', '')));
+      const structArr = (song.structure || "").split(',');
       
-      // On trie les chips par ID pour garder l'ordre logique
-      const sortedChips = Array.from(chips).sort((a, b) => {
-          return parseInt(a.id.replace('chip_', '')) - parseInt(b.id.replace('chip_', ''));
+      sortedCards.forEach(card => {
+          let idx = parseInt(card.id.replace('stz_card_', ''));
+          sequenceIndices.push(idx);
+          if (idx + 1 < structArr.length && structArr[idx+1].trim().toUpperCase() === 'R') sequenceIndices.push(idx + 1);
       });
 
-      sortedChips.forEach((chip) => { 
-          let idx = parseInt(chip.id.replace('chip_', '')); 
-          sequenceIndices.push(idx); 
-          const structArr = (song.structure || "").split(','); 
-          if (idx + 1 < structArr.length && structArr[idx+1].trim().toUpperCase() === 'R') { 
-              sequenceIndices.push(idx + 1); 
-          } 
-      }); 
+      const textMGArr = (song.paroles_mg || "").split(" /// ");
+      const textFRArr = (song.paroles_fr || "").split(" /// ");
+      let fullTextMG = ""; let fullTextFR = ""; let cleanSequence = []; let cCount = 1; let displayLabels = {}; let totalCouplets = 0;
       
-      if(sequenceIndices.length === 0) { showNotionToast("Veuillez sélectionner au moins une strophe.", "error"); return; } 
-      
-      const textMGArr = (song.paroles_mg || "").split(" /// "); 
-      const textFRArr = (song.paroles_fr || "").split(" /// "); 
-      const structArr = (song.structure || "").split(","); 
-      let fullTextMG = ""; let fullTextFR = ""; let cleanSequence = []; let displayLabels = {}; let cCount = 1; let totalCouplets = 0; 
-      structArr.forEach((t, i) => { if(t.trim().toUpperCase() === 'C') { displayLabels[i] = cCount++; totalCouplets++; } else if(t.trim().toUpperCase() === 'R') displayLabels[i] = "Ref"; else displayLabels[i] = ""; }); 
-      sequenceIndices.forEach((idx, i) => { 
-          const txtM = textMGArr[idx] || ""; const txtF = textFRArr[idx] || ""; let label = displayLabels[idx] ? displayLabels[idx] + ". " : ""; 
-          if(i > 0) { fullTextMG += "\n\n"; fullTextFR += "\n\n"; } 
-          fullTextMG += label + txtM; if(txtF.trim() !== "") { fullTextFR += label + txtF; } 
-          if(structArr[idx] && structArr[idx].trim().toUpperCase() === 'C') cleanSequence.push(displayLabels[idx]); 
-      }); 
-      let summaryStr = (cleanSequence.length === totalCouplets) ? "Tout" : cleanSequence.join(", "); 
-      
-      const idx = SONG_SELECTOR_CONTEXT.blockIndex; 
-      if(idx > -1 && DATA_PROGRAMME_BLOCKS[idx]) { 
-          if(!DATA_PROGRAMME_BLOCKS[idx].data) DATA_PROGRAMME_BLOCKS[idx].data = {}; 
-          Object.assign(DATA_PROGRAMME_BLOCKS[idx].data, { id: song.id, titre: song.titre, recueil: song.recueil, numero: song.numero, sequenceSummary: summaryStr, tonalite: song.tonalite, transStatus: song.transStatus, sequence: sequenceIndices, paroles_fixe: fullTextMG, paroles_fr_fixe: fullTextFR, mode: "fixe" }); 
-          setDirty(true); 
-          renderCurrentTimeline(); 
-          closeAllModals(); 
-          showNotionToast("Chant inséré avec succès !", "success"); 
-      } 
+      structArr.forEach((t, i) => { 
+          if(t.trim().toUpperCase() === 'C') { displayLabels[i] = cCount++; totalCouplets++; } 
+          else if(t.trim().toUpperCase() === 'R') displayLabels[i] = "Ref"; 
+          else displayLabels[i] = ""; 
+      });
+
+      sequenceIndices.forEach((idx, i) => {
+          const txtM = textMGArr[idx] || ""; const txtF = textFRArr[idx] || ""; let label = displayLabels[idx] ? displayLabels[idx] + ". " : "";
+          if (i > 0) { fullTextMG += "\n"; fullTextFR += "\n"; } // CORRIGÉ : \n simple
+          fullTextMG += label + txtM;
+          if(txtF.trim() !== "") fullTextFR += label + txtF;
+          if(structArr[idx] && structArr[idx].trim().toUpperCase() === 'C') cleanSequence.push(displayLabels[idx]);
+      });
+
+      let summaryStr = (cleanSequence.length === totalCouplets) ? "Tout" : cleanSequence.join(", ");
+      const targetData = (APP_CONTEXT === 'TEMPLATE') ? DATA_TEMPLATE_BLOCKS : DATA_PROGRAMME_BLOCKS;
+      const idx = SS_STATE.index;
+
+      if(idx > -1 && targetData[idx]) {
+          if(!targetData[idx].data) targetData[idx].data = {};
+          Object.assign(targetData[idx].data, {
+              id: song.id, titre: song.titre, recueil: song.recueil, numero: song.numero,
+              sequenceSummary: summaryStr, tonalite: song.tonalite, transStatus: song.transStatus,
+              sequence: sequenceIndices, paroles_fixe: fullTextMG, paroles_fr_fixe: fullTextFR, mode: "fixe"
+          });
+          setDirty(true);
+          if(APP_CONTEXT === 'TEMPLATE') renderSharedBlocks('blocksContainer', targetData, 'TEMPLATE');
+          else renderCurrentTimeline();
+          closeAllModals();
+          showNotionToast("Chant inséré !", "success");
+      }
   }
 
   // --- UTILS ---

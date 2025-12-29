@@ -503,4 +503,262 @@
     text-align: center;
 }
 
+/* =========================================================
+   GLOBAL COMPONENT: SONG SELECTOR PREMIUM (Sélecteur de Chant)
+   ========================================================= */
+
+/* CONTENEUR PRINCIPAL */
+.ss-container { 
+    display: flex; height: 100%; overflow: hidden; background: #fff; 
+    border-radius: 0 0 12px 12px; /* Coins arrondis en bas */
+}
+
+/* SIDEBAR (Gauche) */
+.ss-sidebar { 
+    width: 350px; 
+    border-right: 1px solid #E5E7EB; 
+    background: #FAFAFA; 
+    display: flex; flex-direction: column; flex-shrink: 0; 
+    height: 100%; /* Force la hauteur */
+}
+
+.ss-search-header { 
+    padding: 20px; background: #FAFAFA; z-index: 10; flex-shrink: 0;
+}
+
+/* CORRECTION BARRE DE RECHERCHE */
+.ss-search-input-wrapper { 
+    position: relative; background: white; 
+    border: 1px solid #E5E7EB; border-radius: 8px; 
+    padding: 8px 12px; 
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05); 
+    transition: all 0.2s; 
+    /* AJOUTS FLEXBOX POUR L'ALIGNEMENT */
+    display: flex; 
+    align-items: center;
+}
+.ss-search-input-wrapper:focus-within { 
+    border-color: #2563EB; box-shadow: 0 0 0 3px #EFF6FF; 
+}
+
+.ss-search-input { 
+    border: none; outline: none; 
+    flex: 1; /* PREND TOUT L'ESPACE DISPONIBLE */
+    font-size: 14px; color: #111827; background: transparent; 
+    margin-left: 8px; /* Petit espace après la loupe */
+}
+
+/* FILTRES (Pills) */
+.filter-scroll-container { 
+    display: flex; gap: 8px; 
+    flex-wrap: wrap; /* Multi-lignes */
+    padding-bottom: 4px; margin-top: 12px; 
+}
+
+.filter-pill { 
+    padding: 6px 14px; border-radius: 20px; 
+    font-size: 12px; font-weight: 600; color: #4B5563; 
+    background: white; border: 1px solid #E5E7EB; 
+    cursor: pointer; transition: all 0.2s; white-space: nowrap; 
+    box-shadow: 0 1px 2px rgba(0,0,0,0.02); 
+}
+.filter-pill:hover { border-color: #D1D5DB; transform: translateY(-1px); }
+.filter-pill.active { 
+    background: #1F2937; color: white; border-color: #1F2937; 
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1); 
+}
+
+/* ACTIVATION SCROLL LISTE */
+#ssResultsList {
+    flex: 1; /* Prend l'espace restant */
+    overflow-y: auto; /* Active le scroll vertical */
+    height: 100%; /* Sécurité */
+}
+
+/* LISTE DES CHANTS */
+.ss-song-item { 
+    padding: 14px 20px; 
+    border-bottom: 1px solid #F3F4F6; 
+    cursor: pointer; transition: all 0.1s; 
+    display: flex; align-items: center; justify-content: space-between; 
+    border-left: 3px solid transparent; 
+}
+.ss-song-item:hover { background: #F3F4F6; }
+.ss-song-item.active { 
+    background: #FFFFFF; 
+    border-left-color: #2563EB; 
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04); 
+    z-index: 1; 
+}
+
+.song-badge-num { 
+    font-size: 11px; font-weight: 700; color: #6B7280; 
+    background: #F3F4F6; padding: 2px 6px; border-radius: 4px; 
+    margin-right: 10px; min-width: 35px; text-align: center; 
+}
+.ss-song-item.active .song-badge-num { 
+    background: #EFF6FF; color: #2563EB; 
+}
+
+/* MAIN AREA (Droite) */
+.ss-main { 
+    flex: 1; display: flex; flex-direction: column; 
+    background: #fff; position: relative; overflow: hidden; 
+}
+
+.ss-detail-header { 
+    padding: 24px 32px; 
+    background: white; 
+    border-bottom: 1px solid #E5E7EB; 
+}
+
+.ss-big-title { 
+    font-size: 20px; font-weight: 800; color: #111827; 
+    letter-spacing: -0.5px; margin-bottom: 4px; 
+}
+.ss-meta-row { 
+    display: flex; align-items: center; gap: 12px; 
+    font-size: 13px; color: #6B7280; 
+}
+
+/* ACTIVATION SCROLL DÉTAILS */
+.ss-scroll-area {
+    flex: 1; 
+    overflow-y: auto; 
+    position: relative;
+    background-color: #F9FAFB; /* Fond gris léger pour contraste cartes */
+}
+
+/* SEGMENTED CONTROL (Tout Cocher/Décocher) */
+.segmented-control { display: flex; background: #F3F4F6; padding: 3px; border-radius: 8px; border: 1px solid #E5E7EB; }
+.segment-btn { border: none; background: transparent; padding: 4px 12px; border-radius: 6px; font-size: 11px; font-weight: 600; color: #6B7280; transition: all 0.2s; display: flex; align-items: center; gap: 6px; }
+.segment-btn:hover { color: #111827; background: rgba(255,255,255,0.5); }
+.segment-btn:active { transform: scale(0.98); }
+
+/* CARTES STROPHES (Sélection) */
+.ss-stanza-card { 
+    border: 1px solid #E5E7EB; border-radius: 10px; padding: 16px; margin-bottom: 12px; 
+    cursor: pointer; transition: all 0.2s cubic-bezier(0.2, 0, 0, 1); 
+    background: white; position: relative; 
+}
+.ss-stanza-card:hover { 
+    border-color: #9CA3AF; transform: translateY(-2px); 
+    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); 
+}
+.ss-stanza-card.selected { 
+    border-color: #2563EB; background: #EFF6FF; 
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.15); 
+}
+
+.ss-check-circle { 
+    width: 22px; height: 22px; border-radius: 50%; border: 2px solid #D1D5DB; 
+    background: white; display: flex; align-items: center; justify-content: center; 
+    transition: all 0.2s; flex-shrink: 0; 
+}
+.ss-stanza-card.selected .ss-check-circle { 
+    background: #2563EB; border-color: #2563EB; 
+}
+.ss-check-circle i { 
+    font-size: 12px; color: white; opacity: 0; 
+    transform: scale(0.5); transition: all 0.2s; 
+}
+.ss-stanza-card.selected .ss-check-circle i { opacity: 1; transform: scale(1); }
+
+.stanza-text-full { 
+    font-size: 13px; color: #4B5563; line-height: 1.5; white-space: pre-wrap; 
+}
+
+/* SKELETON LOADING (Scintillement) */
+.skeleton-row { display: flex; align-items: center; gap: 10px; padding: 14px 20px; border-bottom: 1px solid #F3F4F6; }
+.sk-square { width: 35px; height: 20px; border-radius: 4px; background: #F3F4F6; }
+.sk-line-long { height: 14px; width: 70%; border-radius: 4px; background: #F3F4F6; }
+.sk-line-short { height: 14px; width: 40%; border-radius: 4px; background: #F3F4F6; }
+
+.shimmer { position: relative; overflow: hidden; }
+.shimmer::after { 
+    content: ""; position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.6), transparent); 
+    transform: translateX(-100%); animation: shimmer 1.5s infinite; 
+}
+@keyframes shimmer { 100% { transform: translateX(100%); } }
+
+/* RESPONSIVE MOBILE (CORRIGÉ V5 - Z-INDEX & FLEX FIX) */
+@media (max-width: 768px) {
+    /* 1. CONTENEUR GLOBAL */
+    .ss-container {
+        position: relative;
+        width: 100%; height: 100%;
+        overflow: hidden; /* Coupe tout ce qui dépasse */
+    }
+
+    /* 2. PANNEAUX (Sidebar & Main) */
+    .ss-sidebar, .ss-main { 
+        position: absolute; top: 0; left: 0; 
+        width: 100%; height: 100%; 
+        display: flex; flex-direction: column;
+        background: #fff !important; 
+        transition: transform 0.3s cubic-bezier(0.25, 1, 0.5, 1);
+        z-index: auto; /* Reset pour gérer manuellement */
+    }
+
+    /* Gestion des plans (Layers) */
+    .ss-sidebar { z-index: 10; transform: translateX(0); }
+    .ss-main { z-index: 20; transform: translateX(100%); box-shadow: -5px 0 20px rgba(0,0,0,0.15); }
+    
+    /* Animation Slide */
+    .ss-container.show-details .ss-sidebar { transform: translateX(-20%); opacity: 0.5; }
+    .ss-container.show-details .ss-main { transform: translateX(0); }
+    
+    /* 3. CONTENEUR DÉTAILS (Flex Column strict) */
+    #ssDetailsView {
+        display: flex; 
+        flex-direction: column;
+        height: 100% !important; /* Force la hauteur écran */
+        width: 100%;
+        overflow: hidden; /* Empêche le débordement global */
+    }
+
+    /* HEADER */
+    .ss-detail-header { 
+        flex-shrink: 0; 
+        padding: 12px 16px;
+        background: white;
+        border-bottom: 1px solid #f0f0f0;
+        z-index: 30;
+    }
+
+    /* 4. ZONE DE SCROLL (Le cœur du fix) */
+    .ss-scroll-area {
+        flex: 1 1 0px; /* Le 0px empêche le contenu de forcer la taille */
+        height: auto;
+        overflow-y: auto; 
+        -webkit-overflow-scrolling: touch;
+        background: #F9FAFB;
+        position: relative;
+        z-index: 1; /* Reste derrière le footer */
+        padding: 16px; /* Padding interne confortable */
+    }
+    
+    /* 5. FOOTER (Blindé) */
+    /* On cible spécifiquement la div du bas via son ID ou sa structure */
+    #ssDetailsView > .border-top {
+        flex-shrink: 0; /* Ne s'écrase jamais */
+        position: relative; /* Crée un contexte d'empilement */
+        z-index: 1000 !important; /* Au-dessus de tout, sans discussion */
+        background: white !important;
+        padding: 12px 16px !important;
+        box-shadow: 0 -4px 12px rgba(0,0,0,0.08); /* Ombre portée sur le contenu */
+        margin: 0 !important;
+        border-top: 1px solid #eee;
+    }
+
+    /* AJUSTEMENTS ESTHÉTIQUES MOBILE */
+    .ss-big-title { font-size: 18px; line-height: 1.3; }
+    .ss-meta-row { flex-wrap: wrap; }
+    .segmented-control .segment-btn { padding: 6px 10px; font-size: 11px; }
+    
+    /* On s'assure que les cartes ne passent pas devant */
+    .ss-stanza-card { z-index: 1; transform: none !important; }
+}
+
 </style>

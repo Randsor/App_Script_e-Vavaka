@@ -1,13 +1,183 @@
+<!-- VIEW_CHANTS.HTML -->
+
+<style>
+/* --- STYLES MODALE CHANT (V4 - COMPACT & FIXED) --- */
+.modal-saas-body { 
+    background-color: #F9FAFB; 
+    flex: 1; 
+    overflow-y: auto; 
+    display: flex;
+    flex-direction: column;
+}
+
+.modal-content {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    border: none;
+    box-shadow: var(--shadow-floating);
+}
+
+/* TITRE & METADATA */
+.title-input-wrapper {
+    background: white;
+    padding: 20px 32px 10px 32px; /* Réduit */
+}
+.title-input-huge {
+    font-size: 24px; /* Un peu plus petit pour gagner de la place */
+    font-weight: 800;
+    color: #111827;
+    border: none;
+    border-bottom: 1px solid transparent;
+    width: 100%;
+    background: transparent;
+    transition: all 0.2s;
+    line-height: 1.3;
+}
+.title-input-huge:focus { outline: none; border-bottom-color: var(--primary); }
+
+.metadata-section {
+    padding: 0 32px 20px 32px; /* Réduit */
+    background: white;
+    border-bottom: 1px solid var(--border-medium);
+}
+.chant-meta-grid {
+    display: grid;
+    grid-template-columns: 1fr 90px 90px 1fr; 
+    gap: 12px;
+}
+
+/* LYRICS SECTION */
+.lyrics-section {
+    padding: 24px 32px;
+    padding-bottom: 32px; 
+}
+
+/* STANZA CARD */
+.stanza-block {
+    background: white;
+    border: 1px solid var(--border-medium);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    margin-bottom: 12px;
+    overflow: hidden;
+    transition: transform 0.2s, box-shadow 0.2s;
+    animation: slideInUp 0.3s ease-out forwards;
+}
+.stanza-block:hover { box-shadow: var(--shadow-md); border-color: #D1D5DB; }
+.stanza-block.sortable-ghost { opacity: 0.4; background: #F3F4F6; border: 2px dashed #9CA3AF; }
+.stanza-block.sortable-drag { cursor: grabbing; transform: rotate(1deg); box-shadow: var(--shadow-floating); }
+
+.stanza-header {
+    padding: 6px 16px; /* Plus compact */
+    background: #FAFAFA;
+    border-bottom: 1px solid var(--border-subtle);
+    display: flex; justify-content: space-between; align-items: center;
+}
+.stanza-drag-handle { cursor: grab; padding: 4px; color: #9CA3AF; }
+
+.stanza-badge { font-size: 10px; font-weight: 700; text-transform: uppercase; padding: 3px 8px; border-radius: 6px; }
+.badge-couplet { background: #EFF6FF; color: #2563EB; border: 1px solid #BFDBFE; }
+.badge-refrain { background: #ECFDF5; color: #059669; border: 1px solid #A7F3D0; }
+
+.stanza-body { display: flex; }
+.stanza-textarea {
+    border: none; border-radius: 0; padding: 12px 16px; resize: none; font-size: 13px; line-height: 1.5; background: transparent;
+}
+.stanza-textarea:focus { background: #F8FAFC; box-shadow: none !important; }
+.separator-vertical { width: 1px; background: var(--border-subtle); }
+
+/* --- FOOTER OPTIMISÉ (Une seule ligne) --- */
+.floating-actions {
+    position: relative;
+    background: white;
+    border-top: 1px solid var(--border-medium);
+    padding: 12px 32px; /* Hauteur réduite */
+    display: flex; 
+    justify-content: space-between; 
+    align-items: center;
+    z-index: 10;
+    flex-shrink: 0;
+}
+
+.action-group-add, .action-group-save {
+    display: flex; align-items: center; gap: 10px;
+}
+
+/* Boutons PC Compacts */
+.btn-pill-action {
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    padding: 6px 14px; 
+    border-radius: 6px;
+    font-weight: 600; font-size: 12px;
+    transition: all 0.2s; 
+    border: 1px solid transparent;
+    background: #F3F4F6; color: var(--text-primary);
+}
+.btn-pill-action:hover { background: #E5E7EB; color: #111827; }
+.btn-pill-action.add-c { color: var(--primary); background: var(--primary-subtle); }
+.btn-pill-action.add-c:hover { background: #DBEAFE; }
+.btn-pill-action.add-r { color: #059669; background: #ECFDF5; }
+.btn-pill-action.add-r:hover { background: #D1FAE5; }
+
+/* SKELETON FIX (Animation OK) */
+/* On enlève le background white qui écrasait l'animation */
+.sk-modal-title { height: 40px; width: 60%; margin-bottom: 20px; border-radius: 8px; }
+.sk-modal-meta { height: 60px; width: 100%; margin-bottom: 20px; border-radius: 8px; }
+.sk-modal-block { height: 120px; width: 100%; border: 1px solid #E5E7EB; border-radius: 12px; margin-bottom: 15px; background: none; }
+
+/* --- MOBILE VERSION --- */
+@media (max-width: 768px) {
+    .chant-meta-grid { grid-template-columns: 1fr 1fr; }
+    .stanza-body { flex-direction: column; }
+    .separator-vertical { width: 100%; height: 1px; }
+    
+    .lyrics-section { padding: 16px; padding-bottom: 140px; }
+
+    /* Footer Mobile : Retour au flottant pour l'ergonomie tactile */
+    .floating-actions { 
+        position: absolute; bottom: 0; left: 0; right: 0;
+        flex-direction: column; gap: 12px; padding: 16px; 
+        background: rgba(255,255,255,0.95); backdrop-filter: blur(5px);
+        box-shadow: 0 -4px 20px rgba(0,0,0,0.08);
+        border-top: 1px solid rgba(0,0,0,0.05);
+    }
+    
+    .action-group-add { width: 100%; }
+    .action-group-save { width: 100%; }
+    
+    .btn-pill-action { 
+        flex: 1; padding: 12px; 
+        border-radius: 50px; /* Bien rond sur mobile */
+        border: 1px solid var(--border-medium);
+        background: white; font-size: 14px;
+    }
+    .btn-saas-dark { flex: 1; padding: 12px; width: 100%; }
+    
+    /* Le bouton Annuler doit être un lien discret ou un bouton secondaire */
+    .btn-mobile-cancel {
+        flex: 1; padding: 12px; border-radius: 50px;
+        border: 1px solid var(--border-medium); background: white;
+        color: var(--text-secondary); font-weight: 500;
+    }
+
+    .title-input-wrapper { padding: 16px; }
+    .metadata-section { padding: 0 16px 16px 16px; }
+}
+</style>
+
 <!-- TOAST -->
 <div class="toast-container position-fixed bottom-0 start-50 translate-middle-x p-3" style="z-index: 10060;">
 <div id="liveToast" class="toast align-items-center text-white bg-dark border-0" role="alert" aria-live="assertive" aria-atomic="true">
 <div class="d-flex"><div class="toast-body" id="toastMessage">Action effectuée !</div><button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button></div>
 </div>
 </div>
+
 <div class="d-flex justify-content-between align-items-center mb-4">
 <div><h2 class="mb-1 fw-bold text-dark">Chants</h2><div class="text-secondary small">Répertoire de l'église</div></div>
 <button class="btn btn-saas-primary" onclick="openChantModal()"><i class="bi bi-plus-lg me-2"></i>Nouveau chant</button>
 </div>
+
 <!-- KPI CARDS -->
 <div class="row g-3 mb-4">
 <div class="col-6 col-xl-3">
@@ -43,6 +213,7 @@
 </div>
 </div>
 </div>
+
 <!-- SEARCH & FILTERS -->
 <div class="saas-card mb-4 p-3">
 <div class="d-flex flex-column gap-3">
@@ -59,31 +230,21 @@
 </div>
 </div>
 </div>
+
 <!-- GRID SYSTEM -->
 <style>
 .chant-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
-.chant-card {
-background: white; border: 1px solid var(--border-medium); border-radius: 8px;
-padding: 16px; transition: all 0.2s; cursor: pointer; position: relative;
-display: flex; flex-direction: column; justify-content: space-between; height: 100%;
-}
+.chant-card { background: white; border: 1px solid var(--border-medium); border-radius: 8px; padding: 16px; transition: all 0.2s; cursor: pointer; position: relative; display: flex; flex-direction: column; justify-content: space-between; height: 100%; }
 .chant-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-md); border-color: var(--primary-border); }
-
-.c-badge-ref {
-font-size: 12px; font-weight: 700; color: var(--text-secondary);
-background: #F3F4F6; padding: 2px 8px; border-radius: 4px; display: inline-block;
-}
+.c-badge-ref { font-size: 12px; font-weight: 700; color: var(--text-secondary); background: #F3F4F6; padding: 2px 8px; border-radius: 4px; display: inline-block; }
 .c-title { font-weight: 600; color: var(--text-primary); font-size: 14px; margin: 8px 0; line-height: 1.4; }
-
 .c-meta-row { display: flex; align-items: center; gap: 12px; margin-top: auto; padding-top: 10px; border-top: 1px solid #F3F4F6; }
 .c-meta-item { display: flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; color: var(--text-secondary); }
 .c-meta-item.missing { color: #DC2626; background: #FEF2F2; padding: 2px 6px; border-radius: 4px; }
-
 .sk-card { height: 120px; border-radius: 8px; }
-textarea { overflow: hidden; resize: none; }
 </style>
+
 <div id="chantsLoader" class="chant-grid mb-4">
-<div class="skeleton sk-card"></div><div class="skeleton sk-card"></div>
 <div class="skeleton sk-card"></div><div class="skeleton sk-card"></div>
 <div class="skeleton sk-card"></div><div class="skeleton sk-card"></div>
 </div>
@@ -91,69 +252,105 @@ textarea { overflow: hidden; resize: none; }
 <div id="emptySearchState" class="text-center py-5 hidden">
 <div class="text-muted fst-italic">Aucun chant trouvé.</div>
 </div>
-<!-- MODALE ÉDITEUR -->
-<!-- CORRECTION : Suppression de data-bs-backdrop="static" pour autoriser le clic -->
+
+<!-- === MODALE ÉDITEUR MODERN SAAS (V2) === -->
 <div class="modal fade" id="modalEditChant" tabindex="-1" aria-hidden="true">
 <div class="modal-dialog modal-lg modal-dialog-scrollable" style="height: 95vh;">
-<div class="modal-content" style="border-radius: 12px; box-shadow: 0 20px 50px rgba(0,0,0,0.3); border: none; height: 100%;">
-  <div id="modalLoader" class="hidden" style="position: absolute; inset: 0; background: rgba(255,255,255,0.9); z-index: 10; display: flex; align-items: center; justify-content: center;">
-    <div class="spinner-border text-secondary" role="status"></div>
+<div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden h-100">
+  
+  <!-- SKELETON LOADER (Phantom Blocks) -->
+  <div id="modalLoader" class="hidden" style="position: absolute; inset: 0; background: #F9FAFB; z-index: 50; padding: 30px; overflow: hidden;">
+    <div class="skeleton sk-modal-title"></div>
+    <div class="skeleton sk-modal-meta"></div>
+    <div class="skeleton sk-modal-block"></div>
+    <div class="skeleton sk-modal-block"></div>
   </div>
 
-  <div class="modal-header border-bottom px-4 py-3">
-    <h5 class="modal-title fw-bold text-dark" id="modalTitle">Nouveau chant</h5>
+  <!-- HEADER -->
+  <div class="modal-header border-bottom bg-white px-4 py-3">
+    <div class="d-flex align-items-center gap-3">
+        <div class="bg-dark text-white rounded-circle p-2 d-flex align-items-center justify-content-center" style="width:32px; height:32px; font-size: 14px;">
+            <i class="bi bi-pencil-fill"></i>
+        </div>
+        <h5 class="modal-title fw-bold text-dark m-0 fs-6" id="modalTitle">Édition</h5>
+    </div>
     <button type="button" class="btn-close" onclick="attemptClose()"></button>
   </div>
 
-  <div class="modal-body px-4 pt-4 bg-light custom-scrollbar" style="overflow-x: hidden;">
+  <div id="modalBodyContent" class="modal-body modal-saas-body p-0 position-relative custom-scrollbar">
     <form id="formChantEditor" style="width: 100%;">
       <input type="hidden" id="editRowIndex">
 
-      <div class="saas-card p-4 mb-4">
-          <div class="row g-3">
-              <div class="col-12 col-md-4">
-                <label class="small text-secondary fw-bold mb-1">RECUEIL</label>
-                <select class="form-select input-saas" id="editRecueil" onchange="markChantDirty()"></select>
+      <!-- TITRE IMPOSANT -->
+      <div class="title-input-wrapper">
+          <input type="text" class="title-input-huge" id="editTitre" placeholder="Titre du chant..." oninput="markChantDirty()">
+      </div>
+
+      <!-- MÉTADONNÉES -->
+      <div class="metadata-section">
+          <div class="chant-meta-grid">
+              <div>
+                  <label class="small text-secondary fw-bold mb-1" style="font-size:10px;">RECUEIL</label>
+                  <select class="form-select input-saas fw-bold border-secondary border-opacity-25" id="editRecueil" onchange="markChantDirty()"></select>
               </div>
-              <div class="col-6 col-md-2">
-                 <label class="small text-secondary fw-bold mb-1">NUMÉRO</label>
-                 <input type="number" class="form-control input-saas fw-bold" id="editNumero" oninput="markChantDirty()">
+              <div>
+                 <label class="small text-secondary fw-bold mb-1" style="font-size:10px;">NUMÉRO</label>
+                 <input type="number" class="form-control input-saas fw-bold border-secondary border-opacity-25" id="editNumero" oninput="markChantDirty()">
               </div>
-              <div class="col-6 col-md-2"> 
-                 <label class="small text-secondary fw-bold mb-1">TONALITÉ</label>
-                 <input type="text" class="form-control input-saas fw-bold" id="editTonalite" placeholder="ex: G" oninput="markChantDirty()">
+              <div> 
+                 <label class="small text-secondary fw-bold mb-1" style="font-size:10px;">TONALITÉ</label>
+                 <input type="text" class="form-control input-saas fw-bold border-secondary border-opacity-25" id="editTonalite" placeholder="G" oninput="markChantDirty()">
               </div>
-               <div class="col-12 col-md-4">
-                 <label class="small text-secondary fw-bold mb-1">TAGS</label>
-                 <input type="text" class="form-control input-saas" id="editTags" placeholder="Louange, Noël..." oninput="markChantDirty()">
-              </div>
-              <div class="col-12">
-                  <label class="small text-secondary fw-bold mb-1">TITRE</label>
-                  <input type="text" class="form-control input-saas fs-5 fw-bold" id="editTitre" placeholder="Titre du chant" oninput="markChantDirty()">
+               <div>
+                 <label class="small text-secondary fw-bold mb-1" style="font-size:10px;">TAGS</label>
+                 <input type="text" class="form-control input-saas border-secondary border-opacity-25" id="editTags" placeholder="Louange, Noël..." oninput="markChantDirty()">
               </div>
           </div>
       </div>
 
-      <div id="editorStrophesContainer" class="d-flex flex-column gap-3 mb-5"></div>
+      <!-- SECTION PAROLES -->
+      <div class="lyrics-section">
+          <div id="editorStrophesContainer" class="d-flex flex-column"></div>
 
-      <div class="text-center text-muted small fst-italic py-4 border-top border-dashed" id="emptyStropheMsg">
-        Aucune parole. Commencez par ajouter un couplet ou un refrain.
+          <div class="text-center text-muted py-5" id="emptyStropheMsg">
+            <div class="opacity-25 mb-3"><i class="bi bi-file-earmark-music display-4"></i></div>
+            <div class="small fw-medium">Le chant est vide.</div>
+            <div class="small fst-italic opacity-75">Ajoutez des paroles ci-dessous.</div>
+          </div>
       </div>
 
-      <div class="d-flex gap-2 justify-content-center pt-3 pb-5">
-        <button type="button" class="btn btn-outline-primary btn-sm px-3 rounded-pill" onclick="addStropheBlock('C')"><i class="bi bi-plus-lg me-1"></i> Couplet</button>
-        <button type="button" class="btn btn-outline-success btn-sm px-3 rounded-pill" onclick="addStropheBlock('R')"><i class="bi bi-plus-lg me-1"></i> Refrain</button>
-      </div>
     </form>
   </div>
 
-  <div class="modal-footer border-top bg-white px-4 py-3">
-    <button type="button" class="btn btn-saas-secondary" onclick="attemptClose()">Annuler</button>
-    <button type="button" class="btn btn-saas-dark px-4" id="btnSaveChant" onclick="submitChantSave()">Enregistrer</button>
+  <!-- FLOATING ACTION BAR -->
+  <div class="floating-actions">
+      <!-- Groupe Gauche : Ajout -->
+      <div class="action-group-add">
+        <button type="button" class="btn-pill-action add-c" onclick="addStropheBlock('C')">
+            <i class="bi bi-plus-lg"></i> Andininy
+        </button>
+        <button type="button" class="btn-pill-action add-r" onclick="addStropheBlock('R')">
+            <i class="bi bi-plus-lg"></i> Refrain
+        </button>
+      </div>
+
+      <!-- Groupe Droite : Validation -->
+      <div class="action-group-save">
+         <!-- Bouton Annuler visible sur mobile maintenant -->
+         <button type="button" class="btn btn-link text-secondary text-decoration-none d-none d-md-block" onclick="attemptClose()">Annuler</button>
+         
+         <!-- Version Mobile du bouton Annuler (si on veut un style différent, sinon le link au dessus suffit si on enlève le d-none) -->
+         <!-- Pour faire propre sur mobile, on l'intègre souvent en full width secondaire, ici je le laisse en link sur PC et je le mets en bouton sur mobile -->
+         <button type="button" class="btn-mobile-cancel d-md-none" onclick="attemptClose()">Annuler</button>
+
+         <button type="button" class="btn btn-dark px-4 shadow-sm w-100-mobile" id="btnSaveChant" onclick="submitChantSave()">Enregistrer</button>
+      </div>
   </div>
+
 </div>
 </div>
 </div>
+
 <!-- CONFIRMATION MODAL -->
 <div id="confirmDiscardModal" class="notion-dialog" style="display:none; width: 320px; padding: 20px; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 10070;">
 <div class="text-center mb-3">

@@ -126,6 +126,8 @@
       .mobile-stack { flex-direction: column; }
       .mobile-hidden { display: none !important; }
   }
+
+
 </style>
 
 <div class="h-100 bg-white d-flex flex-column position-relative">
@@ -264,41 +266,7 @@
       </div>
   </div>
   
-  <!-- SÉLECTEURS (AJUSTEMENT LARGEUR MODALE + SCROLL FIX) -->
-  <!-- SÉLECTEUR DE CHANT (CORRIGÉ : Largeur + Scroll Flexbox) -->
-  <div id="songSelectorModal" class="notion-dialog-wrapper" style="display:none; width: 950px; max-width: 95vw;">
-      <div class="modal-notion-header">
-          <div class="modal-title-wrap"><div class="modal-icon-box"><i class="bi bi-music-note-beamed"></i></div><span>Sélectionner un chant</span></div>
-          <button class="btn-close small" aria-label="Close" onclick="closeAllModals()"></button>
-      </div>
-      
-      <!-- FIX SCROLL : min-height: 0 est CRUCIAL ici pour que le flexbox scroll fonctionne -->
-      <div class="row g-0 flex-grow-1 overflow-hidden" style="min-height: 0;">
-          <div id="colSearch" class="col-12 col-md-5 border-end d-flex flex-column h-100 bg-white">
-              <div class="p-3 border-bottom bg-white">
-                  <div id="recueilPillsContainer" class="pills-container"></div>
-                  <div class="search-wrapper m-0"><i class="bi bi-search"></i><input type="text" id="songSelectorSearch" class="search-input-modern" placeholder="Rechercher..." onkeyup="searchSongsForSelector(this.value)"></div>
-              </div>
-              <div id="songSelectorResults" class="flex-grow-1 overflow-auto custom-scrollbar"><div class="text-center py-4 text-muted small fst-italic">Recherchez un chant...</div></div>
-          </div>
-          <div id="colConfig" class="col-12 col-md-7 d-none d-md-flex flex-column h-100 bg-white">
-              <div class="d-md-none p-2 border-bottom bg-white d-flex align-items-center gap-2">
-                  <button class="btn btn-sm btn-white border shadow-sm" onclick="showMobileSongList()"><i class="bi bi-arrow-left"></i></button>
-                  <span class="fw-bold small text-truncate flex-grow-1" id="mobileConfigTitle">Configuration</span>
-              </div>
-              <div id="songSelectorPreviewPanel" class="flex-grow-1 overflow-hidden d-flex flex-column"><div class="h-100 d-flex align-items-center justify-content-center text-muted small fst-italic">Sélectionnez un chant à gauche.</div></div>
-          </div>
-      </div>
-      
-      <div class="p-3 border-top bg-white d-flex justify-content-between align-items-center">
-          <span class="small text-muted" id="songSelectorStatus"></span>
-          <div class="d-flex gap-2">
-              <button class="btn-notion-text" onclick="closeAllModals()">Annuler</button>
-              <button class="btn-notion-black" id="btnConfirmSong" disabled onclick="confirmSongSelection()">Insérer</button>
-          </div>
-      </div>
-  </div>
-
+  
   <div id="fanekenaSelectorModal" class="notion-dialog-wrapper notion-dialog-simple" style="display:none; width: 400px; height: 500px;">
       <div class="modal-notion-header">
           <div class="modal-title-wrap"><div class="modal-icon-box"><i class="bi bi-journal-text"></i></div><span>Confessions de foi</span></div>

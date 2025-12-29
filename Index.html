@@ -61,6 +61,110 @@
   <?!= include('JS_Config'); ?>
   <?!= include('JS_Export'); ?>
 
+<!-- GLOBAL SHARED MODAL: SONG SELECTOR -->
+<div id="songSelectorModal" class="notion-dialog-wrapper" style="display:none; width: 950px; max-width: 95vw; height: 85vh;">
+    
+    <div class="modal-notion-header border-bottom">
+        <div class="modal-title-wrap">
+            <div class="modal-icon-box"><i class="bi bi-music-note-beamed"></i></div>
+            <span class="fw-bold">Sélectionner un chant</span>
+        </div>
+        <button class="btn-close small" aria-label="Close" onclick="closeAllModals()"></button>
+    </div>
+    
+    <div id="ssContainer" class="ss-container">
+        
+        <!-- SIDEBAR GAUCHE -->
+        <div class="ss-sidebar custom-scrollbar">
+            <div class="ss-search-header border-bottom sticky-top">
+                <div class="ss-search-input-wrapper">
+                    <i class="bi bi-search text-muted me-2"></i>
+                    <!-- Input corrigé pour prendre toute la largeur -->
+                    <input type="text" id="ssSearchInput" class="ss-search-input" placeholder="Titre, numéro ou paroles..." onkeyup="handleSongSearch(this.value)">
+                </div>
+                <div class="filter-scroll-container" id="ssFilterContainer"></div>
+            </div>
+            
+            <!-- Liste avec Scroll Forcé -->
+            <div class="position-relative flex-grow-1" style="overflow: hidden;">
+                <div id="ssResultsList" class="custom-scrollbar">
+                    <div class="text-center py-5 text-muted small fst-italic">Tapez une recherche pour commencer...</div>
+                </div>
+                
+                <div id="ssSkeletonList" class="hidden absolute-fill bg-white z-10 w-100 h-100" style="position:absolute; top:0; left:0;">
+                    <div class="skeleton-row shimmer"><div class="sk-square"></div><div class="sk-line-long"></div></div>
+                    <div class="skeleton-row shimmer"><div class="sk-square"></div><div class="sk-line-short"></div></div>
+                    <div class="skeleton-row shimmer"><div class="sk-square"></div><div class="sk-line-long"></div></div>
+                    <div class="skeleton-row shimmer"><div class="sk-square"></div><div class="sk-line-short"></div></div>
+                    <div class="skeleton-row shimmer"><div class="sk-square"></div><div class="sk-line-long"></div></div>
+                    <div class="skeleton-row shimmer"><div class="sk-square"></div><div class="sk-line-short"></div></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- MAIN DROITE -->
+        <div class="ss-main">
+            
+            <!-- Header Mobile -->
+            <div class="d-md-none p-3 border-bottom bg-white d-flex align-items-center gap-3">
+                <button class="btn btn-sm btn-light border rounded-circle shadow-sm" onclick="toggleSongSelectorView('LIST')"><i class="bi bi-arrow-left"></i></button>
+                <div class="fw-bold text-truncate" id="ssMobileTitle">Détails du chant</div>
+            </div>
+
+            <!-- Empty State -->
+            <div id="ssEmptyState" class="h-100 d-flex flex-column align-items-center justify-content-center text-muted">
+                <div class="bg-light rounded-circle p-4 mb-3 border"><i class="bi bi-music-note-list fs-1 opacity-25"></i></div>
+                <p class="small fw-medium">Sélectionnez un chant à gauche pour voir les détails</p>
+            </div>
+
+            <!-- Vue Détails -->
+            <div id="ssDetailsView" class="d-none flex-column h-100">
+                <div class="ss-detail-header">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <div class="ss-big-title" id="ssDetailTitle">Titre du chant</div>
+                            <div class="ss-meta-row">
+                                <span class="badge bg-light text-dark border" id="ssDetailRefBadge">...</span>
+                                <span id="ssDetailTonalite"></span>
+                            </div>
+                        </div>
+                        
+                        <div class="segmented-control">
+                            <button class="segment-btn" id="btnSelectAll" onclick="toggleAllStanzas(true)" title="Tout sélectionner">
+                                <i class="bi bi-check-all fs-6"></i> Tout
+                            </button>
+                            <div class="vr opacity-25 my-1"></div>
+                            <button class="segment-btn" id="btnDeselectAll" onclick="toggleAllStanzas(false)" title="Tout désélectionner">
+                                <i class="bi bi-x fs-6"></i> Rien
+                            </button>
+                        </div>
+
+                    </div>
+                </div>
+                
+                <!-- Zone de Scroll pour les détails -->
+                <div class="ss-scroll-area custom-scrollbar">
+                    <div id="ssStanzasList" class="p-4"></div>
+                    
+                    <div id="ssSkeletonDetails" class="hidden w-100 h-100 bg-white p-4" style="position:absolute; top:0; left:0; z-index:10;">
+                        <div class="shimmer sk-line-long mb-4" style="height:30px; width:50%;"></div>
+                        <div class="shimmer sk-line-short mb-5" style="height:20px; width:20%;"></div>
+                        <div class="shimmer sk-modal-block mb-3" style="height:100px; border:1px solid #eee; border-radius:8px;"></div>
+                        <div class="shimmer sk-modal-block mb-3" style="height:100px; border:1px solid #eee; border-radius:8px;"></div>
+                    </div>
+                </div>
+
+                <div class="p-3 border-top bg-white d-flex justify-content-between align-items-center" style="z-index: 20; flex-shrink: 0;">
+                    <span class="small fw-bold text-primary" id="ssSelectionCount">0 sélectionné(s)</span>
+                    <button class="btn btn-dark px-4 shadow-sm" id="btnConfirmSelection" disabled onclick="confirmSongSelection()">
+                        Insérer le chant
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
   <!-- MODALE SYSTÈME DE NAVIGATION (GLOBAL) -->
   <div id="sysNavModal" class="notion-dialog" style="display:none; width: 320px; padding: 24px; text-align: center; z-index: 20010 !important;">
       <div class="mb-3">

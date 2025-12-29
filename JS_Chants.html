@@ -304,6 +304,25 @@ function cleanupModals() {
     backdrops.forEach(b => b.remove());
 }
 
+// Initialisation Sortable (Drag & Drop)
+function initChantSortable() {
+    const el = document.getElementById('editorStrophesContainer');
+    if (el) {
+        if(el._sortable) el._sortable.destroy();
+        el._sortable = new Sortable(el, {
+            animation: 300,
+            handle: '.stanza-drag-handle', // La poignée
+            ghostClass: 'sortable-ghost',
+            dragClass: 'sortable-drag',
+            onEnd: function() {
+                updateStropheNumbers(); // Recalcul des numéros après drop
+                markChantDirty();
+            }
+        });
+    }
+}
+
+// Mise à jour de l'ouverture (Scroll + Init Sortable)
 function openChantModal(id = null) {
     cleanupModals();
     setDirty(false);
@@ -314,18 +333,25 @@ function openChantModal(id = null) {
     const el = document.getElementById('modalEditChant');
     modalInstance = new bootstrap.Modal(el);
 
+    // Reset fields
     document.getElementById('editRowIndex').value = "";
     document.getElementById('editNumero').value = "";
-    document.getElementById('editTitre').value = "";
+    document.getElementById('editTitre').value = ""; // Titre vide
     document.getElementById('editTags').value = "";
     document.getElementById('editTonalite').value = "";
     document.getElementById('editorStrophesContainer').innerHTML = "";
     document.getElementById('emptyStropheMsg').classList.remove('hidden');
 
     modalInstance.show();
+    
+    // SCROLL TO TOP FORCE
+    setTimeout(() => { document.getElementById('modalBodyContent').scrollTop = 0; }, 100);
+
+    // INIT SORTABLE
+    setTimeout(initChantSortable, 200);
 
     if (id) {
-        document.getElementById('modalLoader').classList.remove('hidden');
+        document.getElementById('modalLoader').classList.remove('hidden'); // Phantom Blocks
         document.getElementById('modalTitle').innerText = "Modifier le chant";
 
         google.script.run.withSuccessHandler(chant => {
@@ -333,7 +359,7 @@ function openChantModal(id = null) {
             document.getElementById('editRowIndex').value = chant.rowIndex;
             document.getElementById('editRecueil').value = chant.recueil;
             document.getElementById('editNumero').value = chant.numero;
-            document.getElementById('editTitre').value = chant.titre;
+            document.getElementById('editTitre').value = chant.titre; // Titre principal
             document.getElementById('editTags').value = chant.tags || "";
             document.getElementById('editTonalite').value = chant.tonalite || "";
 
@@ -341,9 +367,17 @@ function openChantModal(id = null) {
             const frParts = chant.paroles_fr ? chant.paroles_fr.split(" /// ") : [];
             const types = chant.structure ? chant.structure.split(",") : [];
 
+            // On vide avant de remplir pour éviter les doublons si appel multiple
+             document.getElementById('editorStrophesContainer').innerHTML = "";
+
             for(let i=0; i < mgParts.length; i++) {
-                addStropheBlock(types[i] || 'C', mgParts[i], frParts[i]);
+                // False à la fin pour ne pas scroller en bas pendant le chargement
+                addStropheBlock(types[i] || 'C', mgParts[i], frParts[i], false); 
             }
+            
+            // Force Scroll Top après chargement
+            document.getElementById('modalBodyContent').scrollTop = 0;
+            
             setTimeout(() => { IGNORE_DIRTY_FLAG = false; }, 500);
         }).getChantDetails(id);
     } else {
@@ -359,43 +393,79 @@ function autoResize(textarea) {
     textarea.style.height = (textarea.scrollHeight) + 'px';
 }
 
+// Mise à jour Numérotation (ANDININY 1, 2...)
 function updateStropheNumbers() {
     let counter = 1;
-    document.querySelectorAll('.strophe-block').forEach(block => {
+    const blocks = document.getElementById('editorStrophesContainer').children;
+    
+    if(blocks.length === 0) {
+        document.getElementById('emptyStropheMsg').classList.remove('hidden');
+    } else {
+        document.getElementById('emptyStropheMsg').classList.add('hidden');
+    }
+
+    for (let block of blocks) {
         if (block.dataset.type === 'C') {
             const badge = block.querySelector('.counter');
-            if (badge) badge.innerText = "COUPLET " + counter++;
+            if (badge) badge.innerText = "ANDININY " + counter++;
         }
-    });
-    if(document.querySelectorAll('.strophe-block').length === 0)
-        document.getElementById('emptyStropheMsg').classList.remove('hidden');
+    }
 }
 
-function addStropheBlock(type, txtMG = "", txtFR = "") {
+// 4. Ajout de Bloc (Design V2 + Drag Handle + Scroll Optionnel)
+function addStropheBlock(type, txtMG = "", txtFR = "", scrollToView = true) {
     document.getElementById('emptyStropheMsg').classList.add('hidden');
     const container = document.getElementById('editorStrophesContainer');
     const div = document.createElement('div');
 
-    div.className = `saas-card p-3 position-relative strophe-block`;
+    div.className = `stanza-block`; 
     div.dataset.type = type;
-    div.style.borderLeft = (type === 'R') ? "4px solid #10B981" : "4px solid #3B82F6";
 
-    const labelText = type === 'R' ? 'REFRAIN' : 'COUPLET';
-    const labelClass = (type === 'R') ? 'text-success bg-success-subtle' : 'text-primary bg-primary-subtle';
+    const isRefrain = (type === 'R');
+    const labelText = isRefrain ? 'REFRAIN' : 'ANDININY'; // Sera mis à jour par updateStropheNumbers
+    const badgeClass = isRefrain ? 'badge-refrain' : 'badge-couplet';
 
     div.innerHTML = `
-    <div class="d-flex justify-content-between mb-2">
-        <span class="badge ${labelClass} border px-2 counter">${labelText}</span>
-        <i class="bi bi-x-lg text-muted cursor-pointer" onclick="this.closest('.saas-card').remove(); updateStropheNumbers(); markChantDirty();"></i>
+    <div class="stanza-header">
+        <div class="d-flex align-items-center gap-2">
+             <i class="bi bi-grip-vertical stanza-drag-handle" title="Déplacer"></i>
+             <span class="stanza-badge ${badgeClass} counter">${labelText}</span>
+        </div>
+        <button type="button" class="btn btn-link text-secondary p-0 opacity-50 hover-opacity-100 btn-action-danger" 
+                onclick="this.closest('.stanza-block').remove(); updateStropheNumbers(); markChantDirty();" title="Supprimer">
+            <i class="bi bi-trash3"></i>
+        </button>
     </div>
-    <div class="row g-3">
-        <div class="col-12 col-md-6"><textarea class="form-control input-saas bg-light inp-mg" rows="2" style="padding-bottom: 25px;" placeholder="Malgache..." oninput="autoResize(this); markChantDirty()">${txtMG}</textarea></div>
-        <div class="col-12 col-md-6"><textarea class="form-control input-saas bg-light inp-fr" rows="2" style="padding-bottom: 25px;" placeholder="Français..." oninput="autoResize(this); markChantDirty()">${txtFR}</textarea></div>
+    
+    <div class="d-flex stanza-body">
+        <div class="flex-grow-1">
+             <textarea class="form-control stanza-textarea inp-mg" rows="3" 
+                       placeholder="Texte Malgache..." 
+                       oninput="autoResize(this); markChantDirty()">${txtMG}</textarea>
+        </div>
+        <div class="separator-vertical"></div>
+        <div class="flex-grow-1">
+             <textarea class="form-control stanza-textarea inp-fr text-secondary fst-italic" rows="3" 
+                       placeholder="Traduction Française..." 
+                       oninput="autoResize(this); markChantDirty()">${txtFR}</textarea>
+        </div>
     </div>`;
   
     container.appendChild(div);
     updateStropheNumbers();
-    setTimeout(() => { div.querySelectorAll('textarea').forEach(el => autoResize(el)); }, 50);
+    
+    if (scrollToView) {
+        setTimeout(() => { 
+            div.querySelectorAll('textarea').forEach(el => autoResize(el)); 
+            const firstInput = div.querySelector('.inp-mg');
+            if(firstInput) firstInput.focus();
+            div.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 50);
+    } else {
+        // Juste resize sans scroll
+         setTimeout(() => { div.querySelectorAll('textarea').forEach(el => autoResize(el)); }, 10);
+    }
+
     if (!IGNORE_DIRTY_FLAG) markChantDirty();
 }
 
