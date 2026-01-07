@@ -1,51 +1,66 @@
 <style>
-  /* --- LAYOUT GLOBAL --- */
+  /* --- LAYOUT GLOBAL CONFIG (FIXED) --- */
   .cfg-container { 
       display: flex; flex-direction: column; 
-      background: #fff; height: 100%; overflow: hidden;
+      background: #fff; 
+      overflow: hidden; /* Le conteneur ne scrolle pas, ce sont ses enfants qui scrollent */
+      border-radius: 8px; /* Petit bonus esthétique */
+      box-shadow: var(--shadow-sm);
   }
   
-  /* HEADER */
+  /* HEADER FIXE */
   .cfg-header { 
       padding: 15px 25px; border-bottom: 1px solid #E5E7EB; 
       display: flex; justify-content: space-between; align-items: center;
-      background: #fff; flex-shrink: 0; z-index: 20;
+      background: #fff; 
+      flex-shrink: 0; /* Ne s'écrase jamais */
+      z-index: 20;
   }
 
   /* BODY (Menu + Contenu) */
   .cfg-body { 
-      display: flex; flex: 1; overflow: hidden; position: relative;
+      display: flex; 
+      flex: 1; /* Prend l'espace restant */
+      overflow: hidden; /* Pas de scroll ici, délégué aux enfants */
+      position: relative;
   }
 
-  /* SIDEBAR / TABS */
+  /* SIDEBAR GAUCHE FIXE */
   .cfg-sidebar {
-      width: 240px; background: #F9FAFB; border-right: 1px solid #E5E7EB;
-      padding: 20px 10px; display: flex; flex-direction: column; gap: 4px;
-      flex-shrink: 0; overflow-y: auto;
+      width: 260px; 
+      background: #F9FAFB; 
+      border-right: 1px solid #E5E7EB;
+      padding: 20px 10px; 
+      display: flex; flex-direction: column; gap: 4px;
+      flex-shrink: 0; 
+      overflow-y: auto; /* Scroll indépendant */
+      height: 100%;
   }
 
   .cfg-menu-item {
       display: flex; align-items: center; gap: 12px; padding: 10px 14px;
-      border-radius: 8px; color: #6B7280; font-size: 14px; font-weight: 500;
+      border-radius: 8px; color: #4B5563; font-size: 14px; font-weight: 500;
       cursor: pointer; transition: all 0.2s cubic-bezier(0.2, 0, 0, 1);
   }
-  .cfg-menu-item:hover { background-color: #F3F4F6; color: #111827; }
-  .cfg-menu-item.active { background-color: #EFF6FF; color: #2563EB; font-weight: 600; }
+  .cfg-menu-item:hover { background-color: #E5E7EB; color: #111827; }
+  .cfg-menu-item.active { background-color: #FFFFFF; color: #2563EB; font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
   
-  /* CONTENT */
+  /* CONTENT SCROLLABLE */
   .cfg-content {
-      flex: 1; padding: 30px; 
-      overflow-y: auto; 
-      background: #fff; scroll-behavior: smooth;
+      flex: 1; 
+      padding: 30px; 
+      overflow-y: auto; /* C'est ICI que le contenu scrolle */
+      background: #fff; 
+      scroll-behavior: smooth;
   }
 
   /* SECTIONS */
-  .cfg-section { display: none; animation: fadeInUp 0.4s ease forwards; }
+  .cfg-section { display: none; animation: fadeInUp 0.3s ease forwards; }
   .cfg-section.active { display: block; }
   .cfg-section-title { font-size: 20px; font-weight: 700; color: #111827; margin-bottom: 10px; }
   .cfg-section-desc { color: #6B7280; font-size: 13px; margin-bottom: 25px; }
 
-  /* MASONRY LAYOUT */
+  /* MASONRY LAYOUT (Rôles) */
   .roles-masonry { column-count: 1; column-gap: 24px; }
   
   .role-group-card {
@@ -71,43 +86,49 @@
   
   .cfg-input { border: none; background: transparent; width: 100%; font-size: 13px; color: #374151; outline: none; padding: 0; font-weight: 500; }
   
-  /* BOUTON AJOUT DANS CARTE */
-  .btn-add-row {
-      width: 100%; text-align: left; background: transparent; border: none;
-      color: #6B7280; font-size: 12px; font-weight: 500; padding: 10px 15px;
-      transition: all 0.2s; display: flex; align-items: center; gap: 8px;
-      cursor: pointer;
-  }
-  .btn-add-row:hover { background-color: #F3F4F6; color: #111827; }
-
   /* LOCK STATE */
   .is-locked .cfg-input { pointer-events: none; opacity: 0.7; }
-  .is-locked .btn-delete, 
-  .is-locked .btn-add, 
-  .is-locked .pass-toggle, 
-  .is-locked .btn-add-row,
-  .is-locked .btn-action-danger { 
-      display: none !important; 
-  }
+  .is-locked .btn-delete, .is-locked .btn-add, .is-locked .pass-toggle, .is-locked .btn-add-row, .is-locked .btn-action-danger { display: none !important; }
 
   @keyframes fadeInUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
   .cascade-item { opacity: 0; animation: fadeInUp 0.3s ease forwards; }
 
-  /* MOBILE */
+  /* MOBILE RESPONSIVE */
   @media (min-width: 992px) { .roles-masonry { column-count: 2; } }
   @media (max-width: 768px) {
-      .cfg-header { padding: 15px; flex-direction: column; gap: 10px; align-items: stretch; }
+      /* Ajustement hauteur mobile */
+      .cfg-container { 
+          height: calc(100vh - 80px) !important; /* On force la hauteur mobile */
+          border-radius: 0;
+      }
+
+      .cfg-header { padding: 12px 16px; flex-direction: column; gap: 10px; align-items: stretch; }
       .cfg-header > div:last-child { justify-content: flex-end; }
+      
       .cfg-body { flex-direction: column; }
-      .cfg-sidebar { width: 100%; height: auto; flex-direction: row; overflow-x: auto; white-space: nowrap; border-right: none; border-bottom: 1px solid #E5E7EB; padding: 5px 10px; }
-      .cfg-menu-item { padding: 8px 12px; font-size: 13px; background: #F3F4F6; border-radius: 20px; margin-right: 5px; }
-      .cfg-menu-item.active { background: #111827; color: #fff; }
+      
+      /* Sidebar devient Topbar scrollable horizontalement */
+      .cfg-sidebar { 
+          width: 100%; 
+          height: auto; 
+          flex-direction: row; 
+          overflow-x: auto; 
+          white-space: nowrap; 
+          border-right: none; 
+          border-bottom: 1px solid #E5E7EB; 
+          padding: 10px; 
+          flex-shrink: 0;
+      }
+      .cfg-menu-item { padding: 6px 12px; font-size: 13px; background: #fff; border: 1px solid #E5E7EB; border-radius: 20px; margin-right: 5px; }
+      .cfg-menu-item.active { background: #111827; color: #fff; border-color: #111827; }
       .cfg-menu-item i, .section-label { display: none; }
-      .cfg-content { padding: 15px; padding-bottom: 80px; }
+      
+      .cfg-content { padding: 20px; padding-bottom: 80px; }
   }
 </style>
 
-<div class="cfg-container" id="configViewRoot">
+<!-- ROOT CONTAINER (H-100 pour prendre toute la hauteur du parent View) -->
+<div class="cfg-container" id="configViewRoot" style="height: calc(100vh - 64px);">
     
     <!-- HEADER -->
     <div class="cfg-header">
@@ -149,8 +170,9 @@
                 </div>
 
                 <div id="rolesGridContainer" class="roles-masonry">
-                    <div class="skeleton" style="height: 150px; border-radius: 10px; margin-bottom:20px;"></div>
-                    <div class="skeleton" style="height: 100px; border-radius: 10px; margin-bottom:20px;"></div>
+                    <!-- SKELETON -->
+                    <div class="role-group-card p-3"><div class="skeleton" style="height:20px; width:40%; margin-bottom:15px;"></div><div class="skeleton" style="height:12px; margin-bottom:8px;"></div><div class="skeleton" style="height:12px; margin-bottom:8px;"></div></div>
+                    <div class="role-group-card p-3"><div class="skeleton" style="height:20px; width:40%; margin-bottom:15px;"></div><div class="skeleton" style="height:12px; margin-bottom:8px;"></div></div>
                 </div>
             </div>
 
@@ -164,7 +186,7 @@
                         <i class="bi bi-plus-lg cursor-pointer btn-add text-success fs-6" onclick="addNom()" title="Ajouter"></i>
                     </div>
                     <div id="nomsContainer">
-                        <div class="skeleton" style="height: 40px; margin: 10px;"></div>
+                        <div class="p-3"><div class="skeleton" style="height: 12px;"></div></div>
                     </div>
                 </div>
             </div>
@@ -211,7 +233,7 @@
                         <i class="bi bi-person-plus-fill cursor-pointer btn-add text-danger fs-6" onclick="addValideur()"></i>
                     </div>
                     <div id="valideursContainer">
-                        <div class="skeleton" style="height: 40px; margin: 10px;"></div>
+                        <div class="p-3"><div class="skeleton" style="height: 12px;"></div></div>
                     </div>
                 </div>
             </div>

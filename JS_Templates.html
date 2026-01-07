@@ -143,10 +143,37 @@
   }
   
   function loadTemplatesList() { 
+      const container = document.getElementById('templatesList');
+      
+      // SKELETON LOADER (5 lignes fantômes)
+      let skelHtml = '';
+      for(let i=0; i<5; i++) {
+          skelHtml += `<div class="nav-skeleton-item"><div class="nav-sk-line" style="width: ${Math.floor(Math.random() * (80 - 40) + 40)}%"></div></div>`;
+      }
+      container.innerHTML = skelHtml;
+      
       google.script.run.withSuccessHandler(list => { 
-          const container = document.getElementById('templatesList'); 
           container.innerHTML = ""; 
-          list.forEach(t => container.innerHTML += `<button class="list-group-item list-group-item-action border-0 py-3 px-3 border-bottom text-start" onclick="loadTemplate('${t.id}')"><span class="fw-bold text-dark" style="font-size: 14px;">${t.nom}</span></button>`); 
+          
+          if(list.length === 0) {
+              container.innerHTML = '<div class="text-center py-5 text-muted small fst-italic">Aucun modèle.</div>';
+              return;
+          }
+
+          list.forEach(t => { 
+              const btn = document.createElement('div');
+              btn.className = "nav-saas-item";
+              if (CURRENT_TPL_DATA && String(CURRENT_TPL_DATA.id) === String(t.id)) btn.classList.add('active');
+
+              btn.innerHTML = `<span>${t.nom}</span><i class="bi bi-chevron-right small opacity-25" style="font-size:10px;"></i>`;
+              
+              btn.onclick = () => {
+                  document.querySelectorAll('.nav-saas-item').forEach(el => el.classList.remove('active'));
+                  btn.classList.add('active');
+                  loadTemplate(t.id);
+              };
+              container.appendChild(btn);
+          }); 
       }).getTemplatesList(); 
   }
   

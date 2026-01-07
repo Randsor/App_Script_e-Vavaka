@@ -1,266 +1,309 @@
-/* Controller_Export.gs */
+/* Controller_Export.gs - MOTEUR PDF WYSIWYG (FIX STYLES TABLEAUX) */
 
-var DOC_FONT_FAMILY = "Lato"; 
+// CONFIGURATION VISUELLE
+var DOC_FONT_FAMILY = "Roboto"; 
+var DOC_FONT_SIZE_TITLE = 11;
+var DOC_FONT_SIZE_TEXT = 10; 
+var DOC_FONT_SIZE_META = 9;
 
-/**
- * Point d'entrée pour la génération du PDF
- */
+var COLOR_DARK = "#111827";   
+var COLOR_TEXT = "#374151";   
+var COLOR_META = "#6B7280";   
+var COLOR_BLUE = "#2563EB";   
+var COLOR_LIGHT = "#D1D5DB"; 
+
+var INDENT_STD = 20; 
+
 function generateProgrammePDF(progId, includeTrans) {
   try {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
-    
-    // 1. CONFIGURATION
     var config = getConfigData();
-    if (!config.pdfTemplateId || !config.pdfFolderId) {
-      throw new Error("Configuration PDF incomplète (ID Template ou Dossier).");
-    }
+    if (!config.pdfTemplateId || !config.pdfFolderId) throw new Error("Config PDF manquante.");
 
-    // 2. DONNÉES
     var progData = getProgrammeDetails(progId);
     if (!progData) throw new Error("Programme introuvable.");
     
-    // 3. PRÉPARATION FICHIERS
     var folder = DriveApp.getFolderById(config.pdfFolderId);
     var templateFile = DriveApp.getFileById(config.pdfTemplateId);
     
-    // 4. COPIE & NOMMAGE (Format ISO AAAA-MM-JJ)
     var dateParts = progData.date.split('/'); 
-    var isoDate = dateParts.length === 3 ? (dateParts[2] + "-" + dateParts[1] + "-" + dateParts[0]) : progData.date.replace(/\//g,'-');
-    
+    var isoDate = (dateParts.length === 3) ? dateParts[2] + "-" + dateParts[1] + "-" + dateParts[0] : progData.date.replace(/\//g,'-');
     var tempDocName = isoDate + " - " + (progData.titre || "Culte");
+    
     var tempFile = templateFile.makeCopy(tempDocName, folder);
     var tempDoc = DocumentApp.openById(tempFile.getId());
     var body = tempDoc.getBody();
     
-    // 5. REMPLACEMENT BALISES SIMPLES (Sécurisé)
-    // On utilise safeTxt pour éviter que "null" ou "undefined" ne plante replaceText
     body.replaceText("{{Titre_Culte}}", safeTxt(progData.titre));
-    var sub = (progData.settings && progData.settings.subTitle) ? progData.settings.subTitle : "";
-    body.replaceText("{{Sous-Titre}}", safeTxt(sub));
+    body.replaceText("{{Sous-Titre}}", safeTxt(progData.settings ? progData.settings.subTitle : ""));
     body.replaceText("{{DATE}}", safeTxt(progData.date));
     body.replaceText("{{Theme_MG}}", safeTxt(progData.theme_mg));
     body.replaceText("{{Theme_FR}}", safeTxt(progData.theme_fr));
     
-    // 6. MOTEUR D'INSERTION (BLINDÉ)
-    var blocks = [];
-    try { blocks = JSON.parse(progData.contenu); } catch(e) { blocks = []; }
-    
-    // Recherche de la balise d'ancrage
     var rangeElement = body.findText("{{CONTENU}}");
     var insertionIndex = null; 
     
     if (rangeElement) {
         var element = rangeElement.getElement();
-        
-        // On remonte jusqu'au paragraphe parent
-        var parentParagraph = element.getParent();
-        if (parentParagraph.getType() === DocumentApp.ElementType.PARAGRAPH) {
-             parentParagraph = parentParagraph.asParagraph();
-        }
-        
-        // VÉRIFICATION DE SÉCURITÉ : Où sommes-nous ?
-        // Si le parent du paragraphe n'est pas le BODY (ex: on est dans un tableau), 
-        // l'insertion par index est risquée. On bascule en mode "Append" (Fin du doc).
-        var container = parentParagraph.getParent();
-        
-        if (container.getType() === DocumentApp.ElementType.BODY_SECTION) {
-            // Cas Standard : On est dans le corps du texte
-            insertionIndex = container.getChildIndex(parentParagraph);
-            
-            // ASTUCE ANTI-CRASH : 
-            // Au lieu de supprimer le paragraphe (ce qui plante si c'est le dernier),
-            // on remplace le texte par un ESPACE.
-            // Cela garde la structure intacte et sert de séparateur.
-            parentParagraph.setText(" "); 
-            
-            // On se place juste après pour commencer à écrire
-            insertionIndex++; 
-        } else {
-            // Cas Complexe (Tableau/Liste) : On efface juste le texte de la balise
-            // et on écrira la suite à la fin du document pour ne rien casser.
-            element.deleteText(rangeElement.getStartOffset(), rangeElement.getEndOffsetInclusive());
-            insertionIndex = null; 
+        var parent = element.getParent();
+        if (parent.getType() === DocumentApp.ElementType.PARAGRAPH) {
+            parent = parent.asParagraph();
+            var container = parent.getParent();
+            if (container.getType() === DocumentApp.ElementType.BODY_SECTION) {
+                insertionIndex = container.getChildIndex(parent);
+                parent.setText(" "); 
+                parent.setSpacingAfter(0);
+                insertionIndex++; 
+            } else {
+                element.deleteText(rangeElement.getStartOffset(), rangeElement.getEndOffsetInclusive());
+            }
         }
     }
     
-    // Boucle de rendu des blocs
+    var blocks = [];
+    try { blocks = JSON.parse(progData.contenu); } catch(e) {}
+    
     blocks.forEach(function(block) {
-       var lastElem = renderBlockToDoc(body, insertionIndex, block, includeTrans);
-       
-       // Si on est en mode insertion (pas à la fin), on met à jour l'index
-       // pour que le prochain bloc s'écrive APRÈS celui qu'on vient de faire
-       if(insertionIndex !== null && lastElem) {
-           try {
-               insertionIndex = body.getChildIndex(lastElem) + 1;
-           } catch(e) {
-               // En cas de perte de repère, on finit en mode ajout à la fin
-               insertionIndex = null; 
-           }
-       }
+       var newIndex = renderBlockToDoc(body, insertionIndex, block, includeTrans);
+       if (insertionIndex !== null && newIndex !== null) insertionIndex = newIndex;
     });
     
     tempDoc.saveAndClose();
     
-    // 7. GÉNÉRATION PDF
-    var pdfBlob = tempFile.getAs(MimeType.PDF);
-    pdfBlob.setName(tempDocName + ".pdf");
-    
+    var pdfBlob = tempFile.getAs(MimeType.PDF).setName(tempDocName + ".pdf");
     var pdfFile = folder.createFile(pdfBlob);
     pdfFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    tempFile.setTrashed(true);
     
-    // 8. NETTOYAGE
-    tempFile.setTrashed(true); // Supprime le brouillon Doc
-    
-    var pdfUrl = pdfFile.getUrl();
-    var downloadUrl = "https://drive.google.com/uc?export=download&id=" + pdfFile.getId();
-    
-    // Sauvegarde DB
     var sheet = ss.getSheetByName("DB_PROGRAMMES");
-    if(sheet && progData.rowIndex) {
-        // Colonne 10 (J) pour le lien
-        sheet.getRange(progData.rowIndex, 10).setValue(pdfUrl);
-    }
+    if(sheet && progData.rowIndex) sheet.getRange(progData.rowIndex, 10).setValue(pdfFile.getUrl());
     
-    return { success: true, url: pdfUrl, downloadUrl: downloadUrl };
+    return { success: true, url: pdfFile.getUrl(), downloadUrl: "https://drive.google.com/uc?export=download&id=" + pdfFile.getId() };
     
   } catch (e) {
-    console.error("Erreur PDF: " + e.toString());
-    // Retourne l'erreur au front pour affichage dans la modale
     return { success: false, error: e.toString() };
   }
 }
 
-/**
- * Fonction helper pour sécuriser les chaînes de caractères
- * Transforme null/undefined en ""
- */
-function safeTxt(val) {
-    if (val === null || val === undefined) return "";
-    return String(val);
+function safeTxt(val) { 
+    if (val === null || val === undefined) return ""; 
+    return String(val).trim(); 
 }
 
-/**
- * Moteur de rendu Block -> Google Doc
- */
-function renderBlockToDoc(body, idx, block, includeTrans) {
-  // Styles
-  var sTitle = {};
-  sTitle[DocumentApp.Attribute.FONT_FAMILY] = DOC_FONT_FAMILY;
-  sTitle[DocumentApp.Attribute.FONT_SIZE] = 12;
-  sTitle[DocumentApp.Attribute.BOLD] = true;
-  sTitle[DocumentApp.Attribute.FOREGROUND_COLOR] = "#111827";
-  
-  var sTxt = {};
-  sTxt[DocumentApp.Attribute.FONT_FAMILY] = DOC_FONT_FAMILY;
-  sTxt[DocumentApp.Attribute.FONT_SIZE] = 11;
-  sTxt[DocumentApp.Attribute.BOLD] = false;
-  sTxt[DocumentApp.Attribute.ITALIC] = false;
-  sTxt[DocumentApp.Attribute.FOREGROUND_COLOR] = "#374151";
-  
-  var sMeta = {};
-  sMeta[DocumentApp.Attribute.FONT_FAMILY] = DOC_FONT_FAMILY;
-  sMeta[DocumentApp.Attribute.FONT_SIZE] = 10;
-  sMeta[DocumentApp.Attribute.ITALIC] = true;
-  sMeta[DocumentApp.Attribute.FOREGROUND_COLOR] = "#6B7280";
+function renderBlockToDoc(body, startIdx, block, includeTrans) {
+  var currentIdx = startIdx;
 
-  var lastP = null;
+  // --- STYLES ---
+  var sTitle = {}; 
+  sTitle[DocumentApp.Attribute.FONT_FAMILY] = DOC_FONT_FAMILY; 
+  sTitle[DocumentApp.Attribute.FONT_SIZE] = DOC_FONT_SIZE_TITLE; 
+  sTitle[DocumentApp.Attribute.BOLD] = true; 
+  sTitle[DocumentApp.Attribute.ITALIC] = false; 
+  sTitle[DocumentApp.Attribute.FOREGROUND_COLOR] = COLOR_DARK;
+  
+  var sTxt = {}; 
+  sTxt[DocumentApp.Attribute.FONT_FAMILY] = DOC_FONT_FAMILY; 
+  sTxt[DocumentApp.Attribute.FONT_SIZE] = DOC_FONT_SIZE_TEXT; 
+  sTxt[DocumentApp.Attribute.FOREGROUND_COLOR] = COLOR_TEXT; 
+  sTxt[DocumentApp.Attribute.BOLD] = false; 
+  sTxt[DocumentApp.Attribute.ITALIC] = false; // FORCE NON ITALIQUE
+  
+  var sMeta = {}; 
+  sMeta[DocumentApp.Attribute.FONT_FAMILY] = DOC_FONT_FAMILY; 
+  sMeta[DocumentApp.Attribute.FONT_SIZE] = DOC_FONT_SIZE_META; 
+  sMeta[DocumentApp.Attribute.ITALIC] = true; 
+  sMeta[DocumentApp.Attribute.BOLD] = false;
+  sMeta[DocumentApp.Attribute.FOREGROUND_COLOR] = COLOR_META;
 
-  // Helper d'ajout intelligent (Insert vs Append)
-  function add(text, style, indent) {
-      // On accepte le texte vide (pour les sauts de ligne) mais on le convertit en espace pour la stabilité
-      if (text === null || text === undefined) return null;
-      if (text === "") text = " "; 
+  // Style Réf (Bleu/Gras/Droit)
+  var sRef = {};
+  sRef[DocumentApp.Attribute.FONT_FAMILY] = DOC_FONT_FAMILY; 
+  sRef[DocumentApp.Attribute.FONT_SIZE] = DOC_FONT_SIZE_TITLE; 
+  sRef[DocumentApp.Attribute.ITALIC] = false; 
+  sRef[DocumentApp.Attribute.BOLD] = true;
+  sRef[DocumentApp.Attribute.FOREGROUND_COLOR] = COLOR_BLUE;
+
+  // Style Réf FR (Gris/Gras/Droit)
+  var sRefFr = {}; 
+  sRefFr[DocumentApp.Attribute.FONT_FAMILY] = DOC_FONT_FAMILY; 
+  sRefFr[DocumentApp.Attribute.FONT_SIZE] = DOC_FONT_SIZE_META; 
+  sRefFr[DocumentApp.Attribute.ITALIC] = false; 
+  sRefFr[DocumentApp.Attribute.BOLD] = true;
+  sRefFr[DocumentApp.Attribute.FOREGROUND_COLOR] = COLOR_META;
+
+  // --- HELPER D'INSERTION ---
+  function addP(text, style, align, spacingAfter, indent, isSpacer) {
+      var str = safeTxt(text);
+      if (!str && !isSpacer) return; 
+      if (!str && isSpacer) str = " "; 
       
       var p;
-      if (idx !== null) {
-          try { 
-              p = body.insertParagraph(idx, text); 
-              idx++; // Avance le curseur local
-          } catch(e) { 
-              p = body.appendParagraph(text); 
-          }
-      } else {
-          p = body.appendParagraph(text);
+      try {
+          if (currentIdx !== null) { p = body.insertParagraph(currentIdx, str); currentIdx++; } 
+          else { p = body.appendParagraph(str); }
+      } catch(e) {
+          p = body.appendParagraph(str); currentIdx = null; 
+      }
+
+      if (style) p.setAttributes(style);
+      
+      if (align === 'CENTER') p.setAlignment(DocumentApp.HorizontalAlignment.CENTER);
+      else if (align === 'JUSTIFY') p.setAlignment(DocumentApp.HorizontalAlignment.JUSTIFY);
+      else p.setAlignment(DocumentApp.HorizontalAlignment.LEFT);
+      
+      if (indent) {
+          p.setIndentStart(indent);
+          p.setIndentFirstLine(indent); 
       }
       
-      if (style) p.setAttributes(style);
-      if (indent) p.setIndentStart(indent);
-      
-      p.setSpacingAfter(4); // Espacement standard
-      lastP = p;
+      p.setSpacingAfter(spacingAfter !== undefined ? spacingAfter : 6);
+      p.setSpacingBefore(0);
       return p;
   }
 
-  // --- RENDU SELON TYPE ---
-  
+  // --- HELPER DOUBLE COLONNE (CORRIGÉ & BOUCLÉ) ---
+  function addDualCol(txtMG, txtFR) {
+      if (!includeTrans || !txtFR) {
+          addP(txtMG, sTxt, 'JUSTIFY', 6, INDENT_STD);
+          return;
+      }
+      
+      var table;
+      try {
+          if (currentIdx !== null) { table = body.insertTable(currentIdx); currentIdx++; }
+          else { table = body.appendTable(); }
+      } catch(e) { table = body.appendTable(); currentIdx = null; }
+      
+      var row = table.appendTableRow();
+      table.setBorderWidth(0); // Invisible
+      
+      // === CELLULE GAUCHE (MG) ===
+      var cell1 = row.appendTableCell(safeTxt(txtMG));
+      cell1.setWidth(280); 
+      cell1.setPaddingTop(0).setPaddingBottom(6).setPaddingLeft(INDENT_STD).setPaddingRight(10);
+      
+      // FIX CRITIQUE : On boucle sur TOUS les paragraphes de la cellule
+      // pour éviter que le 2ème paragraphe ne perde son style
+      var numChildren1 = cell1.getNumChildren();
+      for (var i = 0; i < numChildren1; i++) {
+          var child = cell1.getChild(i);
+          if (child.getType() === DocumentApp.ElementType.PARAGRAPH) {
+              child.asParagraph().setAttributes(sTxt); // Force NON ITALIQUE
+              child.asParagraph().setAlignment(DocumentApp.HorizontalAlignment.JUSTIFY);
+          }
+      }
+      
+      // === CELLULE DROITE (FR) ===
+      var cell2 = row.appendTableCell(safeTxt(txtFR));
+      cell2.setPaddingTop(0).setPaddingBottom(6).setPaddingLeft(10).setPaddingRight(0);
+      
+      var numChildren2 = cell2.getNumChildren();
+      for (var j = 0; j < numChildren2; j++) {
+          var child2 = cell2.getChild(j);
+          if (child2.getType() === DocumentApp.ElementType.PARAGRAPH) {
+              child2.asParagraph().setAttributes(sMeta); // Force ITALIQUE GRIS
+              child2.asParagraph().setAlignment(DocumentApp.HorizontalAlignment.JUSTIFY);
+          }
+      }
+  }
+
+  // --- RENDU BLOCS ---
+
+  if (block.type !== 'CHANT' && block.type !== 'TEXTE_LIBRE' && block.type !== 'TITRE') {
+      var label = safeTxt(block.label_mg || block.type);
+      if (block.role) label += " (" + block.role + ")";
+      addP(label.toUpperCase(), sTitle, 'LEFT', 0, 0); 
+      
+      if (includeTrans && block.label_fr) {
+          addP(block.label_fr, sMeta, 'LEFT', 6, 0); 
+      }
+  }
+
   if (block.type === 'TITRE') {
-      var t = safeTxt(block.label_mg).toUpperCase();
-      if(includeTrans && block.label_fr) t += " / " + safeTxt(block.label_fr);
-      
-      var p = add(t, sTitle);
-      if(p) { 
-          p.setHeading(DocumentApp.ParagraphHeading.HEADING3); 
-          p.setAlignment(DocumentApp.HorizontalAlignment.CENTER);
-          p.setAttributes(sTitle); // Ré-applique Lato car Heading le change parfois
-          p.setSpacingBefore(12); 
-          p.setSpacingAfter(8);
-      }
-      if(block.data && block.data.comment) {
-          var pc = add(block.data.comment, sMeta);
-          if(pc) pc.setAlignment(DocumentApp.HorizontalAlignment.CENTER);
-      }
+      addP(block.label_mg.toUpperCase(), sTitle, 'CENTER', includeTrans ? 0 : 6);
+      if(includeTrans && block.label_fr) addP(block.label_fr, sMeta, 'CENTER', 6);
+      if(block.data && block.data.comment) addP(block.data.comment, sMeta, 'LEFT', 6);
   }
+  
   else if (block.type === 'CHANT') {
-      var head = safeTxt(block.label_mg || "HIRA") + ": ";
+      // 1. Titre Générique (ex: HIRA)
+      addP(safeTxt(block.label_mg || "HIRA").toUpperCase(), sTitle, 'LEFT', 0, 0);
+      if (includeTrans && block.label_fr) addP(block.label_fr, sMeta, 'LEFT', 6, 0);
+
+      // 2. Ligne Info Chant
       if (block.data.id) {
-          var rec = safeTxt(block.data.recueil);
-          var num = safeTxt(block.data.numero);
-          
-          if(rec === 'Fihirana') num = ('000' + num).slice(-3);
-          else if(rec === 'Fihirana Fanampiny') rec = "FF";
-          else if(rec === 'Antema') rec = "AN";
-          else if(rec === 'Tsanta') rec = "TS";
-          
-          head += rec + " " + num + " - " + safeTxt(block.data.titre);
-          if (block.data.tonalite) head += " (" + block.data.tonalite + ")";
-      } else { 
-          head += "Choix libre"; 
+          var pInfo;
+          try {
+              if (currentIdx !== null) { pInfo = body.insertParagraph(currentIdx, ""); currentIdx++; } 
+              else { pInfo = body.appendParagraph(""); }
+              
+              var rec = safeTxt(block.data.recueil);
+              var num = safeTxt(block.data.numero);
+              var badgeText = num;
+              if(rec === 'Fihirana') badgeText = ('000' + num).slice(-3);
+              else if(rec.includes('Fanampiny')) badgeText = "FF " + num;
+              else if(rec === 'Antema') badgeText = "AN " + num;
+              else if(rec === 'Tsanta') badgeText = "TS " + num;
+              
+              var t1 = pInfo.appendText(badgeText);
+              t1.setAttributes(sRef); 
+              
+              if (block.data.sequenceSummary && block.data.sequenceSummary.toLowerCase() !== 'tout') {
+                  var tStanza = pInfo.appendText(" : " + block.data.sequenceSummary);
+                  tStanza.setAttributes(sRef);
+              }
+
+              var t2 = pInfo.appendText(" | ");
+              t2.setForegroundColor(COLOR_LIGHT).setBold(false).setItalic(false);
+
+              var songTitle = safeTxt(block.data.titre);
+              if (block.data.tonalite) songTitle += " (" + block.data.tonalite + ")";
+              var t3 = pInfo.appendText(songTitle);
+              t3.setForegroundColor(COLOR_DARK).setBold(true).setItalic(false).setFontFamily(DOC_FONT_FAMILY).setFontSize(DOC_FONT_SIZE_TITLE);
+              
+              pInfo.setSpacingAfter(6);
+              pInfo.setIndentStart(INDENT_STD).setIndentFirstLine(INDENT_STD);
+
+          } catch(e) {}
       }
-      
-      var ph = add(head, sTitle);
-      if(ph) ph.setSpacingBefore(6);
-      
-      if(block.data.paroles_fixe) add(block.data.paroles_fixe, sTxt);
-      if(includeTrans && block.data.paroles_fr_fixe) add(block.data.paroles_fr_fixe, sMeta, 20);
+
+      if(block.data.paroles_fixe) {
+          var cleanMG = block.data.paroles_fixe.replace(/\n{3,}/g, '\n\n').trim();
+          var cleanFR = includeTrans && block.data.paroles_fr_fixe ? block.data.paroles_fr_fixe.replace(/\n{3,}/g, '\n\n').trim() : "";
+          addDualCol(cleanMG, cleanFR);
+      }
   }
+  
   else if (block.type === 'LECTURE') {
-      var ref = safeTxt(block.data.ref_mg);
-      if(includeTrans && block.data.ref_fr) ref += " (" + safeTxt(block.data.ref_fr) + ")";
+      if (block.data.ref_mg) addP(block.data.ref_mg, sRef, 'LEFT', includeTrans ? 0 : 6, INDENT_STD);
+      if (includeTrans && block.data.ref_fr) addP(block.data.ref_fr, sRefFr, 'LEFT', 6, INDENT_STD);
       
-      var ph = add((block.label_mg||"VAKITENY") + ": " + ref, sTitle);
-      if(ph) ph.setSpacingBefore(6);
-      
-      if(block.data.texte_mg) add(block.data.texte_mg, sTxt);
-      if(includeTrans && block.data.texte_fr) add(block.data.texte_fr, sMeta, 20);
+      addDualCol(block.data.texte_mg, block.data.texte_fr);
   }
+  
+  else if (block.type === 'LITURGIE') {
+      if(block.data.verset) {
+          var pV = addP(block.data.verset, sTitle, 'LEFT', 6, INDENT_STD);
+          if(pV) pV.setForegroundColor(COLOR_BLUE); 
+      }
+      addDualCol(block.data.texte_mg, block.data.texte_fr);
+      if(block.data.comment) addP(block.data.comment, sMeta, 'LEFT', 6, INDENT_STD);
+  }
+  
+  else if (block.type === 'FANEKENA') {
+      if(block.data.titre && block.data.titre !== block.label_mg) {
+           addP(block.data.titre, sTitle, 'LEFT', 6, INDENT_STD);
+      }
+      addDualCol(block.data.contenu_mg, block.data.contenu_fr);
+  }
+  
   else {
-      // Cas générique (Prière, Liturgie, Annonce...)
-      var lbl = safeTxt(block.label_mg || block.type);
-      if(block.role) lbl += " (" + block.role + ")";
-      
-      var ph = add(lbl, sTitle);
-      if(ph) ph.setSpacingBefore(6);
-      
       var cm = safeTxt(block.data.contenu_mg || block.data.texte_mg);
       var cf = safeTxt(block.data.contenu_fr || block.data.texte_fr);
-      
-      if(cm) add(cm, sTxt);
-      if(includeTrans && cf) add(cf, sMeta, 20);
+      addDualCol(cm, cf);
   }
+
+  addP(" ", sTxt, 'LEFT', 6, 0, true);
   
-  // Espaceur final entre blocs
-  var sp = add(" ", sTxt); 
-  if(sp) sp.setSpacingAfter(4);
-  
-  return lastP;
+  return currentIdx;
 }

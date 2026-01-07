@@ -186,8 +186,18 @@
   .nav-link.active { background-color: var(--primary-subtle); color: var(--primary); font-weight: 600; }
   .nav-link.active i { color: var(--primary); }
 
-  .main-content { flex: 1; margin-left: 240px; padding: 32px 40px; max-width: 1600px; }
+  .main-content { 
+      flex: 1; 
+      margin-left: 240px; 
+      padding: 32px 40px; /* On remet le padding standard */
+      max-width: 1600px;
+  }
   
+  #view-templates, #view-fanekena {
+      height: 100%; /* Prend tout l'espace de main-content */
+      overflow: hidden; /* Délègue le scroll aux enfants (panneaux) */
+  }
+
   .mobile-header { display: none; }
   
   @media (max-width: 768px) {
@@ -673,6 +683,7 @@
 .sk-square { width: 35px; height: 20px; border-radius: 4px; background: #F3F4F6; }
 .sk-line-long { height: 14px; width: 70%; border-radius: 4px; background: #F3F4F6; }
 .sk-line-short { height: 14px; width: 40%; border-radius: 4px; background: #F3F4F6; }
+.sk-circle { width: 32px; height: 32px; border-radius: 50%; background: #F3F4F6; }
 
 .shimmer { position: relative; overflow: hidden; }
 .shimmer::after { 
@@ -759,6 +770,211 @@
     
     /* On s'assure que les cartes ne passent pas devant */
     .ss-stanza-card { z-index: 1; transform: none !important; }
+}
+
+/* --- SÉLECTEUR FANEKENA (MODERN SAAS) --- */
+.fnk-container {
+    display: flex; flex-direction: column; height: 100%; background: #F9FAFB;
+}
+
+.fnk-list {
+    padding: 20px;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+}
+
+.fnk-card {
+    background: white;
+    border: 1px solid #E5E7EB;
+    border-radius: 10px;
+    padding: 16px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+}
+
+.fnk-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    border-color: #D1D5DB;
+}
+
+.fnk-card-content {
+    flex: 1;
+    margin-right: 16px;
+}
+
+.fnk-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: #111827;
+    margin-bottom: 4px;
+}
+
+.fnk-preview {
+    font-size: 12px;
+    color: #6B7280;
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-line-clamp: 2; /* Limite à 2 lignes */
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.fnk-icon {
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    background: #F3F4F6;
+    color: #9CA3AF;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.2s;
+}
+
+.fnk-card:hover .fnk-icon {
+    background: #EFF6FF;
+    color: #2563EB;
+}
+
+/* --- NAVIGATION SIDEBAR MODERN SAAS --- */
+
+/* Le panneau latéral (Gris léger) */
+.nav-saas-panel {
+    background-color: #F8F9FA; /* Gris très doux */
+    border-right: 1px solid #E5E7EB;
+    height: 100%;
+    display: flex; 
+    flex-direction: column;
+}
+
+/* En-tête de la sidebar */
+.nav-saas-header {
+    padding: 20px 16px 12px 20px;
+    display: flex; 
+    justify-content: space-between; 
+    align-items: center;
+}
+.nav-saas-title {
+    font-size: 11px; 
+    font-weight: 700; 
+    color: #6B7280; 
+    text-transform: uppercase; 
+    letter-spacing: 1px;
+}
+
+/* Conteneur de la liste */
+.nav-saas-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0 12px 20px 12px; /* Marges internes pour que les items "flottent" */
+    display: flex;
+    flex-direction: column;
+    gap: 4px; /* Espace entre les items */
+}
+
+/* L'élément de liste (Item) */
+.nav-saas-item {
+    padding: 10px 14px;
+    border-radius: 8px; /* Coins arrondis moderne */
+    color: #4B5563;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.2, 0, 0, 1);
+    border: 1px solid transparent;
+    display: flex; 
+    align-items: center; 
+    justify-content: space-between;
+}
+
+/* Hover */
+.nav-saas-item:hover {
+    background-color: #E5E7EB; /* Gris un peu plus foncé */
+    color: #111827;
+}
+
+/* Active (Sélectionné) */
+.nav-saas-item.active {
+    background-color: #FFFFFF;
+    color: var(--primary); /* Bleu */
+    border-color: #E5E7EB;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05); /* Effet "Pop" */
+    font-weight: 600;
+}
+
+/* Bouton d'action (Ajout) */
+.btn-icon-soft {
+    width: 28px; height: 28px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 6px;
+    color: #6B7280;
+    transition: all 0.2s;
+    background: transparent;
+    border: none;
+}
+.btn-icon-soft:hover {
+    background-color: #E5E7EB;
+    color: #111827;
+}
+
+/* --- NAVIGATION SKELETONS --- */
+.nav-skeleton-item {
+    padding: 12px 14px;
+    border-radius: 8px;
+    background: white;
+    margin-bottom: 4px;
+    border: 1px solid transparent;
+}
+.nav-sk-line {
+    height: 12px;
+    background: #E5E7EB;
+    border-radius: 4px;
+    width: 60%;
+    position: relative;
+    overflow: hidden;
+}
+/* Réutilisation de l'animation shimmer existante */
+.nav-sk-line::after {
+    content: ""; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.5), transparent);
+    transform: translateX(-100%);
+    animation: shimmer 1.5s infinite;
+}
+
+/* --- FIX SCROLL & LAYOUT FIGÉ --- */
+/* Assure que les panneaux prennent toute la hauteur et ne scrollent pas globalement */
+.fixed-panel-layout {
+    height: 100%;
+    overflow: hidden; /* Le panneau global ne scrolle pas */
+    display: flex;
+    flex-direction: column;
+}
+
+/* Le header reste fixe */
+.fixed-panel-header {
+    flex-shrink: 0; /* Ne s'écrase pas */
+    background: white;
+    border-bottom: 1px solid #E5E7EB;
+    z-index: 10;
+}
+
+/* Le corps scrolle */
+.fixed-panel-body {
+    flex-grow: 1;
+    overflow-y: auto; /* C'est ICI que le scroll se passe */
+    min-height: 0; /* Fix flexbox scroll */
+}
+
+/* AUTO-EXPAND TEXTAREA (Fix Ascenseur) */
+textarea.auto-expand {
+    min-height: 150px; 
+    overflow: hidden !important; /* Cache l'ascenseur impérativement */
+    resize: none;
+    padding-bottom: 30px !important; /* Ajoute l'espace de respiration en bas */
+    box-sizing: border-box;
 }
 
 </style>

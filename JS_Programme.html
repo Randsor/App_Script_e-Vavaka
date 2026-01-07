@@ -29,7 +29,9 @@
       google.script.run.withSuccessHandler(data => {
           VALIDATORS_LIST = data.valideurs || [];
           rolesListConfig = data.roles || [];
-          populateRecueilFilter(); 
+          // CORRECTION : Appel de la bonne fonction (ou suppression si inutile au démarrage)
+          // On initialise les filtres du sélecteur de chant dès le début pour qu'ils soient prêts
+          if(typeof renderRecueilFilters === 'function') renderRecueilFilters();
       }).getConfigData();
       
       // Déplacement des menus dans le body pour éviter les problèmes de z-index
@@ -606,34 +608,77 @@
       }).deleteProgrammeBackend(id); 
   }
 
-  // --- SÉLECTEURS (FANEKENA & CHANT) ---
+// --- SÉLECTEUR FANEKENA UNIFIÉ ---
 
-  // --- SÉLECTEURS (FANEKENA & CHANT) ---
+  let FANEKENA_CACHE = []; // Pour la recherche instantanée
 
-  function openFanekenaSelectorProgramme(index) {
+  function openFanekenaSelector(index) {
       FANEKENA_CONTEXT.blockIndex = index;
-      openCustomModal('fanekenaSelectorModal', 'progCreatorOverlay');
-      const container = document.getElementById('fanekenaSelectList');
-      container.innerHTML = '<div class="text-center py-4"><div class="spinner-border spinner-border-sm"></div></div>';
       
+      // Reset UI
+      document.getElementById('fnkSearchInput').value = "";
+      
+      // AFFICHER SKELETON / CACHER LISTE
+      document.getElementById('fanekenaSelectList').classList.add('hidden');
+      document.getElementById('fnkSkeletonList').classList.remove('hidden');
+      
+      if(typeof openCustomModal === 'function') openCustomModal('fanekenaSelectorModal', 'progCreatorOverlay');
+      else {
+          document.getElementById('fanekenaSelectorModal').style.display = 'flex';
+          document.getElementById('progCreatorOverlay').style.display = 'block';
+      }
+
+      // Chargement Données
       google.script.run.withSuccessHandler(list => {
-          container.innerHTML = "";
-          if(list.length === 0) { container.innerHTML = '<div class="p-3 text-muted small text-center">Aucun texte disponible.</div>'; return; }
-          list.forEach(item => {
-              const div = document.createElement('div');
-              div.className = "song-item"; 
-              div.innerHTML = '<div class="fw-bold text-dark" style="font-size:13px;">' + item.titre + '</div><i class="bi bi-chevron-right small text-muted ms-2"></i>';
-              div.onclick = function() { selectFanekena(item.id, this); };
-              container.appendChild(div);
-          });
+          FANEKENA_CACHE = list;
+          renderFanekenaList(list);
       }).getFanekenaList();
   }
 
-  function selectFanekena(id, clickedElement) {
-      if(clickedElement) {
-          clickedElement.innerHTML = '<div class="d-flex align-items-center gap-2 text-primary fw-bold"><div class="spinner-border spinner-border-sm"></div><span>Insertion...</span></div>';
-          clickedElement.style.pointerEvents = 'none';
+  function renderFanekenaList(list) {
+      // CACHER SKELETON / AFFICHER LISTE
+      document.getElementById('fnkSkeletonList').classList.add('hidden');
+      document.getElementById('fanekenaSelectList').classList.remove('hidden');
+
+      const container = document.getElementById('fanekenaSelectList');
+      container.innerHTML = "";
+      
+      if(list.length === 0) {
+          container.innerHTML = '<div class="text-center py-5 text-muted small fst-italic">Aucun texte disponible.</div>';
+          return;
       }
+
+      const grid = document.createElement('div');
+      grid.className = "fnk-list";
+
+      list.forEach(item => {
+          const card = document.createElement('div');
+          card.className = "fnk-card";
+          card.onclick = () => selectFanekenaGlobal(item.id, card);
+          
+          card.innerHTML = `
+              <div class="fnk-card-content">
+                  <div class="fnk-title">${item.titre}</div>
+                  <div class="fnk-preview">Cliquez pour insérer ce texte dans votre liturgie.</div>
+              </div>
+              <div class="fnk-icon"><i class="bi bi-plus-lg"></i></div>
+          `;
+          grid.appendChild(card);
+      });
+      container.appendChild(grid);
+  }
+
+  function filterFanekenaList(query) {
+      const q = query.toLowerCase();
+      const filtered = FANEKENA_CACHE.filter(item => item.titre.toLowerCase().includes(q));
+      renderFanekenaList(filtered);
+  }
+
+  function selectFanekenaGlobal(id, cardElement) {
+      // Feedback Visuel
+      const icon = cardElement.querySelector('.fnk-icon');
+      icon.innerHTML = '<div class="spinner-border spinner-border-sm"></div>';
+      
       const idx = FANEKENA_CONTEXT.blockIndex;
       // GESTION CONTEXTE (Template vs Programme)
       const targetData = (APP_CONTEXT === 'TEMPLATE') ? DATA_TEMPLATE_BLOCKS : DATA_PROGRAMME_BLOCKS;
@@ -645,13 +690,14 @@
               targetData[idx].data.titre = data.titre;
               targetData[idx].data.contenu_mg = data.contenu_mg;
               targetData[idx].data.contenu_fr = data.contenu_fr;
+              
               setDirty(true); 
               
               if(APP_CONTEXT === 'TEMPLATE') renderSharedBlocks('blocksContainer', targetData, 'TEMPLATE');
               else renderCurrentTimeline();
               
               closeAllModals(); 
-              showNotionToast("Confession insérée.", "success");
+              showNotionToast("Texte inséré avec succès.", "success");
           }).getFanekenaDetails(id);
       }
   }
@@ -936,11 +982,25 @@
       });
 
       sequenceIndices.forEach((idx, i) => {
-          const txtM = textMGArr[idx] || ""; const txtF = textFRArr[idx] || ""; let label = displayLabels[idx] ? displayLabels[idx] + ". " : "";
-          if (i > 0) { fullTextMG += "\n"; fullTextFR += "\n"; } // CORRIGÉ : \n simple
+          // NETTOYAGE (.trim()) : Indispensable pour éviter les sauts de ligne fantômes de la DB
+          const txtM = (textMGArr[idx] || "").trim();
+          const txtF = (textFRArr[idx] || "").trim();
+          
+          let label = displayLabels[idx] ? displayLabels[idx] + ". " : "";
+          
+          if (i > 0) { 
+              // SÉPARATEUR : \n\n crée exactement UNE ligne vide entre les strophes.
+              // Si tu mets juste \n, les strophes seront collées.
+              fullTextMG += "\n\n"; 
+              fullTextFR += "\n\n"; 
+          }
+          
           fullTextMG += label + txtM;
-          if(txtF.trim() !== "") fullTextFR += label + txtF;
-          if(structArr[idx] && structArr[idx].trim().toUpperCase() === 'C') cleanSequence.push(displayLabels[idx]);
+          if(txtF !== "") fullTextFR += label + txtF;
+          
+          if(structArr[idx] && structArr[idx].trim().toUpperCase() === 'C') {
+              cleanSequence.push(displayLabels[idx]);
+          }
       });
 
       let summaryStr = (cleanSequence.length === totalCouplets) ? "Tout" : cleanSequence.join(", ");

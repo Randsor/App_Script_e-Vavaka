@@ -117,6 +117,8 @@ function getDashboardData() {
                  themeFr = dataPr[p][4];
                  status = dataPr[p][7] || "draft";
                  
+                 var pdfLink = (dataPr[p].length > 9) ? dataPr[p][9] : "";
+
                  try {
                      var blocks = JSON.parse(dataPr[p][5]);
                      blocks.forEach(function(b) {
@@ -145,7 +147,8 @@ function getDashboardData() {
           status: status,
           theme_mg: themeMg,
           theme_fr: themeFr,
-          songAlerts: songAlerts
+          songAlerts: songAlerts,
+          pdfLink: pdfLink 
       };
     }
   }

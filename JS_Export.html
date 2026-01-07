@@ -1,13 +1,15 @@
 <script>
 /**
  * MODULE EXPORT PDF (Frontend)
+ * Gestion des états et de l'interface d'export
  */
 
 let EXPORT_CONTEXT = {
     progId: null,
     pdfLink: null,
     downloadUrl: null,
-    isGenerating: false
+    isGenerating: false,
+    isConfirmingRegen: false // Nouvel état pour la confirmation
 };
 
 function openExportModal() {
@@ -17,20 +19,18 @@ function openExportModal() {
     EXPORT_CONTEXT.pdfLink = currentProgData.pdfLink || null;
     EXPORT_CONTEXT.downloadUrl = null;
     EXPORT_CONTEXT.isGenerating = false;
+    EXPORT_CONTEXT.isConfirmingRegen = false;
     
     renderExportModalState();
     
-    // ON UTILISE LA FONCTION STANDARD (Gère le déplacement dans Body + Centrage CSS)
+    // Ouverture de la modale via le système global
     if(typeof openCustomModal === 'function') {
         openCustomModal('exportPdfModal', 'progCreatorOverlay');
     } else {
-        // Fallback de sécurité si JS_Programme n'est pas chargé
         const m = document.getElementById('exportPdfModal');
         const o = document.getElementById('progCreatorOverlay');
-        if(m && m.parentElement !== document.body) document.body.appendChild(m);
-        if(o && o.parentElement !== document.body) document.body.appendChild(o);
-        if(m) m.style.display = 'flex';
-        if(o) o.style.display = 'block';
+        if(m) { m.style.display = 'flex'; if(m.parentElement !== document.body) document.body.appendChild(m); }
+        if(o) { o.style.display = 'block'; if(o.parentElement !== document.body) document.body.appendChild(o); }
     }
 }
 
@@ -39,16 +39,38 @@ function renderExportModalState() {
     const hasPdf = !!EXPORT_CONTEXT.pdfLink;
     let html = "";
     
-    // ÉTAT : GÉNÉRATION EN COURS (Loader soigné)
+    // ÉTAT 1 : GÉNÉRATION EN COURS
     if (EXPORT_CONTEXT.isGenerating) {
         html += `
         <div class="text-center py-5">
             <div class="spinner-border text-danger mb-4" style="width: 3rem; height: 3rem;" role="status"></div>
             <h5 class="fw-bold text-dark">Création du document...</h5>
-            <p class="text-muted small px-4">Le système génère le Google Doc et le convertit en PDF. Cela peut prendre quelques secondes.</p>
+            <p class="text-muted small px-4">Veuillez patienter pendant la génération du PDF.</p>
         </div>`;
     } 
-    // ÉTAT : PDF EXISTANT (Interface Premium)
+    
+    // ÉTAT 2 : CONFIRMATION RÉGÉNÉRATION (Le remplacement du popup moche)
+    else if (EXPORT_CONTEXT.isConfirmingRegen) {
+        html += `
+        <div class="text-center mb-4">
+            <div class="bg-warning bg-opacity-10 rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width:64px; height:64px;">
+                <i class="bi bi-exclamation-triangle-fill text-warning fs-1"></i>
+            </div>
+            <h5 class="fw-bold text-dark">Attention !</h5>
+            <p class="text-muted small mb-0 px-3">
+                Une version de ce programme existe déjà.<br>
+                Voulez-vous l'écraser et générer un nouveau PDF ?
+            </p>
+        </div>
+        
+        <div class="d-grid gap-2">
+            <button class="btn btn-dark" onclick="resetToInitialState()">Oui, régénérer</button>
+            <button class="btn btn-light border text-secondary" onclick="cancelRegenerate()">Annuler</button>
+        </div>
+        `;
+    }
+
+    // ÉTAT 3 : PDF EXISTANT (Succès)
     else if (hasPdf) {
         html += `
         <div class="text-center">
@@ -62,12 +84,10 @@ function renderExportModalState() {
             <div>Document généré et stocké sur Drive.</div>
         </div>
         
-        <!-- ACTION PRINCIPALE -->
         <button class="btn btn-dark w-100 py-2 mb-3 shadow-sm d-flex align-items-center justify-content-center gap-2" onclick="window.open('${EXPORT_CONTEXT.pdfLink}', '_blank')">
             <i class="bi bi-eye-fill"></i> Ouvrir le PDF
         </button>
         
-        <!-- ACTIONS SECONDAIRES -->
         <div class="action-grid">
             <button class="btn-action-card" onclick="copyPdfLink()">
                 <i class="bi bi-link-45deg"></i>
@@ -79,14 +99,14 @@ function renderExportModalState() {
             </button>
         </div>
         
-        <!-- ZONE DANGER -->
         <div class="danger-zone">
-            <button class="btn btn-link text-secondary text-decoration-none btn-sm d-flex align-items-center justify-content-center gap-2 mx-auto" onclick="confirmRegenerate()" style="font-size:11px;">
+            <button class="btn btn-link text-secondary text-decoration-none btn-sm d-flex align-items-center justify-content-center gap-2 mx-auto" onclick="askConfirmationRegen()" style="font-size:11px;">
                 <i class="bi bi-arrow-clockwise"></i> Régénérer une nouvelle version
             </button>
         </div>`;
     } 
-    // ÉTAT : PAS ENCORE DE PDF (Interface Initiale)
+    
+    // ÉTAT 4 : INITIAL (Pas de PDF)
     else {
         html += `
         <div class="text-center mb-4">
@@ -94,7 +114,7 @@ function renderExportModalState() {
                 <i class="bi bi-magic text-secondary fs-2"></i>
             </div>
             <h5 class="fw-bold m-0 text-dark">Générer la feuille de culte</h5>
-            <p class="small text-muted mt-1">Créez un PDF propre basé sur votre modèle Google Doc.</p>
+            <p class="small text-muted mt-1">Créez un PDF propre basé sur votre modèle.</p>
         </div>
 
         <div class="mb-4">
@@ -117,10 +137,37 @@ function renderExportModalState() {
     container.innerHTML = html;
 }
 
+// --- LOGIQUE METIER ---
+
+function askConfirmationRegen() {
+    EXPORT_CONTEXT.pdfLink = null;
+    EXPORT_CONTEXT.isConfirmingRegen = false;
+    EXPORT_CONTEXT.isGenerating = false;
+    renderExportModalState();
+}
+
+// Fonction utilitaire pour tout remettre à zéro (Optionnel, pour le bouton Réessayer)
+function resetToInitialState() {
+    EXPORT_CONTEXT.pdfLink = null;
+    EXPORT_CONTEXT.isConfirmingRegen = false;
+    EXPORT_CONTEXT.isGenerating = false;
+    renderExportModalState();
+}
+
+function cancelRegenerate() {
+    EXPORT_CONTEXT.isConfirmingRegen = false;
+    renderExportModalState();
+}
+
 function triggerGeneration() {
-    const includeTrans = document.getElementById('chkIncludeTrans') ? document.getElementById('chkIncludeTrans').checked : true;
+    // Si on est dans l'écran de confirmation, le checkbox n'existe plus dans le DOM
+    // On assume par défaut TRUE si on régénère, ou on stocke la valeur avant.
+    // Ici simple : on relance avec TRUE (standard)
+    const chk = document.getElementById('chkIncludeTrans');
+    const includeTrans = chk ? chk.checked : true;
     
     EXPORT_CONTEXT.isGenerating = true;
+    EXPORT_CONTEXT.isConfirmingRegen = false;
     renderExportModalState();
     
     google.script.run
@@ -130,47 +177,42 @@ function triggerGeneration() {
             if (res.success) {
                 EXPORT_CONTEXT.pdfLink = res.url;
                 EXPORT_CONTEXT.downloadUrl = res.downloadUrl;
+                // Mise à jour locale pour le bouton Dashboard
                 if(currentProgData) currentProgData.pdfLink = res.url;
+                // Si on est dans le dashboard, on essaie de rafraîchir l'icône si possible
+                const btnDash = document.querySelector('.btn-pdf-hero');
+                if(btnDash) btnDash.classList.remove('disabled');
+                
                 renderExportModalState();
                 showNotionToast("PDF généré avec succès !", "success");
             } else {
-                // ERREUR UX FRIENDLY (Au lieu de alert())
-                const container = document.getElementById('exportModalContent');
-                container.innerHTML = `
-                    <div class="text-center py-3">
-                        <div class="bg-danger bg-opacity-10 rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width:50px; height:50px;">
-                            <i class="bi bi-x-lg text-danger fs-4"></i>
-                        </div>
-                        <h6 class="fw-bold text-danger">Erreur de génération</h6>
-                        <p class="small text-muted mb-4 px-3">${res.error}</p>
-                        <button class="btn btn-outline-dark btn-sm" onclick="renderExportModalState()">Réessayer</button>
-                    </div>
-                `;
+                showErrorState(res.error);
             }
         })
         .withFailureHandler(err => {
             EXPORT_CONTEXT.isGenerating = false;
-            // ERREUR SYSTÈME UX FRIENDLY
-            const container = document.getElementById('exportModalContent');
-            container.innerHTML = `
-                <div class="text-center py-3">
-                    <div class="bg-danger bg-opacity-10 rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width:50px; height:50px;">
-                        <i class="bi bi-bug-fill text-danger fs-4"></i>
-                    </div>
-                    <h6 class="fw-bold text-danger">Erreur système</h6>
-                    <p class="small text-muted mb-4 px-3">${err.message}</p>
-                    <button class="btn btn-outline-dark btn-sm" onclick="renderExportModalState()">Réessayer</button>
-                </div>
-            `;
+            showErrorState(err.message);
         })
         .generateProgrammePDF(EXPORT_CONTEXT.progId, includeTrans);
 }
 
-function confirmRegenerate() {
-    if(confirm("Attention : Cela va écraser la version précédente. Continuer ?")) {
-        EXPORT_CONTEXT.pdfLink = null;
-        renderExportModalState();
-    }
+function showErrorState(msg) {
+    const container = document.getElementById('exportModalContent');
+    container.innerHTML = `
+        <div class="text-center py-3">
+            <div class="bg-danger bg-opacity-10 rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width:50px; height:50px;">
+                <i class="bi bi-x-lg text-danger fs-4"></i>
+            </div>
+            <h6 class="fw-bold text-danger">Erreur de génération</h6>
+            <p class="small text-muted mb-4 px-3">${msg}</p>
+            <button class="btn btn-outline-dark btn-sm" onclick="resetError()">Réessayer</button>
+        </div>
+    `;
+}
+
+function resetError() {
+    EXPORT_CONTEXT.isGenerating = false;
+    renderExportModalState();
 }
 
 function copyPdfLink() {

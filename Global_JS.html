@@ -48,6 +48,16 @@ function setDirty(state) {
             btnFnk.classList.remove('save-btn-dirty');
         }
     }
+
+    // NOUVEAU : INDICATEUR VISUEL (Config)
+    const btnCfg = document.getElementById('btnSaveAll');
+    if (btnCfg) {
+        if (state && !btnCfg.innerHTML.includes("●")) {
+            btnCfg.innerHTML = "Enregistrer <span class='text-warning ms-1'>●</span>";
+        } else if (!state) {
+            btnCfg.innerHTML = "Enregistrer";
+        }
+    }
 }
 
 /**
@@ -81,7 +91,7 @@ function guardNavigation(callback) {
 function autoResize(textarea) {
     if(!textarea) return;
     textarea.style.height = 'auto';
-    textarea.style.height = (textarea.scrollHeight) + 'px';
+    textarea.style.height = (textarea.scrollHeight + 5) + 'px';
 }
 
 function animateCounter(id, start, end, duration) {

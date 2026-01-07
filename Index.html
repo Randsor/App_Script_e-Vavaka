@@ -165,6 +165,74 @@
     </div>
 </div>
 
+<!-- GLOBAL SHARED MODAL: FANEKENA SELECTOR -->
+<div id="fanekenaSelectorModal" class="notion-dialog-wrapper" style="display:none; width: 500px; max-width: 95vw; height: 600px;">
+    
+    <div class="modal-notion-header border-bottom">
+        <div class="modal-title-wrap">
+            <div class="modal-icon-box"><i class="bi bi-journal-text"></i></div>
+            <span class="fw-bold">Choisir une confession</span>
+        </div>
+        <button class="btn-close small" aria-label="Close" onclick="closeAllModals()"></button>
+    </div>
+    
+    <div class="fnk-container">
+        <!-- Barre de recherche -->
+        <div class="p-3 bg-white border-bottom">
+            <div class="ss-search-input-wrapper">
+                <i class="bi bi-search text-muted me-2"></i>
+                <input type="text" id="fnkSearchInput" class="ss-search-input" placeholder="Rechercher..." onkeyup="filterFanekenaList(this.value)">
+            </div>
+        </div>
+
+        <!-- Zone de Contenu (Superposition) -->
+        <div class="position-relative flex-grow-1 overflow-hidden bg-light">
+            
+            <!-- 1. LISTE RÉELLE (Cachée au début) -->
+            <div id="fanekenaSelectList" class="absolute-fill overflow-auto custom-scrollbar hidden"></div>
+
+            <!-- 2. SKELETON LOADER (Visible par défaut au chargement) -->
+            <div id="fnkSkeletonList" class="absolute-fill overflow-hidden p-3 custom-scrollbar" style="background: #F9FAFB;">
+                <div class="fnk-list">
+                    <!-- Faux Item 1 -->
+                    <div class="fnk-card" style="cursor: default; pointer-events: none;">
+                        <div class="fnk-card-content w-100">
+                            <div class="shimmer sk-line-long mb-2" style="width: 40%;"></div>
+                            <div class="shimmer sk-line-short" style="width: 80%;"></div>
+                        </div>
+                        <div class="shimmer sk-circle"></div>
+                    </div>
+                    <!-- Faux Item 2 -->
+                    <div class="fnk-card" style="cursor: default; pointer-events: none;">
+                        <div class="fnk-card-content w-100">
+                            <div class="shimmer sk-line-long mb-2" style="width: 50%;"></div>
+                            <div class="shimmer sk-line-short" style="width: 70%;"></div>
+                        </div>
+                        <div class="shimmer sk-circle"></div>
+                    </div>
+                    <!-- Faux Item 3 -->
+                    <div class="fnk-card" style="cursor: default; pointer-events: none;">
+                        <div class="fnk-card-content w-100">
+                            <div class="shimmer sk-line-long mb-2" style="width: 30%;"></div>
+                            <div class="shimmer sk-line-short" style="width: 90%;"></div>
+                        </div>
+                        <div class="shimmer sk-circle"></div>
+                    </div>
+                     <!-- Faux Item 4 -->
+                    <div class="fnk-card" style="cursor: default; pointer-events: none;">
+                        <div class="fnk-card-content w-100">
+                            <div class="shimmer sk-line-long mb-2" style="width: 45%;"></div>
+                            <div class="shimmer sk-line-short" style="width: 60%;"></div>
+                        </div>
+                        <div class="shimmer sk-circle"></div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
   <!-- MODALE SYSTÈME DE NAVIGATION (GLOBAL) -->
   <div id="sysNavModal" class="notion-dialog" style="display:none; width: 320px; padding: 24px; text-align: center; z-index: 20010 !important;">
       <div class="mb-3">

@@ -19,7 +19,20 @@ transition: all 0.3s ease; position: relative;
 @media (min-width: 992px) {
 .hero-content { flex-direction: row; align-items: flex-start; gap: 40px; }
 .hero-main-info { flex: 1; max-width: 55%; border-right: 1px solid var(--border-subtle); padding-right: 30px; }
-.hero-team-section { flex: 1; }
+.hero-team-section {
+    flex: 1;
+    /* Hauteur Max fixe pour éviter que la carte n'explose */
+    max-height: 220px; 
+    overflow-y: auto; /* Scroll si ça dépasse */
+    padding-right: 10px; /* Espace pour l'ascenseur */
+    
+    /* Scrollbar fine et discrète */
+    scrollbar-width: thin;
+    scrollbar-color: #E5E7EB transparent;
+}
+
+.hero-team-section::-webkit-scrollbar { width: 4px; }
+.hero-team-section::-webkit-scrollbar-thumb { background: #E5E7EB; border-radius: 4px; }
 }
 
 .hero-header-row { display: flex; align-items: center; gap: 20px; margin-bottom: 20px; }
@@ -44,14 +57,82 @@ transition: all 0.3s ease; position: relative;
 .chip-warning { background: #FFFBEB; color: #B45309; border-color: #FDE68A; }
 .chip-danger { background: #FEF2F2; color: #B91C1C; border-color: #FECACA; }
 
-.team-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 20px; }
-.team-category { margin-bottom: 5px; }
-.team-category h6 { font-size: 10px; font-weight: 700; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; border-bottom: 1px solid var(--border-subtle); padding-bottom: 4px; }
-.team-list { display: flex; flex-direction: column; gap: 6px; }
-.team-row { display: flex; align-items: baseline; font-size: 13px; color: var(--text-primary); line-height: 1.4; }
-/* CORRECTION ROLE : width: auto au lieu de 70px */
-.team-role { color: var(--text-secondary); font-size: 11px; font-weight: 500; min-width: 70px; margin-right: 8px; white-space: nowrap; }
-.team-name { font-weight: 600; color: var(--text-primary); }
+/* Layout en Colonnes (Style Journal/Pinterest) */
+.team-grid {
+    column-count: 2; /* 2 colonnes sur PC */
+    column-gap: 24px;
+}
+
+/* Une catégorie (ex: LITURGIE) */
+.team-category {
+    break-inside: avoid; /* Empêche de couper un bloc en deux */
+    margin-bottom: 20px;
+}
+
+.team-category h6 {
+    font-size: 10px;
+    font-weight: 800;
+    color: var(--text-tertiary);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 8px;
+    border-bottom: 1px solid var(--border-subtle);
+    padding-bottom: 4px;
+    display: flex; align-items: center; gap: 6px;
+}
+
+/* Liste des personnes */
+.team-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+/* Une ligne : Rôle + Nom */
+.team-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between; /* Rôle à gauche, Nom à droite */
+    font-size: 12px;
+    line-height: 1.4;
+    border-bottom: 1px dashed transparent; /* Ligne de guidage optionnelle */
+}
+.team-row:hover {
+    background: #F9FAFB;
+    border-radius: 4px;
+}
+
+/* Style du Rôle (Discret) */
+.team-role {
+    color: var(--text-secondary);
+    font-size: 10px;
+    font-weight: 500;
+    text-transform: uppercase;
+    opacity: 0.8;
+    flex-shrink: 0;
+    margin-right: 12px;
+    max-width: 40%; /* Empêche le rôle de manger tout l'espace */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Style du Nom (Mis en avant) */
+.team-name {
+    font-weight: 600;
+    color: var(--text-primary);
+    text-align: right; /* Nom aligné à droite pour faire propre */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* MOBILE */
+@media (max-width: 768px) {
+    .team-grid { column-count: 1; } /* 1 seule colonne sur mobile */
+    .hero-main-info { border-right: none; border-bottom: 1px solid var(--border-subtle); padding-bottom: 20px; margin-bottom: 20px; }
+    .hero-team-section { max-height: none; } /* Pas de limite de hauteur sur mobile, on scrolle la page */
+}
 
 .hero-actions { padding: 16px 28px; background: #F9FAFB; border-top: 1px solid var(--border-medium); display: flex; justify-content: flex-end; align-items: center; gap: 10px; }
 
@@ -65,7 +146,39 @@ transition: all 0.3s ease; position: relative;
 .icon-danger { background: #FEF2F2; color: #DC2626; }
 .icon-info { background: #EFF6FF; color: #2563EB; }
 .empty-hero { padding: 40px; text-align: center; color: var(--text-secondary); font-style: italic; }
+
+/* ICONE PDF HERO */
+.pdf-status-icon {
+    font-size: 18px;
+    margin-left: 12px;
+    transition: all 0.2s;
+    padding: 6px;
+    border-radius: 6px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* État Actif (Généré) */
+.pdf-status-icon.active {
+    color: #DC2626; /* Rouge */
+    background: rgba(220, 38, 38, 0.1); /* Fond rouge très léger */
+    cursor: pointer;
+}
+.pdf-status-icon.active:hover {
+    background: rgba(220, 38, 38, 0.2);
+    transform: scale(1.05);
+}
+
+/* État Inactif (Pas encore généré) */
+.pdf-status-icon.disabled {
+    color: #9CA3AF; /* Gris */
+    opacity: 0.3;
+    cursor: default;
+}
+
 </style>
+
 <div class="dash-header">
 <div class="dash-greeting">Tableau de Bord</div>
 <div class="dash-date" id="dashCurrentDate">Chargement date...</div>

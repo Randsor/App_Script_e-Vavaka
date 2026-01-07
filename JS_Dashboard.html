@@ -82,30 +82,74 @@ alertHtml += `<div class="alert-chip chip-danger" onclick="goToCorrection('trans
 alertHtml += '</div>';
 }
 
+// LOGIQUE BOUTON PDF (DESIGN ICONE)
+let pdfBtnHtml = "";
+if (nc.pdfLink && nc.pdfLink !== "") {
+    // Si PDF existe : Icône pleine ROUGE
+    let safeTitle = (nc.titre || "").replace(/'/g, "\\'");
+    pdfBtnHtml = `<div class="pdf-status-icon active" onclick="openDashboardPdf('${nc.progId}', '${nc.pdfLink}', '${safeTitle}')" title="Voir le PDF">
+        <i class="bi bi-file-earmark-pdf-fill"></i>
+    </div>`;
+} else {
+    // Sinon : Icône contour GRISE (transparente)
+    pdfBtnHtml = `<div class="pdf-status-icon disabled" title="PDF non généré">
+        <i class="bi bi-file-earmark-pdf"></i>
+    </div>`;
+}
+
 // DROITE : EQUIPES
 let teamHtml = "";
 const firstHour = nc.horaires[0];
 const groups = (nc.equipes && nc.equipes[firstHour]) ? nc.equipes[firstHour] : {};
 
-const catOrder = ["LITURGIE", "MUSIQUE", "TECHNIQUE", "ACCUEIL", "AUTRE"];
-let sortedCats = Object.keys(groups).sort((a,b) => {
-let ia = catOrder.indexOf(a.toUpperCase()); let ib = catOrder.indexOf(b.toUpperCase());
-if(ia === -1) ia = 99; if(ib === -1) ib = 99;
-return ia - ib;
+// On récupère toutes les catégories renvoyées par le Backend (qui lit la DB Config)
+let dynamicCats = Object.keys(groups);
+
+// Préférence d'affichage (Juste pour l'ordre visuel, ne filtre pas les données)
+const displayPriority = ["LITURGIE", "MUSIQUE", "SECRETAIRE", "TRADUCTION","TECHIQUE"];
+
+dynamicCats.sort((a,b) => {
+    let ia = displayPriority.indexOf(a.toUpperCase()); 
+    let ib = displayPriority.indexOf(b.toUpperCase());
+    // Si la catégorie n'est pas dans la liste de priorité, on la met à la fin (999)
+    if(ia === -1) ia = 999; 
+    if(ib === -1) ib = 999;
+    
+    // Si les deux sont inconnues, tri alphabétique
+    if (ia === 999 && ib === 999) return a.localeCompare(b);
+    return ia - ib;
 });
 
-if (sortedCats.length > 0) {
-teamHtml += '<div class="team-grid">';
-sortedCats.forEach(cat => {
-let rows = "";
-groups[cat].forEach(p => {
-rows += `<div class="team-row"><span class="team-role">${p.role}</span><span class="team-name">${p.nom}</span></div>`;
-});
-teamHtml += `<div class="team-category"><h6>${cat}</h6><div class="team-list">${rows}</div></div>`;
-});
-teamHtml += '</div>';
+// Helper simple pour icônes (Purement cosmétique)
+function getCatIcon(catName) {
+    const c = catName.toUpperCase();
+    if(c.includes('LITURG')) return 'book';
+    if(c.includes('MUSI') || c.includes('CHANT') || c.includes('LOUANGE')) return 'music-note-beamed';
+    if(c.includes('TECH') || c.includes('SON') || c.includes('PROJ')) return 'gear-fill';
+    if(c.includes('TRAD')) return 'translate';
+    if(c.includes('SEC') || c.includes('ADMIN')) return 'newspaper';
+    return 'circle-fill'; // Icône par défaut pour les catégories perso
+}
+
+if (dynamicCats.length > 0) {
+    teamHtml += '<div class="team-grid">';
+    dynamicCats.forEach(cat => {
+        let rows = "";
+        // On affiche tous les rôles de cette catégorie
+        groups[cat].forEach(p => {
+            rows += `<div class="team-row"><span class="team-role">${p.role}</span><span class="team-name">${p.nom}</span></div>`;
+        });
+        
+        let iconClass = getCatIcon(cat);
+        let headerHtml = `<i class="bi bi-${iconClass} me-2 opacity-50"></i>${cat}`;
+        
+        teamHtml += `<div class="team-category"><h6>${headerHtml}</h6><div class="team-list">${rows}</div></div>`;
+    });
+    teamHtml += '</div>';
 } else {
-teamHtml = `<div class="text-muted small fst-italic mt-2">Équipe non assignée</div>`;
+    teamHtml = `<div class="h-100 d-flex align-items-center justify-content-center text-muted small fst-italic mt-2">
+        <div class="text-center"><i class="bi bi-people display-6 opacity-25 mb-2 d-block"></i>Équipe non assignée</div>
+    </div>`;
 }
 
 // ACTIONS
@@ -140,6 +184,7 @@ hero.innerHTML = `
 <div class="d-flex align-items-center mb-1">
 <div class="d-flex gap-1">${nc.horaires.map(h => `<span class="badge-saas badge-neutral">${h}</span>`).join('')}</div>
 <span class="status-badge-inline ${'st-'+status}">${statusLabel}</span>
+${pdfBtnHtml}
 </div>
 <div class="cult-title">${nc.titre}</div>
 </div>
@@ -182,5 +227,23 @@ var timer = setInterval(function() {
 current += increment; obj.innerHTML = current;
 if (current == end) clearInterval(timer);
 }, stepTime);
+}
+
+// --- PONT VERS MODULE EXPORT ---
+function openDashboardPdf(id, link, titre) {
+    // On simule l'objet currentProgData nécessaire pour JS_Export
+    // car on n'est pas dans l'éditeur complet
+    currentProgData = {
+        id: id,
+        titre: titre,
+        pdfLink: link
+    };
+    
+    // Appel de la fonction globale d'export (définie dans JS_Export)
+    if(typeof openExportModal === 'function') {
+        openExportModal();
+    } else {
+        alert("Module d'export non chargé.");
+    }
 }
 </script>
