@@ -177,6 +177,45 @@ transition: all 0.3s ease; position: relative;
     cursor: default;
 }
 
+/* Badges Horaires Interactifs */
+.time-badge { 
+    background: #F3F4F6; color: #6B7280; 
+    padding: 4px 10px; border-radius: 6px; 
+    font-size: 11px; font-weight: 600; font-family: 'Inter', sans-serif;
+    cursor: pointer; 
+    border: 1px solid transparent;
+    transition: all 0.2s cubic-bezier(0.2, 0, 0, 1);
+    user-select: none; /* Empêche la sélection de texte au clic rapide */
+}
+
+.time-badge:hover { 
+    background: #E5E7EB; 
+    transform: translateY(-1px);
+    color: var(--text-primary);
+}
+
+.time-badge:active { 
+    transform: scale(0.95); 
+}
+
+/* État Actif (Sélectionné) */
+.time-badge.active { 
+    background: #1F2937; /* Gris très foncé (Anthracite) */
+    color: white; 
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    border-color: #1F2937;
+}
+
+/* Animation douce lors du changement d'équipe */
+@keyframes teamSlideIn {
+    from { opacity: 0; transform: translateX(10px); }
+    to { opacity: 1; transform: translateX(0); }
+}
+
+.team-anim-enter {
+    animation: teamSlideIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
 </style>
 
 <div class="dash-header">

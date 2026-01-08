@@ -1,126 +1,236 @@
 <script>
-// Stockage temporaire des IDs pour le filtrage
+// --- VARIABLES GLOBALES DASHBOARD ---
+// Stockage temporaire pour les filtres de navigation
 let TEMP_DASH_DATA = { missingToneIds: [], missingTransIds: [] };
+// Cache des données du culte pour le switch instantané d'horaire sans appel serveur
+let CACHED_NEXT_CULTE = null; 
 
 function initDashboardView() {
-const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-const dateStr = new Date().toLocaleDateString('fr-FR', options);
-const formattedDate = dateStr.charAt(0).toUpperCase() + dateStr.slice(1);
-document.getElementById('dashCurrentDate').innerText = formattedDate;
+    // Affichage date du jour
+    const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+    const dateStr = new Date().toLocaleDateString('fr-FR', options);
+    const formattedDate = dateStr.charAt(0).toUpperCase() + dateStr.slice(1);
+    document.getElementById('dashCurrentDate').innerText = formattedDate;
 
-const loader = document.getElementById('dashboardLoader');
-const content = document.getElementById('dashboardContent');
-loader.classList.remove('hidden');
-content.classList.add('hidden');
+    // Gestion Loader
+    const loader = document.getElementById('dashboardLoader');
+    const content = document.getElementById('dashboardContent');
+    loader.classList.remove('hidden');
+    content.classList.add('hidden');
 
-google.script.run
-.withSuccessHandler(renderDashboard)
-.withFailureHandler(err => {
-console.error(err);
-document.getElementById('dashboardLoader').classList.add('hidden');
-})
-.getDashboardData();
+    // Appel Backend
+    google.script.run
+        .withSuccessHandler(renderDashboard)
+        .withFailureHandler(err => {
+            console.error("Erreur Dashboard:", err);
+            document.getElementById('dashboardLoader').classList.add('hidden');
+        })
+        .getDashboardData();
 }
 
 function renderDashboard(data) {
-document.getElementById('dashboardLoader').classList.add('hidden');
-document.getElementById('dashboardContent').classList.remove('hidden');
+    document.getElementById('dashboardLoader').classList.add('hidden');
+    document.getElementById('dashboardContent').classList.remove('hidden');
 
-animateValue("statTone", 0, data.stats.missingTone, 800);
-animateValue("statTrans", 0, data.stats.missingTrans, 800);
-animateValue("statDrafts", 0, data.stats.draftProgs, 800);
+    // 1. Animation des Compteurs (KPIs)
+    animateValue("statTone", 0, data.stats.missingTone, 800);
+    animateValue("statTrans", 0, data.stats.missingTrans, 800);
+    animateValue("statDrafts", 0, data.stats.draftProgs, 800);
 
-const hero = document.getElementById('heroContainer');
+    const hero = document.getElementById('heroContainer');
 
-if (!data.nextCulte) {
-hero.innerHTML = `
-<div class="hero-wrapper empty-hero">
-<div class="mb-3"><i class="bi bi-calendar-x display-4 opacity-25"></i></div>
-<div>Aucun culte planifié.</div>
-<button class="btn btn-saas-secondary mt-3 mx-auto" onclick="navTo('planning')">Aller au planning</button>
-</div>`;
-return;
-}
+    // 2. Gestion Cas "Pas de culte"
+    if (!data.nextCulte) {
+        hero.innerHTML = `
+        <div class="hero-wrapper empty-hero">
+            <div class="mb-3"><i class="bi bi-calendar-x display-4 opacity-25"></i></div>
+            <div>Aucun culte planifié prochainement.</div>
+            <button class="btn btn-saas-secondary mt-3 mx-auto" onclick="navTo('planning')">Aller au planning</button>
+        </div>`;
+        return;
+    }
 
-const nc = data.nextCulte;
+    // 3. MISE EN CACHE (Point Clé pour l'interactivité)
+    CACHED_NEXT_CULTE = data.nextCulte;
+    const nc = CACHED_NEXT_CULTE;
 
-// GAUCHE : INFOS
-const parts = nc.date.split('/');
-const dObj = new Date(parts[2], parts[1]-1, parts[0]);
-const day = parts[0];
-const month = dObj.toLocaleDateString('fr-FR', {month:'short'});
-const weekday = dObj.toLocaleDateString('fr-FR', {weekday:'long'});
-
-const status = nc.status || "missing";
-const statusLabel = status === 'final' ? 'Validé' : (status === 'draft' ? 'Brouillon' : 'Non créé');
-
-let themesHtml = "";
-if(nc.theme_mg) themesHtml += `<div class="cult-theme-row"><span class="cult-theme-lang">MG</span>${nc.theme_mg}</div>`;
-if(nc.theme_fr) themesHtml += `<div class="cult-theme-row"><span class="cult-theme-lang">FR</span>${nc.theme_fr}</div>`;
-if(!themesHtml) themesHtml = `<div class="text-muted small fst-italic">Thèmes non définis</div>`;
-
-// ALERTE CHIPS
-let alertHtml = "";
-const alerts = nc.songAlerts;
-
-// MISE A JOUR DU STORE TEMPORAIRE
-TEMP_DASH_DATA.missingToneIds = alerts ? alerts.missingToneIds : [];
-TEMP_DASH_DATA.missingTransIds = alerts ? alerts.missingTransIds : [];
-
-if (alerts && (alerts.missingToneIds.length > 0 || alerts.missingTransIds.length > 0)) {
-alertHtml = '<div class="alert-chips-container">';
-if (alerts.missingToneIds.length > 0) {
-alertHtml += `<div class="alert-chip chip-warning" onclick="goToCorrection('tone')">
-<i class="bi bi-music-note-beamed"></i> ${alerts.missingToneIds.length} sans tonalité
-</div>`;
-}
-if (alerts.missingTransIds.length > 0) {
-alertHtml += `<div class="alert-chip chip-danger" onclick="goToCorrection('trans')">
-<i class="bi bi-translate"></i> ${alerts.missingTransIds.length} traduction(s) mq.
-</div>`;
-}
-alertHtml += '</div>';
-}
-
-// LOGIQUE BOUTON PDF (DESIGN ICONE)
-let pdfBtnHtml = "";
-if (nc.pdfLink && nc.pdfLink !== "") {
-    // Si PDF existe : Icône pleine ROUGE
-    let safeTitle = (nc.titre || "").replace(/'/g, "\\'");
-    pdfBtnHtml = `<div class="pdf-status-icon active" onclick="openDashboardPdf('${nc.progId}', '${nc.pdfLink}', '${safeTitle}')" title="Voir le PDF">
-        <i class="bi bi-file-earmark-pdf-fill"></i>
-    </div>`;
-} else {
-    // Sinon : Icône contour GRISE (transparente)
-    pdfBtnHtml = `<div class="pdf-status-icon disabled" title="PDF non généré">
-        <i class="bi bi-file-earmark-pdf"></i>
-    </div>`;
-}
-
-// DROITE : EQUIPES
-let teamHtml = "";
-const firstHour = nc.horaires[0];
-const groups = (nc.equipes && nc.equipes[firstHour]) ? nc.equipes[firstHour] : {};
-
-// On récupère toutes les catégories renvoyées par le Backend (qui lit la DB Config)
-let dynamicCats = Object.keys(groups);
-
-// Préférence d'affichage (Juste pour l'ordre visuel, ne filtre pas les données)
-const displayPriority = ["LITURGIE", "MUSIQUE", "SECRETAIRE", "TRADUCTION","TECHIQUE"];
-
-dynamicCats.sort((a,b) => {
-    let ia = displayPriority.indexOf(a.toUpperCase()); 
-    let ib = displayPriority.indexOf(b.toUpperCase());
-    // Si la catégorie n'est pas dans la liste de priorité, on la met à la fin (999)
-    if(ia === -1) ia = 999; 
-    if(ib === -1) ib = 999;
+    // --- PRÉPARATION DES DONNÉES D'AFFICHAGE ---
     
-    // Si les deux sont inconnues, tri alphabétique
-    if (ia === 999 && ib === 999) return a.localeCompare(b);
-    return ia - ib;
-});
+    // Dates
+    const parts = nc.date.split('/');
+    const dObj = new Date(parts[2], parts[1]-1, parts[0]);
+    const day = parts[0];
+    const month = dObj.toLocaleDateString('fr-FR', {month:'short'});
+    const weekday = dObj.toLocaleDateString('fr-FR', {weekday:'long'});
 
-// Helper simple pour icônes (Purement cosmétique)
+    // Statut
+    const status = nc.status || "missing";
+    const statusLabel = status === 'final' ? 'Validé' : (status === 'draft' ? 'Brouillon' : 'Non créé');
+
+    // Thèmes
+    let themesHtml = "";
+    if(nc.theme_mg) themesHtml += `<div class="cult-theme-row"><span class="cult-theme-lang">MG</span>${nc.theme_mg}</div>`;
+    if(nc.theme_fr) themesHtml += `<div class="cult-theme-row"><span class="cult-theme-lang">FR</span>${nc.theme_fr}</div>`;
+    if(!themesHtml) themesHtml = `<div class="text-muted small fst-italic">Thèmes non définis</div>`;
+
+    // Alertes (Chips)
+    let alertHtml = "";
+    const alerts = nc.songAlerts;
+    TEMP_DASH_DATA.missingToneIds = alerts ? alerts.missingToneIds : [];
+    TEMP_DASH_DATA.missingTransIds = alerts ? alerts.missingTransIds : [];
+
+    if (alerts && (alerts.missingToneIds.length > 0 || alerts.missingTransIds.length > 0)) {
+        alertHtml = '<div class="alert-chips-container">';
+        if (alerts.missingToneIds.length > 0) {
+            alertHtml += `<div class="alert-chip chip-warning" onclick="goToCorrection('tone')"><i class="bi bi-music-note-beamed"></i> ${alerts.missingToneIds.length} sans tonalité</div>`;
+        }
+        if (alerts.missingTransIds.length > 0) {
+            alertHtml += `<div class="alert-chip chip-danger" onclick="goToCorrection('trans')"><i class="bi bi-translate"></i> ${alerts.missingTransIds.length} traduction(s) mq.</div>`;
+        }
+        alertHtml += '</div>';
+    }
+
+    // Bouton PDF
+    let pdfBtnHtml = "";
+    if (nc.pdfLink && nc.pdfLink !== "") {
+        let safeTitle = (nc.titre || "").replace(/'/g, "\\'");
+        pdfBtnHtml = `<div class="pdf-status-icon active btn-pdf-hero" onclick="openDashboardPdf('${nc.progId}', '${nc.pdfLink}', '${safeTitle}')" title="Voir le PDF"><i class="bi bi-file-earmark-pdf-fill"></i></div>`;
+    } else {
+        pdfBtnHtml = `<div class="pdf-status-icon disabled btn-pdf-hero" title="PDF non généré"><i class="bi bi-file-earmark-pdf"></i></div>`;
+    }
+
+    // Boutons d'Action Principaux
+    let btnAction = "";
+    if (nc.progId) {
+        btnAction = `
+        <button class="btn btn-saas-secondary" onclick="navTo('planning')">Planning</button>
+        <button class="btn btn-saas-dark" onclick="navTo('programme', {id: '${nc.progId}'})"><i class="bi bi-pencil-square me-2"></i>Préparer le Culte</button>`;
+    } else {
+        btnAction = `
+        <button class="btn btn-saas-secondary" onclick="navTo('planning')">Gérer l'équipe</button>
+        <button class="btn btn-saas-dark" onclick="navTo('programme', {date: '${nc.date}'})"><i class="bi bi-plus-lg me-2"></i>Créer le Programme</button>`;
+    }
+
+    // --- RENDU STRUCTURE HTML ---
+    hero.innerHTML = `
+    <div class="hero-wrapper">
+        <div class="status-strip ${status}"></div>
+        <div class="hero-content">
+            <!-- PARTIE GAUCHE : INFOS CULTE -->
+            <div class="hero-main-info">
+                <div class="hero-header-row">
+                    <div class="date-badge-large hover-lift">
+                        <div class="dbl-month">${month}</div>
+                        <div class="dbl-day">${day}</div>
+                        <div class="dbl-weekday">${weekday}</div>
+                    </div>
+                    <div>
+                        <div class="d-flex align-items-center mb-1">
+                            <!-- Container Badges Horaires (Cible pour le JS) -->
+                            <div class="d-flex gap-2 me-2" id="heroTimeBadges"></div>
+                            <span class="status-badge-inline ${'st-'+status}">${statusLabel}</span>
+                            ${pdfBtnHtml}
+                        </div>
+                        <div class="cult-title">${nc.titre}</div>
+                    </div>
+                </div>
+                <div class="cult-themes">${themesHtml}</div>
+                ${alertHtml}
+            </div>
+
+            <!-- PARTIE DROITE : ÉQUIPES (Zone dynamique) -->
+            <div class="hero-team-section" id="heroTeamContainer">
+                <!-- Injection JS ici -->
+            </div>
+        </div>
+        <div class="hero-actions">${btnAction}</div>
+    </div>`;
+
+    // 4. INITIALISATION DE LA VUE EQUIPE
+    // On sélectionne la première heure par défaut si elle existe
+    if(nc.horaires && nc.horaires.length > 0) {
+        switchDashTeam(nc.horaires[0]);
+    } else {
+        document.getElementById('heroTeamContainer').innerHTML = getEmptyTeamHtml();
+    }
+}
+
+// --- FONCTION DE SWITCH D'ÉQUIPE (LOGIQUE INTERACTIVE) ---
+function switchDashTeam(targetTime) {
+    if(!CACHED_NEXT_CULTE) return;
+    
+    // 1. Mise à jour visuelle des Badges Horaires
+    const badgeContainer = document.getElementById('heroTimeBadges');
+    badgeContainer.innerHTML = "";
+    
+    CACHED_NEXT_CULTE.horaires.forEach(h => {
+        const isActive = (h === targetTime);
+        const badge = document.createElement('span');
+        // Application des classes CSS définies dans View_Dashboard
+        badge.className = `time-badge ${isActive ? 'active' : ''}`;
+        badge.innerText = h;
+        // Clic => Switch
+        badge.onclick = () => switchDashTeam(h);
+        badgeContainer.appendChild(badge);
+    });
+
+    // 2. Génération du HTML de l'équipe correspondante
+    const groups = (CACHED_NEXT_CULTE.equipes && CACHED_NEXT_CULTE.equipes[targetTime]) ? CACHED_NEXT_CULTE.equipes[targetTime] : {};
+    
+    const teamContainer = document.getElementById('heroTeamContainer');
+    
+    // Remplacement du contenu (déclenche l'animation CSS grâce à la nouvelle classe)
+    teamContainer.innerHTML = generateTeamHtml(groups);
+    
+    // Force l'ajout de la classe d'animation sur la grille
+    const grid = teamContainer.querySelector('.team-grid');
+    if(grid) grid.classList.add('team-anim-enter');
+}
+
+// --- GÉNÉRATEUR HTML ÉQUIPE (Refactorisé) ---
+function generateTeamHtml(groups) {
+    let dynamicCats = Object.keys(groups);
+    if (dynamicCats.length === 0) return getEmptyTeamHtml();
+
+    // Ordre d'affichage préférentiel
+    const displayPriority = ["LITURGIE", "MUSIQUE", "SECRETAIRE", "TRADUCTION", "TECHNIQUE", "ACCUEIL"];
+    
+    dynamicCats.sort((a,b) => {
+        let ia = displayPriority.indexOf(a.toUpperCase()); 
+        let ib = displayPriority.indexOf(b.toUpperCase());
+        // Les catégories inconnues vont à la fin
+        if(ia === -1) ia = 999; 
+        if(ib === -1) ib = 999;
+        
+        if (ia === 999 && ib === 999) return a.localeCompare(b);
+        return ia - ib;
+    });
+
+    let html = '<div class="team-grid">';
+    dynamicCats.forEach(cat => {
+        let rows = "";
+        groups[cat].forEach(p => {
+            rows += `<div class="team-row"><span class="team-role">${p.role}</span><span class="team-name">${p.nom}</span></div>`;
+        });
+        
+        let iconClass = getCatIcon(cat);
+        html += `
+        <div class="team-category">
+            <h6><i class="bi bi-${iconClass} me-2 opacity-50"></i>${cat}</h6>
+            <div class="team-list">${rows}</div>
+        </div>`;
+    });
+    html += '</div>';
+    return html;
+}
+
+function getEmptyTeamHtml() {
+    return `<div class="h-100 d-flex align-items-center justify-content-center text-muted small fst-italic mt-2 team-anim-enter">
+        <div class="text-center"><i class="bi bi-people display-6 opacity-25 mb-2 d-block"></i>Équipe non assignée pour cet horaire</div>
+    </div>`;
+}
+
+// Helper icônes catégories
 function getCatIcon(catName) {
     const c = catName.toUpperCase();
     if(c.includes('LITURG')) return 'book';
@@ -128,122 +238,40 @@ function getCatIcon(catName) {
     if(c.includes('TECH') || c.includes('SON') || c.includes('PROJ')) return 'gear-fill';
     if(c.includes('TRAD')) return 'translate';
     if(c.includes('SEC') || c.includes('ADMIN')) return 'newspaper';
-    return 'circle-fill'; // Icône par défaut pour les catégories perso
+    if(c.includes('ACCUEIL')) return 'emoji-smile';
+    return 'circle-fill';
 }
 
-if (dynamicCats.length > 0) {
-    teamHtml += '<div class="team-grid">';
-    dynamicCats.forEach(cat => {
-        let rows = "";
-        // On affiche tous les rôles de cette catégorie
-        groups[cat].forEach(p => {
-            rows += `<div class="team-row"><span class="team-role">${p.role}</span><span class="team-name">${p.nom}</span></div>`;
-        });
-        
-        let iconClass = getCatIcon(cat);
-        let headerHtml = `<i class="bi bi-${iconClass} me-2 opacity-50"></i>${cat}`;
-        
-        teamHtml += `<div class="team-category"><h6>${headerHtml}</h6><div class="team-list">${rows}</div></div>`;
-    });
-    teamHtml += '</div>';
-} else {
-    teamHtml = `<div class="h-100 d-flex align-items-center justify-content-center text-muted small fst-italic mt-2">
-        <div class="text-center"><i class="bi bi-people display-6 opacity-25 mb-2 d-block"></i>Équipe non assignée</div>
-    </div>`;
-}
+// --- UTILS NAVIGATION & ANIMATION ---
 
-// ACTIONS
-let btnAction = "";
-if (nc.progId) {
-btnAction = `
-<button class="btn btn-saas-secondary" onclick="navTo('planning')">Planning</button>
-<button class="btn btn-saas-dark" onclick="navTo('programme', {id: '${nc.progId}'})">
-<i class="bi bi-pencil-square me-2"></i>Préparer le Culte
-</button>`;
-} else {
-btnAction = `
-<button class="btn btn-saas-secondary" onclick="navTo('planning')">Gérer l'équipe</button>
-<button class="btn btn-saas-dark" onclick="navTo('programme', {date: '${nc.date}'})">
-<i class="bi bi-plus-lg me-2"></i>Créer le Programme
-</button>`;
-}
-
-hero.innerHTML = `
-<div class="hero-wrapper">
-<div class="status-strip ${status}"></div>
-
-<div class="hero-content">
-<div class="hero-main-info">
-<div class="hero-header-row">
-<div class="date-badge-large hover-lift">
-<div class="dbl-month">${month}</div>
-<div class="dbl-day">${day}</div>
-<div class="dbl-weekday">${weekday}</div>
-</div>
-<div>
-<div class="d-flex align-items-center mb-1">
-<div class="d-flex gap-1">${nc.horaires.map(h => `<span class="badge-saas badge-neutral">${h}</span>`).join('')}</div>
-<span class="status-badge-inline ${'st-'+status}">${statusLabel}</span>
-${pdfBtnHtml}
-</div>
-<div class="cult-title">${nc.titre}</div>
-</div>
-</div>
-<div class="cult-themes">${themesHtml}</div>
-${alertHtml}
-</div>
-
-<div class="hero-team-section">
-${teamHtml}
-</div>
-</div>
-
-<div class="hero-actions">
-${btnAction}
-</div>
-</div>
-`;
-}
-
-// --- NAVIGATION FILTRE SÉCURISÉE ---
 function goToCorrection(type) {
-const ids = (type === 'tone') ? TEMP_DASH_DATA.missingToneIds : TEMP_DASH_DATA.missingTransIds;
-
-if (ids && ids.length > 0) {
-// On passe bien le tableau brut
-navTo('chants', { filter: "specific_ids", ids: ids });
-} else {
-alert("Erreur : Aucun ID trouvé pour ce filtre.");
-}
+    const ids = (type === 'tone') ? TEMP_DASH_DATA.missingToneIds : TEMP_DASH_DATA.missingTransIds;
+    if (ids && ids.length > 0) {
+        navTo('chants', { filter: "specific_ids", ids: ids });
+    } else {
+        alert("Aucun ID trouvé.");
+    }
 }
 
 function animateValue(id, start, end, duration) {
-if (start === end) { document.getElementById(id).innerText = end; return; }
-var range = end - start; var current = start;
-var increment = end > start ? 1 : -1;
-var stepTime = Math.abs(Math.floor(duration / range));
-var obj = document.getElementById(id);
-var timer = setInterval(function() {
-current += increment; obj.innerHTML = current;
-if (current == end) clearInterval(timer);
-}, stepTime);
+    if (start === end) { document.getElementById(id).innerText = end; return; }
+    var range = end - start; 
+    var current = start;
+    var increment = end > start ? 1 : -1;
+    var stepTime = Math.abs(Math.floor(duration / range));
+    var obj = document.getElementById(id);
+    var timer = setInterval(function() {
+        current += increment; 
+        obj.innerHTML = current;
+        if (current == end) clearInterval(timer);
+    }, stepTime);
 }
 
-// --- PONT VERS MODULE EXPORT ---
 function openDashboardPdf(id, link, titre) {
-    // On simule l'objet currentProgData nécessaire pour JS_Export
-    // car on n'est pas dans l'éditeur complet
-    currentProgData = {
-        id: id,
-        titre: titre,
-        pdfLink: link
-    };
+    // Simulation du contexte Programme pour le module Export
+    currentProgData = { id: id, titre: titre, pdfLink: link };
     
-    // Appel de la fonction globale d'export (définie dans JS_Export)
-    if(typeof openExportModal === 'function') {
-        openExportModal();
-    } else {
-        alert("Module d'export non chargé.");
-    }
+    if(typeof openExportModal === 'function') openExportModal();
+    else alert("Module d'export non chargé.");
 }
 </script>

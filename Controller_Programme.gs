@@ -20,39 +20,60 @@ function getProgrammeDetails(id) {
   var dataP = sheetProg.getDataRange().getValues();
   var prog = null;
   
+  // Recherche du programme
   for (var i = 1; i < dataP.length; i++) {
-    if (String(dataP[i][0]) === String(id)) {
+    // Comparaison souple sur l'ID Programme
+    if (String(dataP[i][0]).trim() === String(id).trim()) {
+      
       var settings = {};
       try { settings = JSON.parse(dataP[i][6]); } catch(e) {} 
 
       var dateStr = formatDate_Prog(dataP[i][1]);
       var liveTitle = getPlanningTitleForDate(dateStr) || dataP[i][2];
 
-      // --- HYDRATATION DYNAMIQUE ---
+      // --- 1. CHARGEMENT DU JSON STOCKÉ (L'archive) ---
       var blocks = [];
       try { blocks = JSON.parse(dataP[i][5]); } catch(e) { blocks = []; }
 
-      // A. CHANTS
+      // --- 2. PRÉPARATION DE LA SOURCE DE VÉRITÉ (DB_CHANTS) ---
+      // On charge toute la base en mémoire pour hydrater rapidement
       var sheetChants = ss.getSheetByName("DB_CHANTS");
       var songMap = {};
+      
       if (sheetChants) {
           var dataC = sheetChants.getDataRange().getValues();
           for (var c = 1; c < dataC.length; c++) {
-              songMap[String(dataC[c][0])] = {
-                  recueil: dataC[c][1], numero: dataC[c][2], titre: dataC[c][3], tonalite: dataC[c][4],
-                  paroles_mg: dataC[c][5], paroles_fr: dataC[c][6], structure: dataC[c][7],
-                  transStatus: (function(mg, fr){ var nMg=(mg||"").split(" /// ").length; var nFr=(fr||"").split(" /// ").length; if(nMg>1 && nFr<=1)return 'none'; if(nMg>nFr)return 'partial'; return 'ok'; })(dataC[c][5], dataC[c][6])
+              // CRITIQUE : On convertit l'ID de la DB en String propre pour la comparaison
+              var dbId = String(dataC[c][0]).trim();
+              
+              songMap[dbId] = {
+                  recueil: dataC[c][1], 
+                  numero: dataC[c][2], 
+                  titre: dataC[c][3], 
+                  tonalite: dataC[c][4],
+                  paroles_mg: dataC[c][5], 
+                  paroles_fr: dataC[c][6], 
+                  structure: dataC[c][7],
+                  // Calcul à la volée du statut
+                  transStatus: (function(mg, fr){ 
+                      var nMg=(mg||"").split(" /// ").length; 
+                      var nFr=(fr||"").split(" /// ").length; 
+                      if(nMg>1 && nFr<=1) return 'none'; 
+                      if(nMg>nFr) return 'partial'; 
+                      return 'ok'; 
+                  })(dataC[c][5], dataC[c][6])
               };
           }
       }
       
-      // B. FANEKENA
+      // --- 3. PRÉPARATION DE LA SOURCE DE VÉRITÉ (DB_FANEKENA) ---
       var sheetFnk = ss.getSheetByName(SHEET_NAME_FANEKENA);
       var fnkMap = {};
       if (sheetFnk) {
           var dataF = sheetFnk.getDataRange().getValues();
           for(var f=1; f<dataF.length; f++) {
-              fnkMap[String(dataF[f][0])] = {
+              var fId = String(dataF[f][0]).trim();
+              fnkMap[fId] = {
                   titre: dataF[f][1],
                   contenu_mg: dataF[f][2],
                   contenu_fr: dataF[f][3]
@@ -60,23 +81,73 @@ function getProgrammeDetails(id) {
           }
       }
 
-      // Parcours
+      // --- 4. HYDRATATION (ÉCRASEMENT DES DONNÉES JSON PAR LA DB) ---
       blocks.forEach(function(block) {
-          // Hydrate CHANT
-          if (block.type === 'CHANT' && block.data && block.data.id && songMap[block.data.id]) {
-              var freshSong = songMap[block.data.id];
-              block.data.titre = freshSong.titre; block.data.recueil = freshSong.recueil; block.data.numero = freshSong.numero; block.data.tonalite = freshSong.tonalite; block.data.transStatus = freshSong.transStatus;
-              if (block.data.sequence && Array.isArray(block.data.sequence)) {
-                  var textMGArr = (freshSong.paroles_mg || "").split(" /// "); var textFRArr = (freshSong.paroles_fr || "").split(" /// "); var structArr = (freshSong.structure || "").split(",");
-                  var fullTextMG = ""; var fullTextFR = ""; var displayLabels = {}; var cCount = 1;
-                  structArr.forEach(function(t, idx) { var type = t.trim().toUpperCase(); if(type === 'C') displayLabels[idx] = cCount++ + ". "; else if(type === 'R') displayLabels[idx] = "Ref. "; else displayLabels[idx] = ""; });
-                  block.data.sequence.forEach(function(idx, k) { if (textMGArr[idx] !== undefined) { var txtM = textMGArr[idx] || ""; var txtF = textFRArr[idx] || ""; var label = displayLabels[idx] || ""; if (k > 0) { fullTextMG += "\n\n"; fullTextFR += "\n\n"; } fullTextMG += label + txtM; if (txtF.trim() !== "") { fullTextFR += label + txtF; } } });
-                  block.data.paroles_fixe = fullTextMG; block.data.paroles_fr_fixe = fullTextFR;
+          
+          // Vérification si le bloc est lié à une ID
+          var blockId = (block.data && block.data.id) ? String(block.data.id).trim() : null;
+
+          // CAS A : CHANT LIÉ -> ON FORCE LA MISE À JOUR
+          if (block.type === 'CHANT' && blockId && songMap[blockId]) {
+              var freshSong = songMap[blockId];
+              
+              // 1. Mise à jour des métadonnées (Titre, Tonalité, etc.)
+              block.data.titre = freshSong.titre; 
+              block.data.recueil = freshSong.recueil; 
+              block.data.numero = freshSong.numero; 
+              block.data.tonalite = freshSong.tonalite; 
+              block.data.transStatus = freshSong.transStatus;
+
+              // 2. Reconstruction Intégrale des Paroles
+              // On utilise la "Sequence" stockée dans le JSON (quels couplets ?)
+              // Mais on prend le TEXTE dans la "freshSong" (DB)
+              var sequenceIndices = block.data.sequence;
+              
+              // Sécurité : si pas de séquence définie, on ne peut pas reconstruire précisément,
+              // on garde l'ancien texte (ou on pourrait tout charger par défaut)
+              if (sequenceIndices && Array.isArray(sequenceIndices)) {
+                  
+                  var textMGArr = (freshSong.paroles_mg || "").split(" /// "); 
+                  var textFRArr = (freshSong.paroles_fr || "").split(" /// "); 
+                  var structArr = (freshSong.structure || "").split(",");
+                  
+                  var fullTextMG = ""; 
+                  var fullTextFR = ""; 
+                  var displayLabels = {}; 
+                  var cCount = 1;
+                  
+                  // Recalcul des labels (Andininy 1, 2...) basé sur la structure fraîche de la DB
+                  structArr.forEach(function(t, idx) { 
+                      var type = t.trim().toUpperCase(); 
+                      if(type === 'C') displayLabels[idx] = cCount++ + ". "; 
+                      else if(type === 'R') displayLabels[idx] = "Ref. "; 
+                      else displayLabels[idx] = ""; 
+                  });
+                  
+                  // Réassemblage du texte
+                  sequenceIndices.forEach(function(idx, k) { 
+                      // On vérifie que l'index existe encore dans le chant (cas où on a supprimé un couplet en DB)
+                      if (textMGArr[idx] !== undefined) { 
+                          var txtM = (textMGArr[idx] || "").trim(); 
+                          var txtF = (textFRArr[idx] || "").trim(); 
+                          var label = displayLabels[idx] || ""; 
+                          
+                          if (k > 0) { fullTextMG += "\n\n"; fullTextFR += "\n\n"; } 
+                          
+                          fullTextMG += label + txtM; 
+                          if (txtF !== "") { fullTextFR += label + txtF; } 
+                      } 
+                  });
+                  
+                  // ÉCRASEMENT DU TEXTE JSON PAR LE TEXTE DB RECONSTRUIT
+                  block.data.paroles_fixe = fullTextMG; 
+                  block.data.paroles_fr_fixe = fullTextFR;
               }
           }
-          // Hydrate FANEKENA
-          if (block.type === 'FANEKENA' && block.data && block.data.id && fnkMap[block.data.id]) {
-              var freshFnk = fnkMap[block.data.id];
+          
+          // CAS B : FANEKENA LIÉ -> ON FORCE LA MISE À JOUR
+          if (block.type === 'FANEKENA' && blockId && fnkMap[blockId]) {
+              var freshFnk = fnkMap[blockId];
               block.data.titre = freshFnk.titre;
               block.data.contenu_mg = freshFnk.contenu_mg;
               block.data.contenu_fr = freshFnk.contenu_fr;
@@ -84,8 +155,6 @@ function getProgrammeDetails(id) {
       });
 
       var hydratedContent = JSON.stringify(blocks);
-      
-      // Récupération Lien PDF (Colonne 10 / Index 9)
       var pdfLink = (dataP[i].length > 9) ? dataP[i][9] : "";
 
       prog = {
@@ -98,7 +167,7 @@ function getProgrammeDetails(id) {
         settings: settings,
         status: dataP[i][7] || "draft", 
         validatedBy: dataP[i][8] || "", 
-        pdfLink: pdfLink, // <-- La virgule est bien là cette fois
+        pdfLink: pdfLink,
         rowIndex: i + 1
       };
       break;

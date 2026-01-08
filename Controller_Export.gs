@@ -1,4 +1,4 @@
-/* Controller_Export.gs - MOTEUR PDF WYSIWYG (FIX STYLES TABLEAUX) */
+/* Controller_Export.gs - MOTEUR PDF WYSIWYG (FIX STYLES TABLEAUX & PREDICATION) */
 
 // CONFIGURATION VISUELLE
 var DOC_FONT_FAMILY = "Roboto"; 
@@ -64,7 +64,8 @@ function generateProgrammePDF(progId, includeTrans) {
     try { blocks = JSON.parse(progData.contenu); } catch(e) {}
     
     blocks.forEach(function(block) {
-       var newIndex = renderBlockToDoc(body, insertionIndex, block, includeTrans);
+       // MODIFICATION : On passe progData pour avoir accès aux thèmes
+       var newIndex = renderBlockToDoc(body, insertionIndex, block, includeTrans, progData);
        if (insertionIndex !== null && newIndex !== null) insertionIndex = newIndex;
     });
     
@@ -90,7 +91,8 @@ function safeTxt(val) {
     return String(val).trim(); 
 }
 
-function renderBlockToDoc(body, startIdx, block, includeTrans) {
+// MODIFICATION SIGNATURE : ajout de progData
+function renderBlockToDoc(body, startIdx, block, includeTrans, progData) {
   var currentIdx = startIdx;
 
   // --- STYLES ---
@@ -106,7 +108,7 @@ function renderBlockToDoc(body, startIdx, block, includeTrans) {
   sTxt[DocumentApp.Attribute.FONT_SIZE] = DOC_FONT_SIZE_TEXT; 
   sTxt[DocumentApp.Attribute.FOREGROUND_COLOR] = COLOR_TEXT; 
   sTxt[DocumentApp.Attribute.BOLD] = false; 
-  sTxt[DocumentApp.Attribute.ITALIC] = false; // FORCE NON ITALIQUE
+  sTxt[DocumentApp.Attribute.ITALIC] = false; 
   
   var sMeta = {}; 
   sMeta[DocumentApp.Attribute.FONT_FAMILY] = DOC_FONT_FAMILY; 
@@ -115,7 +117,6 @@ function renderBlockToDoc(body, startIdx, block, includeTrans) {
   sMeta[DocumentApp.Attribute.BOLD] = false;
   sMeta[DocumentApp.Attribute.FOREGROUND_COLOR] = COLOR_META;
 
-  // Style Réf (Bleu/Gras/Droit)
   var sRef = {};
   sRef[DocumentApp.Attribute.FONT_FAMILY] = DOC_FONT_FAMILY; 
   sRef[DocumentApp.Attribute.FONT_SIZE] = DOC_FONT_SIZE_TITLE; 
@@ -123,7 +124,6 @@ function renderBlockToDoc(body, startIdx, block, includeTrans) {
   sRef[DocumentApp.Attribute.BOLD] = true;
   sRef[DocumentApp.Attribute.FOREGROUND_COLOR] = COLOR_BLUE;
 
-  // Style Réf FR (Gris/Gras/Droit)
   var sRefFr = {}; 
   sRefFr[DocumentApp.Attribute.FONT_FAMILY] = DOC_FONT_FAMILY; 
   sRefFr[DocumentApp.Attribute.FONT_SIZE] = DOC_FONT_SIZE_META; 
@@ -161,7 +161,7 @@ function renderBlockToDoc(body, startIdx, block, includeTrans) {
       return p;
   }
 
-  // --- HELPER DOUBLE COLONNE (CORRIGÉ & BOUCLÉ) ---
+  // --- HELPER DOUBLE COLONNE ---
   function addDualCol(txtMG, txtFR) {
       if (!includeTrans || !txtFR) {
           addP(txtMG, sTxt, 'JUSTIFY', 6, INDENT_STD);
@@ -175,25 +175,21 @@ function renderBlockToDoc(body, startIdx, block, includeTrans) {
       } catch(e) { table = body.appendTable(); currentIdx = null; }
       
       var row = table.appendTableRow();
-      table.setBorderWidth(0); // Invisible
+      table.setBorderWidth(0);
       
-      // === CELLULE GAUCHE (MG) ===
       var cell1 = row.appendTableCell(safeTxt(txtMG));
       cell1.setWidth(280); 
       cell1.setPaddingTop(0).setPaddingBottom(6).setPaddingLeft(INDENT_STD).setPaddingRight(10);
       
-      // FIX CRITIQUE : On boucle sur TOUS les paragraphes de la cellule
-      // pour éviter que le 2ème paragraphe ne perde son style
       var numChildren1 = cell1.getNumChildren();
       for (var i = 0; i < numChildren1; i++) {
           var child = cell1.getChild(i);
           if (child.getType() === DocumentApp.ElementType.PARAGRAPH) {
-              child.asParagraph().setAttributes(sTxt); // Force NON ITALIQUE
+              child.asParagraph().setAttributes(sTxt); 
               child.asParagraph().setAlignment(DocumentApp.HorizontalAlignment.JUSTIFY);
           }
       }
       
-      // === CELLULE DROITE (FR) ===
       var cell2 = row.appendTableCell(safeTxt(txtFR));
       cell2.setPaddingTop(0).setPaddingBottom(6).setPaddingLeft(10).setPaddingRight(0);
       
@@ -201,7 +197,7 @@ function renderBlockToDoc(body, startIdx, block, includeTrans) {
       for (var j = 0; j < numChildren2; j++) {
           var child2 = cell2.getChild(j);
           if (child2.getType() === DocumentApp.ElementType.PARAGRAPH) {
-              child2.asParagraph().setAttributes(sMeta); // Force ITALIQUE GRIS
+              child2.asParagraph().setAttributes(sMeta); 
               child2.asParagraph().setAlignment(DocumentApp.HorizontalAlignment.JUSTIFY);
           }
       }
@@ -226,7 +222,7 @@ function renderBlockToDoc(body, startIdx, block, includeTrans) {
   }
   
   else if (block.type === 'CHANT') {
-      // 1. Titre Générique (ex: HIRA)
+      // 1. Titre Générique
       addP(safeTxt(block.label_mg || "HIRA").toUpperCase(), sTitle, 'LEFT', 0, 0);
       if (includeTrans && block.label_fr) addP(block.label_fr, sMeta, 'LEFT', 6, 0);
 
@@ -295,6 +291,19 @@ function renderBlockToDoc(body, startIdx, block, includeTrans) {
            addP(block.data.titre, sTitle, 'LEFT', 6, INDENT_STD);
       }
       addDualCol(block.data.contenu_mg, block.data.contenu_fr);
+  }
+  
+  // MODIFICATION : CAS PREDICATION
+  else if (block.type === 'PREDICATION') {
+      // Récupération des thèmes depuis progData
+      var thMg = progData ? safeTxt(progData.theme_mg) : "";
+      var thFr = progData ? safeTxt(progData.theme_fr) : "";
+      
+      if(thMg || thFr) {
+          addDualCol(thMg, thFr);
+      } else {
+          addP("(Thème non défini)", sMeta, 'LEFT', 6, INDENT_STD);
+      }
   }
   
   else {

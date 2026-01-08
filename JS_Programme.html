@@ -1026,5 +1026,15 @@
   function showNotionToast(msg, type) { const container = document.getElementById('notionToastContainer'); if(!container) return; const toast = document.createElement('div'); toast.className = 'notion-toast ' + (type === 'error' ? 'error' : ''); toast.innerHTML = '<i class="bi ' + (type === 'error' ? 'bi-exclamation-circle-fill' : 'bi-check-circle-fill') + '"></i><span>' + msg + '</span>'; container.appendChild(toast); setTimeout(() => { toast.style.opacity = '0'; toast.style.transform = 'translateY(10px)'; setTimeout(() => toast.remove(), 300); }, 3000); }
   function safeSetValue(id, value) { const el = document.getElementById(id); if (el) el.value = value || ""; }
   function safeGetValue(id) { const el = document.getElementById(id); return el ? el.value : ""; }
-  function closeAllMenus() { ['insertMenu', 'roleMenu'].forEach(id => { const el = document.getElementById(id); if(el) el.style.display = 'none'; }); const overlay = document.getElementById('menuOverlay'); if (overlay) overlay.style.display = 'none'; }
+
+ // --- MIROIR THEMES (LIVE UPDATE) ---
+  function updateThemeMirrors() {
+      const mgVal = document.getElementById('docThemeMG').value;
+      const frVal = document.getElementById('docThemeFR').value;
+      
+      // Mise à jour de tous les blocs Prédication visibles dans l'éditeur
+      document.querySelectorAll('.mirror-theme-mg').forEach(el => el.innerText = mgVal || "(Thème MG non défini)");
+      document.querySelectorAll('.mirror-theme-fr').forEach(el => el.innerText = frVal || "(Thème FR non défini)");
+  }
+
 </script>

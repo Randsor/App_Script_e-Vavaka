@@ -233,13 +233,6 @@
       document.getElementById('menuOverlay').style.display = 'none'; 
   }
   
-  function closeAllMenus() { 
-      document.getElementById('insertMenu').style.display = 'none'; 
-      document.getElementById('roleMenu').style.display = 'none'; 
-      document.getElementById('menuOverlay').style.display = 'none'; 
-      document.getElementById('fanekenaSelectorModalTpl').style.display = 'none'; 
-  }
-  
   function deleteCurrentTemplate() { 
       if(!confirm("Supprimer ?")) return; 
       const id = safeGetValue('tplId'); 

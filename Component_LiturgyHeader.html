@@ -31,11 +31,10 @@
         <div class="d-flex align-items-start text-muted small">
             <span style="width: 80px; padding-top:4px;" class="fw-bold text-secondary"><i class="bi bi-translate me-2"></i>Thème</span>
             <div class="flex-grow-1 d-flex flex-column gap-1">
-                <!-- AJOUT: oninput="setDirty(true)" sur les thèmes -->
                 <input type="text" id="docThemeMG" class="form-control form-control-sm border-0 bg-light fw-medium text-dark px-2" 
-                       placeholder="Thème en Malgache..." oninput="setDirty(true)">
+                       placeholder="Thème en Malgache..." oninput="setDirty(true); updateThemeMirrors();">
                 <input type="text" id="docThemeFR" class="form-control form-control-sm border-0 bg-white fst-italic text-secondary px-2" 
-                       placeholder="Thème en Français..." oninput="setDirty(true)">
+                       placeholder="Thème en Français..." oninput="setDirty(true); updateThemeMirrors();">
             </div>
         </div>
     </div>

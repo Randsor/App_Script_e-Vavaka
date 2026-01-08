@@ -331,7 +331,26 @@ function renderSharedBlocks(containerId, blocks, context) {
             }
         }
         else if (block.type === 'TITRE') extraFields = `<input type="text" class="form-control doc-borderless text-muted fst-italic mt-0" style="font-size:14px;" placeholder="Commentaire (facultatif)..." value="${block.data?.comment || ''}" onchange="updateBlockDataField(${index}, 'comment', this.value)">`; 
-        else if (block.type === 'PREDICATION') extraFields = '<div class="mt-1 d-flex gap-2 text-muted small"><span class="badge bg-light text-secondary border fw-normal">Lohateny</span><span class="badge bg-light text-secondary border fw-normal">Thème</span></div>'; 
+         else if (block.type === 'PREDICATION') {
+            if (context === 'PROGRAMME') {
+                // Récupération des valeurs actuelles de l'en-tête (si disponibles)
+                let tMG = document.getElementById('docThemeMG') ? document.getElementById('docThemeMG').value : "";
+                let tFR = document.getElementById('docThemeFR') ? document.getElementById('docThemeFR').value : "";
+                
+                // Fallbacks visuels
+                if(!tMG) tMG = "(Thème MG non défini)";
+                if(!tFR) tFR = "(Thème FR non défini)";
+
+                // Structure avec classes miroirs pour mise à jour JS live
+                extraFields = `<div class="mt-2 ps-3 border-start border-4 border-danger border-opacity-25">
+                    <div class="fw-bold text-dark mirror-theme-mg" style="font-size:14px;">${tMG}</div>
+                    <div class="text-secondary fst-italic mirror-theme-fr" style="font-size:13px;">${tFR}</div>
+                </div>`;
+            } else {
+                // Mode Template (Pas de données live)
+                extraFields = '<div class="mt-1 d-flex gap-2 text-muted small"><span class="badge bg-light text-secondary border fw-normal">Le thème du culte s\'affichera ici</span></div>'; 
+            }
+        }
         else if (block.type === 'ANNONCE') extraFields = '<div class="mt-1 text-muted small fst-italic ms-1" style="font-size:12px;"><i class="bi bi-link-45deg me-1"></i>Lien automatique Module Nouvelles</div>'; 
 
         // 3. Contenu Principal (Inputs Titre GÉNÉRIQUES COLLÉS)
@@ -375,4 +394,21 @@ function renderSharedBlocks(containerId, blocks, context) {
     // Auto-resize de tous les textareas après rendu
     document.querySelectorAll('textarea').forEach(el => autoResize(el));
 }
+
+// --- GLOBAL MENU MANAGER (FIX CAUSE RACINE) ---
+function closeAllMenus() {
+    // Liste consolidée de tous les menus flottants possibles
+    const ids = [
+        'insertMenu', 
+        'roleMenu', 
+        'menuOverlay', 
+        'fanekenaSelectorModalTpl' // Spécifique Template (ne fera plus planter Programme)
+    ];
+
+    ids.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = 'none'; // Le "if (el)" est la clé du fix
+    });
+}
+
 </script>
