@@ -238,3 +238,107 @@ function formatTimeRobust(val) {
   var s = String(val).trim();
   return s.length >= 5 ? s.substring(0, 5) : s;
 }
+
+function generateYearBackend(year) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(SHEET_NAME_PLANNING);
+  if (!sheet) return "Erreur: Onglet Planning introuvable";
+  
+  var y = parseInt(year);
+  if (isNaN(y)) return "Année invalide";
+  
+  // 1. Récupération des dates existantes pour ne pas créer de doublons
+  var existingMap = {}; // Format "JJ/MM/AAAA-HH:MM"
+  var lastRow = sheet.getLastRow();
+  if (lastRow > 1) {
+    var data = sheet.getRange(2, 1, lastRow - 1, 2).getValues();
+    for(var i=0; i<data.length; i++) {
+        var dStr = formatDateRobust(data[i][0]);
+        var tStr = formatTimeRobust(data[i][1]);
+        if(dStr !== "INVALID") existingMap[dStr + "-" + tStr] = true;
+    }
+  }
+  
+  var startDate = new Date(y, 0, 1);
+  var endDate = new Date(y, 11, 31);
+  var entriesToAdd = [];
+  
+  // Helper d'ajout interne
+  function addEntry(dateObj, timeStr, title) {
+      var dF = formatDateRobust(dateObj);
+      if (!existingMap[dF + "-" + timeStr]) {
+          entriesToAdd.push([dateObj, timeStr, title, "", "_INIT_", "System"]);
+          existingMap[dF + "-" + timeStr] = true; 
+      }
+  }
+
+  // Boucle jour par jour
+  for (var d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+    var isSunday = (d.getDay() === 0);
+    var isXmas = (d.getMonth() === 11 && d.getDate() === 25);
+    
+    // CAS NOEL : 25 Décembre à 15h00
+    if (isXmas) {
+        addEntry(new Date(d), "15:00", "Krismasy");
+    }
+    
+    // CAS DIMANCHE
+    if (isSunday) {
+        // Est-ce le 1er dimanche du mois ? (Le jour est <= 7)
+        if (d.getDate() <= 7) {
+            // 1er Dimanche : 15h30 uniquement ("Fandraisana")
+            addEntry(new Date(d), "15:30", "Fandraisana");
+        } else {
+            // Autres Dimanches : 08h30 ET 11:00
+            addEntry(new Date(d), "08:30", "Culte 1");
+            addEntry(new Date(d), "11:00", "Culte 2");
+        }
+    }
+  }
+  
+  // Écriture et Tri (Partie manquante dans ton snippet)
+  if (entriesToAdd.length > 0) {
+      sheet.getRange(lastRow + 1, 1, entriesToAdd.length, 6).setValues(entriesToAdd);
+      
+      // Tri chronologique global (Col A puis Col B)
+      var fullRange = sheet.getRange(2, 1, sheet.getLastRow() - 1, 6);
+      fullRange.sort([{column: 1, ascending: true}, {column: 2, ascending: true}]);
+      
+      return "Succès : " + entriesToAdd.length + " créneaux générés pour " + y + ".";
+  } else {
+      return "Année " + y + " déjà complète.";
+  }
+}
+
+function deletePlanningEventBackend(dateStr, timeStr) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheetPlan = ss.getSheetByName(SHEET_NAME_PLANNING);
+  var sheetProg = ss.getSheetByName("DB_PROGRAMMES"); // Vérif croisée
+  
+  // 1. Vérification Programme existant
+  if (sheetProg) {
+    var dataP = sheetProg.getDataRange().getValues();
+    for (var j = 1; j < dataP.length; j++) {
+      var pDate = formatDateRobust(dataP[j][1]); // Col B = Date
+      if (pDate === dateStr) {
+        return { success: false, msg: "Impossible de supprimer : Un programme existe déjà pour cette date (" + dataP[j][2] + "). Veuillez supprimer le programme d'abord." };
+      }
+    }
+  }
+  
+  // 2. Suppression dans Planning
+  var data = sheetPlan.getDataRange().getValues();
+  var rowsToDelete = [];
+  
+  // On parcourt à l'envers pour supprimer sans décaler les index
+  for (var i = data.length - 1; i >= 1; i--) {
+    var rDate = formatDateRobust(data[i][0]);
+    var rTime = formatTimeRobust(data[i][1]);
+    
+    if (rDate === dateStr && rTime === timeStr) {
+      sheetPlan.deleteRow(i + 1);
+    }
+  }
+  
+  return { success: true, msg: "Créneau du " + dateStr + " à " + timeStr + " supprimé." };
+}
