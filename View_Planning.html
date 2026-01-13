@@ -10,7 +10,7 @@
     
     --pl-primary: #2563EB;
     --pl-focus-bg: #F8FAFC;  
-    --pl-next-bg: #FFFFFF; /* Blanc pur pour l'élévation */
+    --pl-next-bg: #FFFFFF;
     
     --col-date-w: 240px;
     --col-min-w: 160px;
@@ -37,7 +37,7 @@
   }
   .pl-loader-overlay.hidden { opacity: 0; pointer-events: none; }
 
-  /* SKELETON (SHIMMER) */
+  /* SKELETON */
   .sk-grid { width: 100%; max-width: 100%; padding: 20px; display: flex; flex-direction: column; gap: 12px; }
   .sk-head { height: 48px; background: #F1F5F9; border-radius: 6px; width: 100%; }
   .sk-row { height: 60px; background: #F8FAFC; border-radius: 8px; width: 100%; border: 1px solid #E2E8F0; }
@@ -80,8 +80,9 @@
     z-index: 1; pointer-events: none;
   }
 
-  .pl-tabs[data-active="MASTER"] .pl-tab-slider { transform: translateX(0); }
-  .pl-tabs[data-active="PIVOT"] .pl-tab-slider { transform: translateX(100%); }
+  /* PIVOT (Par Date) Gauche / MASTER (Par Rôle) Droite */
+  .pl-tabs[data-active="PIVOT"] .pl-tab-slider { transform: translateX(0); }
+  .pl-tabs[data-active="MASTER"] .pl-tab-slider { transform: translateX(100%); }
 
   .pl-tab-btn {
     flex: 1; border: none; background: transparent; padding: 6px 16px;
@@ -91,8 +92,8 @@
     white-space: nowrap; z-index: 2; position: relative;
   }
   
-  .pl-tabs[data-active="MASTER"] #btnModeMaster,
-  .pl-tabs[data-active="PIVOT"] #btnModePivot { color: var(--pl-text-main); }
+  .pl-tabs[data-active="PIVOT"] #btnModePivot,
+  .pl-tabs[data-active="MASTER"] #btnModeMaster { color: var(--pl-text-main); }
   .pl-tab-btn:hover { color: var(--pl-text-main); }
   
   /* PAGINATION & ACTIONS */
@@ -126,14 +127,25 @@
   }
   .btn-primary:hover { background: black; transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.15); }
 
-  /* --- VIEWPORTS & TABLE --- */
+  /* --- VIEWPORTS & TABLE (CORRECTION CRITIQUE) --- */
   .pl-viewport { 
-    flex: 1; width: 100%; overflow: auto; position: relative; 
-    scroll-behavior: auto; background: white; padding-bottom: 50px;
+    flex: 1; 
+    width: 100%;
+    max-width: 100vw; /* Sécurité anti-débordement */
+    overflow: auto; 
+    position: relative; 
+    scroll-behavior: auto; 
+    background: white; 
+    padding-bottom: 50px;
   }
   .pl-view-hidden { display: none !important; }
 
-  .pl-table { border-collapse: separate; border-spacing: 0; min-width: 100%; table-layout: fixed; }
+  .pl-table { 
+      border-collapse: separate; 
+      border-spacing: 0; 
+      min-width: 100%; 
+      table-layout: fixed; /* OBLIGATOIRE POUR LE STICKY ET L'ALIGNEMENT */
+  }
 
   /* HEADERS */
   .pl-thead th {
@@ -169,64 +181,57 @@
     width: var(--col-date-w); min-width: var(--col-date-w); padding: 0;
   }
   
-  /* Pour la date, on veut que la poubelle soit à droite, discrète */
-  .td-date .btn-action-danger {
+  .td-date .trash-wrapper {
     position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
-    opacity: 0; pointer-events: none; /* Inactif si caché */
+    opacity: 0; pointer-events: none; 
+    z-index: 10;
+    transition: opacity 0.2s;
   }
-  .td-date:hover .btn-action-danger {
+  .td-date .trash-wrapper i {
+      display: inline-block;
+  }
+  .td-date:hover .trash-wrapper {
     opacity: 1; pointer-events: auto;
   }
 
   .pl-row:hover td { background-color: var(--pl-focus-bg); }
-  .pl-row:hover .td-date { background-color: var(--pl-focus-bg); }
 
-  /* --- NEXT CULTE (HIGHLIGHT MULTIPLE) --- */
+  /* --- NEXT CULTE --- */
   .pl-row.is-next {
     position: relative;
-    /* Z-INDEX SUPÉRIEUR pour que l'ombre passe au-dessus des voisins */
     z-index: 35 !important; 
     box-shadow: 0 4px 20px rgba(0,0,0,0.1), 0 2px 4px rgba(0,0,0,0.05);
-    /* Transition douce pour l'effet hover */
     transition: transform 0.2s ease, box-shadow 0.2s ease;
   }
-
   .pl-row.is-next td {
     background-color: #FFFFFF !important;
     border-top: 1px solid transparent; 
     border-bottom: 1px solid transparent;
   }
-
-  /* Gestion de l'ombre sur la cellule sticky date */
   .pl-row.is-next .td-date {
     background-color: #FFFFFF !important;
-    box-shadow: inset 6px 0 0 #111827 !important; /* Barre Noire */
-    /* Pas d'ombre portée ici, c'est la ligne qui la porte */
+    box-shadow: inset 6px 0 0 #111827 !important;
   }
-
-  /* Rétablissement de l'effet HOVER sur le Next */
   .pl-row.is-next:hover {
-    transform: translateY(-1px); /* Petit lift */
+    transform: translateY(-1px);
     box-shadow: 0 8px 25px rgba(0,0,0,0.15), 0 4px 10px rgba(0,0,0,0.05);
-    z-index: 36 !important; /* Passe encore plus au-dessus */
+    z-index: 36 !important;
   }
 
-  /* --- PAST EVENT (GHOST) --- */
+  /* --- PAST EVENT --- */
   .pl-row.is-past td, .pl-row.is-past .td-date {
     background-color: #FAFAFA !important;
     color: #9CA3AF !important; 
   }
-  /* Force le gris sur tout le contenu */
   .pl-row.is-past .d-day, .pl-row.is-past .d-month, .pl-row.is-past .d-title, 
   .pl-row.is-past .d-weekday, .pl-row.is-past .user-cell, .pl-row.is-past .d-time { 
       color: #9CA3AF !important; opacity: 0.8;
   }
 
-  /* --- SÉPARATEUR ANNÉE (SYMÉTRIQUE) --- */
+  /* --- SEPARATEUR ANNEE --- */
   .year-row td {
     background: transparent !important;
     border: none !important;
-    /* PADDING SYMÉTRIQUE : 24px en haut et en bas */
     padding: 24px 0 24px 24px; 
     pointer-events: none;
   }
@@ -257,8 +262,8 @@
     padding: 4px 8px; cursor: pointer; font-size: 12px; 
     color: var(--pl-text-main); font-weight: 500;
     white-space: normal; text-align: center; line-height: 1.3;
-    position: relative; /* Pour positionner les actions si besoin */
-    justify-content: space-between; /* Espace entre nom et bouton */
+    position: relative;
+    justify-content: space-between;
   }
   .user-cell.empty { justify-content: center; }
   .user-cell.empty::after { content: "+"; color: transparent; font-size: 18px; font-weight: 300; transition: color 0.2s; }
@@ -275,11 +280,269 @@
     .pl-mobile-view { display: block; flex: 1; overflow: auto; }
     .desktop-only { display: none !important; }
   }
+
+  /* --- ANIMATIONS --- */
+  @keyframes viewEnter {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .view-animate-enter { animation: viewEnter 0.25s cubic-bezier(0.2, 0, 0, 1) forwards; }
+
+  /* --- COULEURS EN-TÊTES --- */
+  .th-type-liturgie { background-color: #EFF6FF !important; color: #1E40AF !important; border-bottom: 2px solid #DBEAFE !important; }
+  .th-type-musique { background-color: #F0FDF4 !important; color: #166534 !important; border-bottom: 2px solid #DCFCE7 !important; }
+  .th-type-technique { background-color: #FFF7ED !important; color: #9A3412 !important; border-bottom: 2px solid #FFEDD5 !important; }
+  .th-type-accueil { background-color: #EEF2FF !important; color: #3730A3 !important; border-bottom: 2px solid #E0E7FF !important; }
+  .th-type-traduction { background-color: #F5F3FF !important; color: #7C3AED !important; border-bottom: 2px solid #DDD6FE !important; }
+  .th-type-secretaire { background-color: #F0FDFA !important; color: #0D9488 !important; border-bottom: 2px solid #CCFBF1 !important; }
+
+  /* --- COULEURS TEXTE MENU --- */
+  .text-filter-liturgie { color: #2563EB !important; font-weight: 600; }
+  .text-filter-musique { color: #15803D !important; font-weight: 600; }
+  .text-filter-technique { color: #C2410C !important; font-weight: 600; }
+  .text-filter-traduction { color: #7C3AED !important; font-weight: 600; }
+  .text-filter-secretaire { color: #0F766E !important; font-weight: 600; }
+  .text-filter-accueil { color: #4338CA !important; font-weight: 600; }
+
+  /* --- MENU FILTRE --- */
+  .filter-dropdown-panel {
+    width: 320px; max-height: 450px; display: flex; flex-direction: column;
+    padding: 0; overflow: hidden; background: white; border-radius: 12px;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1); border: 1px solid #E5E7EB;
+  }
+  .filter-header { padding: 12px 16px; border-bottom: 1px solid #F3F4F6; background: #FAFAFA; display: flex; justify-content: space-between; align-items: center; }
+  .filter-body { padding: 8px; overflow-y: auto; flex: 1; }
+  .filter-group-header { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; font-size: 11px; font-weight: 700; color: #6B7280; text-transform: uppercase; letter-spacing: 0.5px; cursor: pointer; border-radius: 6px; margin-top: 4px; }
+  .filter-group-header:hover { background: #F9FAFB; color: #111827; }
+  .filter-role-item { display: flex; align-items: center; gap: 10px; padding: 6px 12px 6px 32px; font-size: 13px; color: #374151; cursor: pointer; border-radius: 6px; transition: background 0.1s; }
+  .filter-role-item:hover { background: #F3F4F6; }
+  .filter-role-item input { cursor: pointer; border-color: #D1D5DB; }
+
+  /* --- OFFCANVAS --- */
+  .offcanvas-custom { position: fixed; top: 0; right: -400px; bottom: 0; width: 380px; background: white; z-index: 20050; transition: right 0.3s cubic-bezier(0.2, 0, 0, 1); display: flex; flex-direction: column; }
+  .offcanvas-custom.open { right: 0; }
+
+  /* --- RECHERCHE --- */
+  .search-section-title { padding: 12px 16px 4px 16px; font-size: 11px; font-weight: 700; color: #6B7280; text-transform: uppercase; letter-spacing: 0.5px; }
+  .search-result-item { padding: 10px 16px; background: white; border-bottom: 1px solid #F3F4F6; cursor: pointer; display: flex; align-items: center; justify-content: space-between; }
+  .search-result-item:hover { background: #F9FAFB; border-left: 3px solid var(--pl-primary); }
+
+  /* --- PLANNING PERSO --- */
+  .psp-card { background: white; border: 1px solid #E5E7EB; border-radius: 8px; padding: 12px; margin-bottom: 10px; border-left: 4px solid #CBD5E1; transition: transform 0.2s; }
+  .psp-card.is-next { border-left-color: var(--pl-primary); box-shadow: 0 4px 12px rgba(37, 99, 235, 0.15); border: 1px solid var(--pl-primary); }
+  .psp-card.is-past { opacity: 0.6; }
+  .psp-date { font-weight: 700; font-size: 14px; color: #1F2937; }
+  .psp-role { font-size: 11px; text-transform: uppercase; color: #6B7280; font-weight: 600; margin-top: 4px; }
+  .psp-title { font-size: 13px; color: #4B5563; margin-top: 2px; font-style: italic; }
+
+/* --- MODALE RECHERCHE (COMMAND PALETTE STYLE) --- */
+/* On surcharge le style par défaut de notion-dialog juste pour cet ID */
+#globalSearchModal {
+    border-radius: 16px;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    border: 1px solid rgba(0,0,0,0.08);
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.98);
+    backdrop-filter: blur(10px); /* Effet verre dépoli */
+}
+
+#globalSearchInput {
+    font-size: 16px; font-weight: 500;
+    padding: 16px 20px; height: 60px;
+    background: transparent;
+}
+#globalSearchInput::placeholder { color: #9CA3AF; font-weight: 400; }
+
+.search-section-title {
+    padding: 16px 20px 8px 20px;
+    font-size: 10px; font-weight: 700; color: #94A3B8; 
+    text-transform: uppercase; letter-spacing: 1px;
+}
+
+.search-result-item {
+    padding: 12px 20px; border-bottom: 1px solid #F8FAFC;
+    transition: all 0.1s; border-left: 3px solid transparent;
+}
+.search-result-item:hover {
+    background: #F1F5F9; border-left-color: #2563EB;
+}
+
+.search-date-badge {
+    background: #EFF6FF; color: #2563EB; 
+    font-size: 11px; font-weight: 700; 
+    padding: 4px 8px; border-radius: 6px;
+    text-transform: uppercase;
+}
+
+/* --- PANNEAU PERSONNEL (PLANNING) --- */
+.psp-card {
+    background: white; 
+    border: 1px solid #E2E8F0; 
+    border-radius: 12px;
+    padding: 16px; 
+    margin-bottom: 12px; 
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.2s;
+}
+.psp-card:hover { transform: translateY(-2px); box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); }
+
+.psp-card.is-next {
+    border-color: #BFDBFE; background: #EFF6FF;
+}
+.psp-card.is-next::before {
+    content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: #2563EB;
+}
+
+.psp-header { display: flex; justify-content: space-between; margin-bottom: 8px; }
+.psp-day { font-size: 24px; font-weight: 800; color: #1E293B; line-height: 1; }
+.psp-meta { display: flex; flex-direction: column; align-items: flex-end; }
+.psp-month { font-size: 11px; font-weight: 700; text-transform: uppercase; color: #64748B; }
+.psp-time { font-size: 11px; color: #94A3B8; font-weight: 500; }
+
+.psp-role-badge { 
+    display: inline-block; padding: 4px 10px; border-radius: 20px;
+    font-size: 11px; font-weight: 600; 
+    background: #F1F5F9; color: #475569; margin-bottom: 4px;
+}
+.psp-title { font-size: 13px; color: #334155; line-height: 1.4; }
+
+  /* --- Z-INDEX BÉTON --- */
+  #popupOverlay { z-index: 9990 !important; }
+  .notion-dialog, .notion-popup, .dropdown-menu { z-index: 10000 !important; }
+  #globalSearchModal { z-index: 10010 !important; }
+  .offcanvas-custom { z-index: 10020 !important; }
+
+/* --- NAVIGATION HERO --- */
+.nav-hero-group {
+    display: flex; align-items: center; gap: 4px;
+    background: white; border: 1px solid #E2E8F0;
+    border-radius: 10px; padding: 3px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+.nav-hero-btn {
+    border: none; background: transparent;
+    width: 32px; height: 32px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    color: #64748B; transition: all 0.2s; cursor: pointer;
+}
+.nav-hero-btn:hover { background: #F8FAFC; color: #0F172A; }
+
+/* Bouton Central PROCHAIN CULTE */
+.nav-hero-btn.main-action {
+    width: auto; padding: 0 12px;
+    font-size: 11px; font-weight: 700; color: #475569;
+    letter-spacing: 0.5px; text-transform: uppercase;
+}
+.nav-hero-btn.main-action:hover { color: #2563EB; background: #EFF6FF; }
+
+/* --- CUSTOM DATE PICKER (Pop-over) --- */
+#customDatePicker {
+    position: absolute; top: 100%; left: 0; z-index: 10050;
+    margin-top: 8px; background: white;
+    border: 1px solid #E2E8F0; border-radius: 12px;
+    box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1);
+    padding: 16px; width: 280px; display: none;
+}
+#customDatePicker.show { display: block; animation: popIn 0.2s ease-out; }
+
+.cdp-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.cdp-title { font-weight: 700; font-size: 14px; color: #1E293B; text-transform: capitalize; }
+.cdp-nav { cursor: pointer; padding: 4px; color: #64748B; }
+.cdp-nav:hover { color: #0F172A; }
+
+.cdp-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; text-align: center; }
+.cdp-day-head { font-size: 10px; font-weight: 600; color: #94A3B8; margin-bottom: 4px; }
+.cdp-day {
+    font-size: 12px; height: 32px; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    border-radius: 6px; cursor: default; color: #CBD5E1; position: relative;
+}
+/* Jour avec Culte (Cliquable) */
+.cdp-day.has-event { 
+    color: #1E293B; font-weight: 600; cursor: pointer; 
+}
+.cdp-day.has-event:hover { background: #F1F5F9; }
+.cdp-day.has-event.selected { background: #2563EB; color: white; }
+
+/* Petit point indicateur */
+.cdp-dot { 
+    width: 4px; height: 4px; border-radius: 50%; background: #2563EB; 
+    position: absolute; bottom: 4px; 
+}
+.cdp-day.selected .cdp-dot { background: white; }
+
+@keyframes popIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
+
+.nav-hero-btn {
+    border: none; background: transparent;
+    display: flex; align-items: center; justify-content: center;
+    height: 100%; border-radius: 8px;
+    color: #64748B; transition: all 0.2s;
+    cursor: pointer; position: relative;
+}
+.nav-hero-btn:hover { background: #F1F5F9; color: #0F172A; }
+.nav-hero-btn:active { transform: scale(0.96); }
+
+.nav-hero-btn.icon-only { width: 34px; font-size: 14px; }
+
+.nav-hero-btn.main-action {
+    padding: 0 12px; gap: 6px;
+    flex-direction: column; align-items: flex-start; justify-content: center;
+    line-height: 1;
+}
+.nav-hero-btn.main-action .small-label { font-size: 8px; font-weight: 700; color: #94A3B8; letter-spacing: 0.5px; }
+.nav-hero-btn.main-action .big-label { font-size: 11px; font-weight: 800; color: #0F172A; letter-spacing: -0.2px; }
+.nav-hero-btn.main-action:hover .big-label { color: #2563EB; }
+
+.nav-hero-separator { width: 1px; height: 20px; background: #E2E8F0; margin: 0 4px; }
+
+.nav-hero-btn.date-trigger { width: 34px; color: #2563EB; }
+/* HACK INPUT DATE */
+.nav-hero-btn.date-trigger input {
+    position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+}
+
+/* --- CUSTOM DATE PICKER (Pop-over) --- */
+#customDatePicker {
+    position: absolute; top: 100%; left: 0; z-index: 10050;
+    margin-top: 8px; background: white;
+    border: 1px solid #E2E8F0; border-radius: 12px;
+    box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1);
+    padding: 16px; width: 280px; display: none;
+}
+#customDatePicker.show { display: block; animation: popIn 0.2s ease-out; }
+
+.cdp-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.cdp-title { font-weight: 700; font-size: 14px; color: #1E293B; text-transform: capitalize; }
+.cdp-nav { cursor: pointer; padding: 4px; color: #64748B; }
+.cdp-nav:hover { color: #0F172A; }
+
+.cdp-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; text-align: center; }
+.cdp-day-head { font-size: 10px; font-weight: 600; color: #94A3B8; margin-bottom: 4px; }
+.cdp-day {
+    font-size: 12px; height: 32px; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    border-radius: 6px; cursor: default; color: #CBD5E1; position: relative;
+}
+/* Jour avec Culte */
+.cdp-day.has-event { 
+    color: #1E293B; font-weight: 600; cursor: pointer; 
+}
+.cdp-day.has-event:hover { background: #F1F5F9; }
+.cdp-day.has-event.selected { background: #2563EB; color: white; }
+
+/* Petit point indicateur */
+.cdp-dot { 
+    width: 4px; height: 4px; border-radius: 50%; background: #2563EB; 
+    position: absolute; bottom: 4px; 
+}
+.cdp-day.selected .cdp-dot { background: white; }
+
+@keyframes popIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
+
 </style>
 
 <div class="pl-wrapper">
   
-  <!-- SKELETON -->
   <div id="plSkeleton" class="pl-loader-overlay">
     <div class="sk-grid">
         <div class="sk-head shimmer"></div>
@@ -287,73 +550,74 @@
     </div>
   </div>
 
-  <!-- HEADER -->
   <div class="pl-page-header">
       <h1 class="pl-main-title">Planning & Équipes</h1>
       <div class="pl-sub-title">Gestion des dates et des équipes</div>
   </div>
 
-  <!-- TOOLBAR -->
   <div class="pl-toolbar">
     <div class="pl-tools-left">
-        <!-- SWITCHER ANIMÉ -->
-        <div class="pl-tabs desktop-only" id="viewSwitcher" data-active="MASTER">
+        <div class="pl-tabs desktop-only" id="viewSwitcher" data-active="PIVOT">
             <div class="pl-tab-slider"></div>
-            
-            <button class="pl-tab-btn" id="btnModeMaster" onclick="switchPlanningMode('MASTER')">
-                <i class="bi bi-calendar3"></i> Par date
-            </button>
-            <button class="pl-tab-btn" id="btnModePivot" onclick="switchPlanningMode('PIVOT')">
-                <i class="bi bi-person-lines-fill"></i> Par Rôles
-            </button>
+            <button class="pl-tab-btn" id="btnModePivot" onclick="switchPlanningMode('PIVOT')"><i class="bi bi-calendar3"></i> Par Date</button>
+            <button class="pl-tab-btn" id="btnModeMaster" onclick="switchPlanningMode('MASTER')"><i class="bi bi-person-lines-fill"></i> Par Rôles</button>
         </div>
-        <!-- PAGINATION : Intégration du bouton Focus (Prochain Culte) au centre -->
-        <div class="pl-pagination desktop-only ms-3">
-            <button class="btn-icon-nav" onclick="navColumns(-1)" title="Précédent"><i class="bi bi-chevron-left"></i></button>
-            
-            <!-- Bouton déplacé et renommé -->
-            <button class="btn-ghost text-primary fw-bold" onclick="forceScrollToNext()" style="height: 32px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">
-                Prochain culte
+        <!-- NAVIGATION HERO (CLEAN & CUSTOM) -->
+        <div class="nav-hero-group ms-3 position-relative">
+            <button class="nav-hero-btn" onclick="navColumns(-1)" title="Précédent">
+                <i class="bi bi-chevron-left"></i>
             </button>
             
-            <button class="btn-icon-nav" onclick="navColumns(1)" title="Suivant"><i class="bi bi-chevron-right"></i></button>
+            <button class="nav-hero-btn main-action" onclick="forceScrollToNext()" title="Revenir au prochain culte">
+                PROCHAIN CULTE
+            </button>
+            
+            <button class="nav-hero-btn" onclick="navColumns(1)" title="Suivant">
+                <i class="bi bi-chevron-right"></i>
+            </button>
+
+            <div style="width:1px; height:16px; background:#E2E8F0; margin:0 4px;"></div>
+
+            <!-- BOUTON CALENDRIER CUSTOM -->
+            <button class="nav-hero-btn text-primary" onclick="toggleCustomDatePicker(this)" title="Choisir une date">
+                <i class="bi bi-calendar-day"></i>
+            </button>
+
+            <!-- POP-OVER CALENDRIER -->
+            <div id="customDatePicker">
+                <div class="cdp-header">
+                    <i class="bi bi-chevron-left cdp-nav" onclick="changePickerMonth(-1)"></i>
+                    <div class="cdp-title" id="cdpTitle">...</div>
+                    <i class="bi bi-chevron-right cdp-nav" onclick="changePickerMonth(1)"></i>
+                </div>
+                <div class="cdp-grid" id="cdpGrid"></div>
+            </div>
         </div>
     </div>
 
     <div class="pl-actions">
-        <!-- Nouveau bouton Filtre (à la place de Focus) -->
-        <button class="btn-ghost" onclick="toggleFilterMenu(this)">
-            <i class="bi bi-funnel"></i> Filtre
-        </button>
-
-        <button class="btn-ghost" onclick="openSearchPersonModal()">
-            <i class="bi bi-search"></i>
-        </button>
-        
+        <button class="btn-ghost" onclick="toggleFilterMenu(this)"><i class="bi bi-funnel"></i> Filtre</button>
+        <button class="btn-ghost" onclick="openGlobalSearch()"><i class="bi bi-search"></i></button>
         <div class="dropdown">
             <button class="btn-ghost dropdown-toggle" type="button" data-bs-toggle="dropdown"><i class="bi bi-gear"></i></button>
             <ul class="dropdown-menu shadow-sm border-0" style="font-size:13px;">
                 <li><a class="dropdown-item rounded" href="#" onclick="openGenerateYearModal()">Générer année</a></li>
             </ul>
         </div>
-
-        <!-- Bouton renommé -->
-        <button class="btn-primary" onclick="openAddEventPopup(this)">
-            <i class="bi bi-plus-lg"></i> Ajouter un culte
-        </button>
+        <button class="btn-primary" onclick="openAddEventPopup(this)"><i class="bi bi-plus-lg"></i> Ajouter un culte</button>
     </div>
   </div>
 
-  <!-- DUAL VIEWPORTS -->
-  <div id="viewContainerMaster" class="pl-viewport custom-scrollbar"></div>
-  <div id="viewContainerPivot" class="pl-viewport custom-scrollbar pl-view-hidden"></div>
+  <div id="viewContainerMaster" class="pl-viewport custom-scrollbar pl-view-hidden"></div>
+  <div id="viewContainerPivot" class="pl-viewport custom-scrollbar"></div>
   <div id="mobileViewport" class="pl-mobile-view custom-scrollbar"></div>
 
 </div>
 
-<!-- MODALES (Structures cachées inchangées) -->
-<div id="popupOverlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.2); z-index:9000;"></div>
+<!-- OVERLAY (Z-Index 9990) -->
+<div id="popupOverlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.4); backdrop-filter: blur(2px);"></div>
 
+<!-- MODALES (Z-Index > 10000) -->
 <div id="namePopup" class="notion-popup shadow-lg border-0" style="display:none; width: 260px; padding:0; border-radius:12px; overflow:hidden;">
     <div class="p-2 border-bottom bg-white">
         <input type="text" id="namePopupSearch" class="form-control form-control-sm border-0 shadow-none" placeholder="Chercher...">
@@ -391,4 +655,23 @@
     <a class="dropdown-item py-2" href="#" onclick="editSlotTitle()">Titre</a>
     <div class="dropdown-divider"></div>
     <a class="dropdown-item py-2 text-danger" href="#" onclick="confirmDeleteSlot()">Supprimer</a>
+</div>
+
+<div id="globalSearchModal" class="notion-dialog" style="display:none; width: 600px; max-height: 80vh; flex-direction: column; overflow:hidden;">
+    <div class="p-3 border-bottom d-flex align-items-center gap-3">
+        <i class="bi bi-search text-secondary fs-5"></i>
+        <input type="text" id="globalSearchInput" class="form-control border-0 shadow-none fs-6 p-0" placeholder="Rechercher un culte ou une personne..." autocomplete="off" onkeyup="handleGlobalSearch(this.value)">
+        <button class="btn-close small" onclick="closeAllPopups()"></button>
+    </div>
+    <div id="globalSearchResults" class="flex-grow-1 overflow-auto custom-scrollbar bg-light p-0">
+        <div class="text-center text-muted py-5 small">Commencez à taper pour rechercher...</div>
+    </div>
+</div>
+
+<div id="personSchedulePanel" class="offcanvas-custom shadow-lg">
+    <div class="d-flex justify-content-between align-items-center p-3 border-bottom bg-white sticky-top">
+        <div><div class="small text-muted fw-bold text-uppercase">Planning Personnel</div><div class="fs-5 fw-bold text-dark" id="pspName">...</div></div>
+        <button class="btn-close" onclick="closePersonPanel()"></button>
+    </div>
+    <div id="pspContent" class="p-3 overflow-auto custom-scrollbar h-100 bg-light"></div>
 </div>

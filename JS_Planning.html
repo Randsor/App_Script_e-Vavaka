@@ -1,10 +1,12 @@
 <script>
 // --- CONFIG & STATE ---
-const VIEW_MODE_MASTER = 'MASTER';
-const VIEW_MODE_PIVOT = 'PIVOT';
+const VIEW_MODE_MASTER = 'MASTER'; // Vue Verticale (Par Rôles)
+const VIEW_MODE_PIVOT = 'PIVOT';   // Vue Horizontale (Par Date)
 const VIEW_MODE_MOBILE = 'MOBILE';
 
-let CURRENT_VIEW = VIEW_MODE_MASTER;
+let CURRENT_VIEW = VIEW_MODE_PIVOT; // DÉFAUT = PAR DATE (Horizontal)
+let ACTIVE_FILTER_ROLES = []; // Vide = Tout sélectionné
+let FILTERED_ROLES = [];      
 let PLANNING_DATA = []; 
 let ROLES_CONFIG = []; 
 let NAMES_DB = [];
@@ -24,13 +26,12 @@ let HAS_SCROLLED_ONCE = false;
 function initPlanningView() {
     movePopupsToBody();
     
-    // On force un recalcul du layout au cas où on vient d'un autre module
+    // Initialisation pagination
     setTimeout(() => {
         calculateVisibleColumns('MASTER');
         calculateVisibleColumns('PIVOT');
     }, 50);
     
-    // Si données déjà chargées, on rafraîchit juste l'affichage
     if(PLANNING_DATA.length > 0) {
         refreshAllViews();
         return;
@@ -48,6 +49,7 @@ function initPlanningView() {
     window.addEventListener('resize', handleResize);
     document.addEventListener('keydown', handleKeyboardNav);
 
+    // Chargement rapide (-30j / +90j)
     google.script.run
         .withSuccessHandler(onFastDataLoaded)
         .withFailureHandler(err => {
@@ -55,6 +57,13 @@ function initPlanningView() {
             if(skel) skel.classList.add('hidden');
         })
         .getPlanningMatrixData(-30, 90);
+
+    // Gestionnaire global fermeture
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') closeAllPopups();
+    });
+    const overlay = document.getElementById('popupOverlay');
+    if (overlay) overlay.addEventListener('click', closeAllPopups);
 }
 
 function onFastDataLoaded(response) {
@@ -62,6 +71,7 @@ function onFastDataLoaded(response) {
     const skel = document.getElementById('plSkeleton');
     if(skel) skel.classList.add('hidden');
     
+    // Lancement chargement fond (-1 an / +2 ans)
     setTimeout(() => {
         if(!IS_FULL_LOADED) {
             google.script.run.withSuccessHandler(onBackgroundDataLoaded).getPlanningMatrixData(-365, 730);
@@ -70,18 +80,70 @@ function onFastDataLoaded(response) {
 }
 
 function onBackgroundDataLoaded(response) {
+    const containerMaster = document.getElementById('viewContainerMaster');
+    
+    // Mémorisation position Verticale (Scroll Pixel)
+    let anchorUid = null;
+    let anchorOffset = 0;
+    
+    if (CURRENT_VIEW === VIEW_MODE_MASTER && containerMaster) {
+        const rows = containerMaster.querySelectorAll('.pl-row');
+        for (let row of rows) {
+            if (row.offsetTop + row.offsetHeight > containerMaster.scrollTop) {
+                anchorUid = row.getAttribute('data-uid');
+                anchorOffset = containerMaster.scrollTop - row.offsetTop;
+                break;
+            }
+        }
+    }
+
+    // Mémorisation position Horizontale (Index Pagination)
+    let pivotFirstEventUid = null;
+    if (CURRENT_VIEW === VIEW_MODE_PIVOT && PLANNING_DATA.length > 0) {
+        const currentStartIndex = PAGINATION.PIVOT.start;
+        if(PLANNING_DATA[currentStartIndex]) {
+            const evt = PLANNING_DATA[currentStartIndex];
+            pivotFirstEventUid = evt.date + "_" + evt.heure;
+        }
+    }
+
+    // --- RECHARGEMENT ---
     processDataChunk(response);
     IS_FULL_LOADED = true;
-    if(PLANNING_DATA.length < 100) refreshAllViews();
+    
+    // --- RESTAURATION ---
+    
+    // A. Vue Verticale
+    if (CURRENT_VIEW === VIEW_MODE_MASTER && anchorUid && containerMaster) {
+        refreshAllViews(true); // Silent Mode
+        const newRow = containerMaster.querySelector(`.pl-row[data-uid="${anchorUid}"]`);
+        if (newRow) containerMaster.scrollTop = newRow.offsetTop + anchorOffset;
+    }
+    
+    // B. Vue Horizontale
+    else if (CURRENT_VIEW === VIEW_MODE_PIVOT) {
+        if (pivotFirstEventUid) {
+            const newIndex = PLANNING_DATA.findIndex(e => (e.date + "_" + e.heure) === pivotFirstEventUid);
+            if (newIndex > -1) PAGINATION.PIVOT.start = newIndex;
+        }
+        refreshAllViews(true); // Silent Mode
+    } 
+    else {
+        refreshAllViews(true);
+    }
 }
 
 function processDataChunk(response) {
-    if (!ROLES_CONFIG.length) ROLES_CONFIG = response.roles || [];
+    if (!ROLES_CONFIG.length) {
+        ROLES_CONFIG = response.roles || [];
+        FILTERED_ROLES = [...ROLES_CONFIG];
+    }
     if (!NAMES_DB.length) NAMES_DB = response.noms || [];
     
     const newEvents = response.events || [];
     const currentKeys = new Set(PLANNING_DATA.map(e => e.date + "-" + e.heure));
     let added = false;
+    
     newEvents.forEach(evt => {
         const key = evt.date + "-" + evt.heure;
         if (!currentKeys.has(key)) { PLANNING_DATA.push(evt); added = true; }
@@ -92,18 +154,17 @@ function processDataChunk(response) {
         
         const now = new Date().setHours(0,0,0,0);
         NEXT_CULT_INDEX = PLANNING_DATA.findIndex(e => e.dateObj >= now);
+        if (NEXT_CULT_INDEX === -1) NEXT_CULT_INDEX = PLANNING_DATA.length - 1; 
         
-        // NOUVEAU : On stocke la date du prochain pour grouper
         if (NEXT_CULT_INDEX > -1) {
-            NEXT_CULT_DATE_STR = PLANNING_DATA[NEXT_CULT_INDEX].date; // ex: "11/01/2026"
-        } else {
-            NEXT_CULT_DATE_STR = "";
+            NEXT_CULT_DATE_STR = PLANNING_DATA[NEXT_CULT_INDEX].date;
         }
         
-        // Recalcul important à chaque charge de données
         calculateVisibleColumns('MASTER');
         calculateVisibleColumns('PIVOT');
-        refreshAllViews();
+        
+        // Premier rendu (non silencieux)
+        if (!IS_FULL_LOADED) refreshAllViews(false);
         
         if (!HAS_SCROLLED_ONCE && NEXT_CULT_INDEX > -1) {
             setTimeout(forceScrollToNext, 200);
@@ -114,58 +175,123 @@ function processDataChunk(response) {
 
 // --- VIEW MANAGEMENT ---
 
+function getCenterVisibleEventIndex() {
+    const container = document.getElementById('viewContainerMaster');
+    if (!container) return 0;
+    const containerRect = container.getBoundingClientRect();
+    const centerY = containerRect.top + (containerRect.height / 2);
+    const rows = container.querySelectorAll('.pl-row');
+    let closestIndex = 0; let minDiff = Infinity;
+    rows.forEach((row) => {
+        const rect = row.getBoundingClientRect();
+        const rowCenter = rect.top + (rect.height / 2);
+        const diff = Math.abs(centerY - rowCenter);
+        if (diff < minDiff) {
+            minDiff = diff;
+            const idParts = row.id.split('-');
+            if (idParts.length === 3) closestIndex = parseInt(idParts[2], 10);
+        }
+    });
+    return closestIndex;
+}
+
 function switchPlanningMode(mode) {
-    CURRENT_VIEW = mode;
     const switcher = document.getElementById('viewSwitcher');
     if(switcher) switcher.setAttribute('data-active', mode);
     
     const masterEl = document.getElementById('viewContainerMaster');
     const pivotEl = document.getElementById('viewContainerPivot');
     
-    // Reset Scroll pour éviter le "saut"
-    if (masterEl) { masterEl.scrollLeft = 0; }
-    if (pivotEl) { pivotEl.scrollLeft = 0; }
-    
-    if (mode === 'MASTER') {
-        masterEl.classList.remove('pl-view-hidden');
-        pivotEl.classList.add('pl-view-hidden');
-        calculateVisibleColumns('MASTER');
-        if(masterEl.innerHTML === "") renderMasterView(masterEl);
-    } else {
-        masterEl.classList.add('pl-view-hidden');
-        pivotEl.classList.remove('pl-view-hidden');
-        calculateVisibleColumns('PIVOT');
-        if(pivotEl.innerHTML === "") renderPivotView(pivotEl);
+    let targetEventIndex = -1;
+
+    // Transition PIVOT (Date) -> MASTER (Rôles)
+    if (mode === VIEW_MODE_MASTER && CURRENT_VIEW === VIEW_MODE_PIVOT) {
+        const currentStart = PAGINATION.PIVOT.start;
+        const visibleCols = PAGINATION.PIVOT.visible || 6;
+        targetEventIndex = currentStart + Math.floor(visibleCols / 2);
     }
     
-    setTimeout(forceScrollToNext, 50);
+    // Transition MASTER (Rôles) -> PIVOT (Date)
+    if (mode === VIEW_MODE_PIVOT && CURRENT_VIEW === VIEW_MODE_MASTER) {
+        targetEventIndex = getCenterVisibleEventIndex();
+        const visibleCols = PAGINATION.PIVOT.visible || 6;
+        let newStart = targetEventIndex - Math.floor(visibleCols / 2);
+        if (newStart < 0) newStart = 0;
+        PAGINATION.PIVOT.start = newStart;
+    }
+
+    CURRENT_VIEW = mode;
+
+    if (mode === 'PIVOT') {
+        // AFFICHER VUE PAR DATE (HORIZONTALE)
+        if(masterEl) masterEl.classList.add('pl-view-hidden');
+        if(pivotEl) {
+            pivotEl.classList.remove('pl-view-hidden');
+            pivotEl.classList.remove('view-animate-enter');
+            void pivotEl.offsetWidth;
+            pivotEl.classList.add('view-animate-enter');
+            
+            calculateVisibleColumns('PIVOT');
+            renderPivotView(pivotEl);
+        }
+    } else {
+        // AFFICHER VUE PAR RÔLES (VERTICALE)
+        if(pivotEl) pivotEl.classList.add('pl-view-hidden');
+        if(masterEl) {
+            masterEl.classList.remove('pl-view-hidden');
+            masterEl.classList.remove('view-animate-enter');
+            void masterEl.offsetWidth;
+            masterEl.classList.add('view-animate-enter');
+            
+            calculateVisibleColumns('MASTER');
+            renderMasterView(masterEl);
+            
+            if (targetEventIndex > -1) {
+                setTimeout(() => {
+                    const row = document.getElementById(`row-master-${targetEventIndex}`);
+                    if (row) row.scrollIntoView({behavior: 'auto', block: 'center'});
+                }, 10);
+            } else {
+                setTimeout(forceScrollToNext, 50);
+            }
+        }
+    }
 }
 
-function refreshAllViews() {
+function refreshAllViews(silent = false) {
     if (CURRENT_VIEW === VIEW_MODE_MOBILE) {
         renderMobileView(document.getElementById('mobileViewport'));
         return;
     }
-    renderMasterView(document.getElementById('viewContainerMaster'));
-    renderPivotView(document.getElementById('viewContainerPivot'));
+    const masterEl = document.getElementById('viewContainerMaster');
+    const pivotEl = document.getElementById('viewContainerPivot');
+
+    if (silent) {
+        // Mode Silencieux
+        if (masterEl) masterEl.classList.remove('view-animate-enter');
+        if (pivotEl) pivotEl.classList.remove('view-animate-enter');
+
+        if (CURRENT_VIEW === VIEW_MODE_MASTER) {
+            calculateVisibleColumns('MASTER');
+            renderMasterView(masterEl);
+        } else {
+            calculateVisibleColumns('PIVOT');
+            renderPivotView(pivotEl);
+        }
+    } else {
+        // Mode Standard
+        switchPlanningMode(CURRENT_VIEW);
+    }
 }
 
-// --- CALCUL DE DIMENSION ROBUSTE ---
+// --- RENDERERS ---
+
 function calculateVisibleColumns(mode) {
     const containerId = (mode === 'MASTER') ? 'viewContainerMaster' : 'viewContainerPivot';
     const container = document.getElementById(containerId);
-    
-    // Largeur totale disponible (Fallback sur window si caché)
-    const containerW = (container && container.clientWidth > 0) 
-        ? container.clientWidth 
-        : document.querySelector('.pl-wrapper').clientWidth;
-    
-    const dateColW = 220; // Doit matcher le CSS (--col-date-w)
-    const userColW = 160; // Doit matcher le CSS (--col-min-w)
-    
-    // Marge de sécurité de 40px pour scrollbar et paddings
+    const containerW = (container && container.clientWidth > 0) ? container.clientWidth : document.querySelector('.pl-wrapper').clientWidth;
+    const dateColW = 220; const userColW = 160;
     const available = containerW - dateColW - 40;
-    
     const count = Math.floor(available / userColW);
     PAGINATION[mode].visible = Math.max(1, count);
 }
@@ -173,11 +299,9 @@ function calculateVisibleColumns(mode) {
 function navColumns(dir) {
     const mode = CURRENT_VIEW;
     if(mode === VIEW_MODE_MOBILE) return;
-    
     const state = PAGINATION[mode];
-    const totalItems = (mode === 'MASTER') ? ROLES_CONFIG.length : PLANNING_DATA.length;
+    const totalItems = (mode === 'MASTER') ? FILTERED_ROLES.length : PLANNING_DATA.length;
     const maxStart = Math.max(0, totalItems - state.visible);
-    
     state.start += (dir * state.visible);
     if(state.start < 0) state.start = 0;
     if(state.start > maxStart) state.start = maxStart;
@@ -186,159 +310,87 @@ function navColumns(dir) {
     else renderPivotView(document.getElementById('viewContainerPivot'));
 }
 
-// --- RENDERERS ---
-
+// Vue Par Rôles (Verticale) -> Dates en Lignes
 function renderMasterView(container) {
     if(!container) return;
     const state = PAGINATION.MASTER;
-    const visibleRoles = ROLES_CONFIG.slice(state.start, state.start + state.visible);
+    const visibleRoles = FILTERED_ROLES.slice(state.start, state.start + state.visible);
     
-    const table = document.createElement('table');
-    table.className = 'pl-table';
-    
-    // HEADERS
+    const table = document.createElement('table'); table.className = 'pl-table';
     let thead = `<thead class="pl-thead"><tr><th class="th-corner">CULTES</th>`;
     visibleRoles.forEach(r => {
         const iconClass = getRoleIconClass(r.name);
-        thead += `<th class="th-col" style="text-align:center;"><i class="bi ${iconClass} me-2 opacity-50"></i>${r.name}</th>`;
+        const colorClass = getRoleHeaderClass(r.name);
+        thead += `<th class="th-col ${colorClass}" style="text-align:center;"><i class="bi ${iconClass} me-2 opacity-50"></i>${r.name}</th>`;
     });
-    thead += `</tr></thead>`;
-    table.innerHTML = thead;
+    thead += `</tr></thead>`; table.innerHTML = thead;
     
-    // BODY
     const tbody = document.createElement('tbody');
     let lastYear = null;
 
     PLANNING_DATA.forEach((evt, rowIdx) => {
         const dObj = new Date(evt.dateObj);
         const currentYear = dObj.getFullYear();
-
-        // --- SÉPARATEUR ANNÉE ---
         if (lastYear && currentYear !== lastYear) {
-            const trSep = document.createElement('tr');
-            trSep.className = 'year-row';
-            const totalCols = 1 + visibleRoles.length;
-            trSep.innerHTML = `
-                <td colspan="${totalCols}">
-                    <div class="year-divider">
-                        <span class="year-label">${currentYear}</span>
-                        <div class="year-line"></div>
-                    </div>
-                </td>`;
+            const trSep = document.createElement('tr'); trSep.className = 'year-row';
+            trSep.innerHTML = `<td colspan="${1+visibleRoles.length}"><div class="year-divider"><span class="year-label">${currentYear}</span><div class="year-line"></div></div></td>`;
             tbody.appendChild(trSep);
         }
         lastYear = currentYear;
 
-        // --- LIGNE CULTE ---
-        const tr = document.createElement('tr');
-        tr.className = 'pl-row';
-        tr.id = `row-master-${rowIdx}`;
-        
-        // LOGIQUE HIGHLIGHT PAR GROUPE DE DATE
+        const tr = document.createElement('tr'); tr.className = 'pl-row'; tr.id = `row-master-${rowIdx}`;
+        tr.setAttribute('data-uid', `${evt.date}_${evt.heure}`);
         const isNextGroup = (evt.date === NEXT_CULT_DATE_STR);
-        
         if (isNextGroup) tr.classList.add('is-next');
         if (rowIdx < NEXT_CULT_INDEX && !isNextGroup) tr.classList.add('is-past');
         
-        // --- 1. DATE WIDGET (Avec Poubelle) ---
-        // On ajoute la classe 'hover-trigger' au TD pour gérer l'apparition
-        const dateHtml = `
-        <td class="td-date hover-trigger">
-            <div class="date-layout" onclick="openSlotMenu(this, '${evt.date}', '${evt.heure}', '${titleSafe}')">
-                <div class="d-calendar">
-                    <div class="d-weekday">${weekday}</div>
-                    <div class="d-day">${day}</div>
-                    <div class="d-month">${month}</div>
-                </div>
-                <div class="d-separator"></div>
-                <div class="d-info">
-                    <div class="d-title" title="${titleSafe}">${titleSafe}</div>
-                    <div class="d-time">${evt.heure}</div>
-                </div>
-            </div>
-            <!-- BOUTON SUPPRESSION (Global CSS btn-action-danger) -->
-            <i class="bi bi-trash3 btn-action-danger" 
-               onclick="window.TARGET_SLOT={d:'${evt.date}',h:'${evt.heure}'}; confirmDeleteSlot();" 
-               title="Supprimer ce culte"></i>
-        </td>`;
+        const day = dObj.toLocaleDateString('fr-FR', {day:'numeric'});
+        const weekday = dObj.toLocaleDateString('fr-FR', {weekday:'short'}).replace('.', '');
+        const month = dObj.toLocaleDateString('fr-FR', {month:'short'}).replace('.', '');
+        const titleSafe = (evt.titre || "").replace(/'/g, "\\'");
+
+        const dateHtml = `<td class="td-date hover-trigger"><div class="date-layout" onclick="openSlotMenu(this, '${evt.date}', '${evt.heure}', '${titleSafe}')"><div class="d-calendar"><div class="d-weekday">${weekday}</div><div class="d-day">${day}</div><div class="d-month">${month}</div></div><div class="d-separator"></div><div class="d-info"><div class="d-title" title="${titleSafe}">${titleSafe}</div><div class="d-time">${evt.heure}</div></div></div><div class="trash-wrapper"><i class="bi bi-trash3 btn-action-danger cursor-pointer" style="font-size: 14px;" onclick="window.TARGET_SLOT={d:'${evt.date}',h:'${evt.heure}'}; confirmDeleteSlot();" title="Supprimer"></i></div></td>`;
         
         let rowHtml = dateHtml;
-        
-        // --- 2. USER CELLS (Avec Actions) ---
         visibleRoles.forEach(role => {
             const val = evt.assignments[role.name] || "";
-            const cssClass = val ? "user-cell filled" : "user-cell empty";
-            
-            // Contenu dynamique
-            let innerContent = "";
-            if (val) {
-                // Rempli : Nom + Crayon
-                innerContent = `
-                    <span class="text-truncate" style="flex:1;">${val}</span>
-                    <div class="hover-actions-group">
-                        <div class="btn-circle-action" title="Modifier"><i class="bi bi-pencil-fill" style="font-size:10px;"></i></div>
-                    </div>`;
-            } else {
-                // Vide : Bouton +
-                innerContent = `
-                    <div class="hover-actions-group" style="width:100%; justify-content:center; opacity:0.6;">
-                        <div class="btn-circle-action add"><i class="bi bi-plus-lg"></i></div>
-                    </div>`;
-            }
-            
-            // On ajoute 'hover-trigger' pour l'animation
-            rowHtml += `
-            <td onclick="openNamePopup(this, '${evt.date}', '${evt.heure}', '${role.name}', '${val}')" class="hover-trigger">
-                <div class="${cssClass}">
-                    ${innerContent}
-                </div>
-            </td>`;
+            const cssClass = val ? "user-cell filled" : "user-cell";
+            let inner = val ? `<span class="text-truncate" style="flex:1;">${val}</span><div class="hover-actions-group"><div class="btn-circle-action" title="Modifier"><i class="bi bi-pencil-fill" style="font-size:10px;"></i></div></div>` : `<div class="hover-actions-group" style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;opacity:0.6;"><div class="btn-circle-action add"><i class="bi bi-plus-lg"></i></div></div>`;
+            rowHtml += `<td onclick="openNamePopup(this, '${evt.date}', '${evt.heure}', '${role.name}', '${val}')" class="hover-trigger"><div class="${cssClass}">${inner}</div></td>`;
         });
-        
-        tr.innerHTML = rowHtml;
-        tbody.appendChild(tr);
+        tr.innerHTML = rowHtml; tbody.appendChild(tr);
     });
-    
-    table.appendChild(tbody);
-    container.innerHTML = "";
-    container.appendChild(table);
+    table.appendChild(tbody); container.innerHTML = ""; container.appendChild(table);
 }
 
+// Vue Par Date (Horizontale / PIVOT) -> Dates en Colonnes
 function renderPivotView(container) {
     if(!container) return;
     const state = PAGINATION.PIVOT;
     const visibleEvents = PLANNING_DATA.slice(state.start, state.start + state.visible);
     
-    const table = document.createElement('table');
-    table.className = 'pl-table';
-    
+    const table = document.createElement('table'); table.className = 'pl-table';
     let thead = `<thead class="pl-thead"><tr><th class="th-corner">RÔLE</th>`;
     visibleEvents.forEach((evt, idx) => {
         const realIdx = state.start + idx;
-        const idCol = `col-pivot-${realIdx}`;
         const dShort = new Date(evt.dateObj).toLocaleDateString('fr-FR', {day:'numeric', month:'short'});
-        const style = (realIdx === NEXT_CULT_INDEX) ? "color:var(--pl-primary); font-weight:800;" : "";
-        thead += `<th class="th-col" id="${idCol}"><span style="${style}">${dShort}</span><br><small>${evt.heure}</small></th>`;
+        const style = (evt.date === NEXT_CULT_DATE_STR) ? "color:var(--pl-primary); font-weight:800;" : "";
+        thead += `<th class="th-col" id="col-pivot-${realIdx}"><span style="${style}">${dShort}</span><br><small>${evt.heure}</small></th>`;
     });
-    thead += `</tr></thead>`;
-    table.innerHTML = thead;
+    thead += `</tr></thead>`; table.innerHTML = thead;
     
     const tbody = document.createElement('tbody');
-    ROLES_CONFIG.forEach(role => {
-        const tr = document.createElement('tr');
-        tr.className = 'pl-row';
-        let rowHtml = `<td class="td-date"><div style="padding:0 16px; font-weight:600; color:#64748B; font-size:12px;">${role.name}</div></td>`;
+    FILTERED_ROLES.forEach(role => {
+        const tr = document.createElement('tr'); tr.className = 'pl-row';
+        tr.innerHTML = `<td class="td-date"><div style="padding:0 16px; font-weight:600; color:#64748B; font-size:12px;">${role.name}</div></td>`;
         visibleEvents.forEach(evt => {
             const val = evt.assignments[role.name] || "";
-            const cssClass = val ? "user-cell filled" : "user-cell empty";
-            rowHtml += `<td onclick="openNamePopup(this, '${evt.date}', '${evt.heure}', '${role.name}', '${val}')"><div class="${cssClass}"><span>${val || ""}</span></div></td>`;
+            const cssClass = val ? "user-cell filled" : "user-cell";
+            tr.innerHTML += `<td onclick="openNamePopup(this, '${evt.date}', '${evt.heure}', '${role.name}', '${val}')"><div class="${cssClass}"><span>${val || ""}</span></div></td>`;
         });
-        tr.innerHTML = rowHtml;
         tbody.appendChild(tr);
     });
-    table.appendChild(tbody);
-    container.innerHTML = "";
-    container.appendChild(table);
+    table.appendChild(tbody); container.innerHTML = ""; container.appendChild(table);
 }
 
 function renderMobileView(container) {
@@ -370,33 +422,21 @@ function renderMobileView(container) {
 }
 
 // --- UTILS & ACTIONS ---
+
 function forceScrollToNext() {
-    // Si pas de date prochaine identifiée, on ne fait rien
-    // Note: NEXT_CULT_DATE_STR doit être définie en haut du fichier (let NEXT_CULT_DATE_STR = "";)
     if (!NEXT_CULT_DATE_STR && NEXT_CULT_INDEX === -1) return;
-    
-    // Stratégie : D'abord par date string (nouveau système), sinon fallback sur l'index (ancien système)
     let targetIdx = -1;
-    
-    if (NEXT_CULT_DATE_STR) {
-        targetIdx = PLANNING_DATA.findIndex(e => e.date === NEXT_CULT_DATE_STR);
-    } else {
-        targetIdx = NEXT_CULT_INDEX;
-    }
+    if (NEXT_CULT_DATE_STR) targetIdx = PLANNING_DATA.findIndex(e => e.date === NEXT_CULT_DATE_STR);
+    else targetIdx = NEXT_CULT_INDEX;
     
     if (targetIdx > -1) {
         if (CURRENT_VIEW === VIEW_MODE_MASTER) {
             const row = document.getElementById(`row-master-${targetIdx}`);
-            // block: 'start' avec behavior 'smooth' pour l'effet visuel
             if(row) row.scrollIntoView({behavior: 'smooth', block: 'start'});
         } else if (CURRENT_VIEW === VIEW_MODE_PIVOT) {
-            // En pivot, on change la pagination pour afficher la colonne
-            // COL_START_INDEX gère le décalage horizontal des colonnes (dates en pivot)
-            // Note: En pivot simplifié actuel, c'est l'inverse (Rôles en ligne), 
-            // donc il faudrait scroller vers la colonne, mais comme on a paginé...
-            // Pour l'instant on laisse le pivot tel quel ou on implémente la nav colonnes
-             COL_START_INDEX = Math.max(0, targetIdx - 1);
-             renderCurrentView();
+            PAGINATION.PIVOT.start = targetIdx;
+            const pivotEl = document.getElementById('viewContainerPivot');
+            if(pivotEl) renderPivotView(pivotEl);
         }
     }
 }
@@ -409,39 +449,387 @@ function handleResize() {
 }
 
 function closeAllPopups() {
-    document.querySelectorAll('.notion-popup, .notion-dialog, .dropdown-menu').forEach(e => e.style.display='none');
+    document.querySelectorAll('.notion-popup, .notion-dialog, .dropdown-menu, .offcanvas-custom').forEach(e => {
+        e.style.display='none';
+        e.classList.remove('open');
+    });
     document.getElementById('popupOverlay').style.display='none';
 }
+
 function movePopupsToBody() {
-    ['namePopup', 'genYearModal', 'addEventPopup', 'searchPersonModal', 'slotActionMenu', 'popupOverlay'].forEach(id => {
+    // Liste exhaustive de tous les éléments flottants
+    const ids = [
+        'namePopup', 
+        'genYearModal', 
+        'addEventPopup', 
+        'searchPersonModal', 
+        'slotActionMenu', 
+        'popupOverlay', 
+        'globalSearchModal', 
+        'personSchedulePanel'
+    ];
+    
+    ids.forEach(id => {
         const el = document.getElementById(id);
-        if(el && el.parentElement !== document.body) document.body.appendChild(el);
+        if(el && el.parentElement !== document.body) {
+            document.body.appendChild(el);
+        }
     });
 }
 
-// Actions Stubs (Les mêmes qu'avant)
-function openNamePopup(el,d,h,r,v) {
-    const p=document.getElementById('namePopup'); p.dataset.ctx=JSON.stringify({d,h,r});
-    document.getElementById('namePopupSearch').value=""; renderNameList(NAMES_DB,v);
-    const rect=el.getBoundingClientRect(); p.style.display='block';
-    p.style.top=(rect.bottom+2)+'px'; p.style.left=rect.left+'px';
-    if(rect.left+240>window.innerWidth) p.style.left=(window.innerWidth-250)+'px';
-    if(rect.bottom+250>window.innerHeight) p.style.top=(rect.top-260)+'px';
-    document.getElementById('popupOverlay').style.display='block';
-    setTimeout(()=>document.getElementById('namePopupSearch').focus(),50);
-    document.getElementById('namePopupSearch').oninput=(e)=>{
-        const q=e.target.value.toLowerCase(); renderNameList(NAMES_DB.filter(n=>n.toLowerCase().includes(q)),v);
-    };
+// --- MODULE FILTRES ---
+
+function toggleFilterMenu(btnElement) {
+    const menu = document.getElementById('slotActionMenu');
+    if (menu.style.display === 'block' && menu.classList.contains('filter-mode')) return;
+
+    const groups = {};
+    const allRoleNames = ROLES_CONFIG.map(r => r.name);
+    const currentSelection = (ACTIVE_FILTER_ROLES.length === 0) ? allRoleNames : ACTIVE_FILTER_ROLES;
+    const isAllSelected = (currentSelection.length === allRoleNames.length);
+
+    ROLES_CONFIG.forEach(r => {
+        let type = r.type ? r.type.trim() : "Autre";
+        if(type === "") type = "Autre";
+        type = type.charAt(0).toUpperCase() + type.slice(1);
+        if(!groups[type]) groups[type] = [];
+        groups[type].push(r.name);
+    });
+
+    const colorMap = { 'LITURGIE': '#2563EB', 'MUSIQUE': '#15803D', 'TECHNIQUE': '#C2410C', 'TRADUCTION': '#7C3AED', 'SECRETAIRE': '#0F766E', 'ACCUEIL': '#4338CA' };
+
+    let html = `<div class="filter-dropdown-panel" onclick="event.stopPropagation()"><div class="filter-header"><span class="fw-bold small text-dark"><i class="bi bi-funnel-fill me-2 text-secondary"></i>Filtres</span><button class="btn btn-sm btn-light border py-0 px-2" id="btnFilterToggleAll" style="font-size:11px;" onclick="filterAction('TOGGLE_ALL')">${isAllSelected ? 'Tout décocher' : 'Tout cocher'}</button></div><div class="filter-body custom-scrollbar">`;
+
+    Object.keys(groups).sort().forEach(type => {
+        const roles = groups[type];
+        const baseClass = getTypeColorClassFromType(type.toUpperCase());
+        const textClass = baseClass.replace('th-type-', 'text-filter-');
+        let hexColor = "#6B7280";
+        for(let key in colorMap) if(type.toUpperCase().includes(key)) { hexColor = colorMap[key]; break; }
+        
+        let iconClass = "circle-fill";
+        if(type.toUpperCase().includes('LITURG')) iconClass = "book";
+        else if(type.toUpperCase().includes('MUSI')) iconClass = "music-note-beamed";
+        else if(type.toUpperCase().includes('TECH')) iconClass = "sliders";
+        else if(type.toUpperCase().includes('TRAD')) iconClass = "translate";
+
+        html += `<div class="filter-group-header" onclick="filterAction('TOGGLE_GROUP', {groupRoles: '${roles.join(',')}'})"><div class="d-flex align-items-center gap-2 ${textClass}"><i class="bi bi-${iconClass}" style="font-size:12px;"></i><span>${type}</span></div></div>`;
+
+        roles.forEach(roleName => {
+            const isChecked = currentSelection.includes(roleName);
+            // AJOUT !important pour forcer la couleur de la checkbox
+            html += `<label class="filter-role-item"><input type="checkbox" class="filter-chk custom-chk me-2" value="${roleName}" ${isChecked ? 'checked' : ''} style="accent-color: ${hexColor} !important; transform: scale(1.1); cursor: pointer;" onchange="filterAction('TOGGLE_ROLE', {role: '${roleName}'})"><span class="text-truncate small ${textClass}" style="font-weight:500;">${roleName}</span></label>`;
+        });
+        html += `<div class="mb-2"></div>`;
+    });
+    html += `</div></div>`;
+
+    if(menu) {
+        menu.innerHTML = html;
+        menu.classList.add('filter-mode');
+        menu.style.display = 'block';
+        menu.style.padding = '0'; menu.style.border = 'none'; menu.style.background = 'transparent';
+        const rect = btnElement.getBoundingClientRect();
+        menu.style.top = (rect.bottom + 8) + 'px';
+        menu.style.left = 'auto'; menu.style.right = (window.innerWidth - rect.right) + 'px';
+        document.getElementById('popupOverlay').style.display = 'block';
+    }
 }
-function renderNameList(l,c){
-    const d=document.getElementById('namePopupList'); d.innerHTML='<div class="p-3 text-muted small cursor-pointer hover-bg" onclick="submitName(\'\')">Effacer</div>';
-    l.forEach(n=>{ d.innerHTML+=`<div class="p-2 px-3 cursor-pointer hover-bg ${n===c?'fw-bold bg-light text-primary':''}" onclick="submitName('${n}')">${n}</div>`; });
+
+function filterAction(action, payload) {
+    const allRoleNames = ROLES_CONFIG.map(r => r.name);
+    let current = (ACTIVE_FILTER_ROLES.length === 0) ? [...allRoleNames] : [...ACTIVE_FILTER_ROLES];
+
+    if (action === 'TOGGLE_ALL') {
+        if (current.length === allRoleNames.length) current = ["__NONE__"]; else current = [];
+    } else if (action === 'TOGGLE_ROLE') {
+        const r = payload.role;
+        if (current.includes(r)) current = current.filter(item => item !== r); else current.push(r);
+    } else if (action === 'TOGGLE_GROUP') {
+        const groupRoles = payload.groupRoles.split(',');
+        const allChecked = groupRoles.every(r => current.includes(r));
+        if (allChecked) current = current.filter(r => !groupRoles.includes(r)); else groupRoles.forEach(r => { if(!current.includes(r)) current.push(r); });
+    }
+
+    if (current.length === allRoleNames.length) ACTIVE_FILTER_ROLES = [];
+    else if (current.length === 1 && current[0] === "__NONE__") ACTIVE_FILTER_ROLES = ["__NONE__"];
+    else ACTIVE_FILTER_ROLES = current;
+
+    updateFilteredData();
+    const displaySelection = (ACTIVE_FILTER_ROLES.length === 0) ? allRoleNames : ACTIVE_FILTER_ROLES;
+    document.querySelectorAll('.filter-chk').forEach(chk => { chk.checked = displaySelection.includes(chk.value); });
+    const isAll = (displaySelection.length === allRoleNames.length);
+    const btnAll = document.getElementById('btnFilterToggleAll');
+    if(btnAll) { btnAll.innerText = isAll ? 'Tout décocher' : 'Tout cocher'; btnAll.onclick = () => filterAction('TOGGLE_ALL'); }
 }
-function submitName(n){
-    const ctx=JSON.parse(document.getElementById('namePopup').dataset.ctx); closeAllPopups();
-    const evt=PLANNING_DATA.find(e=>e.date===ctx.d && e.heure===ctx.h); if(evt){ if(!evt.assignments)evt.assignments={}; evt.assignments[ctx.r]=n; }
-    refreshAllViews(); google.script.run.updatePlanningCell(ctx.d,ctx.h,ctx.r,n);
+
+function updateFilteredData() {
+    if (ACTIVE_FILTER_ROLES.length === 0) FILTERED_ROLES = [...ROLES_CONFIG];
+    else if (ACTIVE_FILTER_ROLES.length === 1 && ACTIVE_FILTER_ROLES[0] === "__NONE__") FILTERED_ROLES = [];
+    else FILTERED_ROLES = ROLES_CONFIG.filter(r => ACTIVE_FILTER_ROLES.includes(r.name));
+    PAGINATION.MASTER.start = 0; PAGINATION.PIVOT.start = 0;
+    refreshAllViews();
 }
+
+// --- MODULE NAVIGATION & RECHERCHE ---
+
+function handleJumpToDate(isoDate) {
+    if (!isoDate) return;
+    const [y, m, d] = isoDate.split('-');
+    const searchStr = `${d}/${m}/${y}`;
+    const idx = PLANNING_DATA.findIndex(e => e.date === searchStr);
+    if (idx > -1) jumpToEventIndex(idx);
+    else alert("Aucun culte trouvé à cette date (" + searchStr + ")");
+    document.getElementById('jumpDateInput').value = "";
+}
+
+function jumpToEventIndex(idx) {
+    if (CURRENT_VIEW === VIEW_MODE_MASTER) {
+        const row = document.getElementById(`row-master-${idx}`);
+        if(row) row.scrollIntoView({behavior: 'smooth', block: 'center'});
+    } else {
+        PAGINATION.PIVOT.start = idx;
+        refreshAllViews();
+    }
+}
+
+function openGlobalSearch() {
+    const modal = document.getElementById('globalSearchModal');
+    const overlay = document.getElementById('popupOverlay');
+    const input = document.getElementById('globalSearchInput');
+    if(modal && overlay) {
+        modal.style.display = 'flex';
+        overlay.style.display = 'block';
+        input.value = "";
+        document.getElementById('globalSearchResults').innerHTML = '<div class="text-center text-muted py-5 small">Tapez pour rechercher...</div>';
+        setTimeout(() => input.focus(), 50);
+    }
+}
+
+// --- FORMATTEUR DATE JOLI ---
+function formatDateNice(dateStr) {
+    // DD/MM/YYYY -> 25 JANV 2025
+    if(!dateStr) return "";
+    const parts = dateStr.split('/');
+    const d = new Date(parts[2], parts[1]-1, parts[0]);
+    // Ajout de 'year: numeric'
+    return d.toLocaleDateString('fr-FR', {day: 'numeric', month: 'short', year: 'numeric'}).toUpperCase().replace('.', '');
+}
+
+function handleGlobalSearch(query) {
+    const container = document.getElementById('globalSearchResults');
+    if (query.length < 2) { 
+        container.innerHTML = '<div class="text-center text-muted py-5 small">Tapez au moins 2 caractères</div>'; 
+        return; 
+    }
+    
+    const q = query.toLowerCase();
+    let html = "";
+    
+    // A. RECHERCHE CULTES
+    const cultHits = PLANNING_DATA.filter((e, idx) => { 
+        e._tempIdx = idx; 
+        return (e.titre && e.titre.toLowerCase().includes(q)); 
+    });
+    
+    if (cultHits.length > 0) {
+        html += `<div class="search-section-title">Cultes (${cultHits.length})</div>`;
+        cultHits.forEach(e => {
+            const niceDate = formatDateNice(e.date);
+            html += `
+            <div class="search-result-item" onclick="closeAllPopups(); jumpToEventIndex(${e._tempIdx})">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="search-date-badge">${niceDate}</div>
+                    <div class="fw-medium text-dark" style="font-size:14px;">${e.titre}</div>
+                </div>
+            <i class="bi bi-bullseye text-muted opacity-50" title="Aller à cette date"></i>
+            </div>`;
+        });
+    }
+    
+    // B. RECHERCHE PERSONNES (Correction BUG)
+    const personHits = new Set();
+    
+    // Scan du planning existant
+    PLANNING_DATA.forEach(e => {
+        if(e.assignments) {
+            Object.values(e.assignments).forEach(nom => {
+                if (nom && String(nom).toLowerCase().includes(q)) personHits.add(nom);
+            });
+        }
+    });
+    
+    // Scan de la DB noms (pour ceux qui n'ont pas encore de rôle mais existent)
+    if(NAMES_DB) {
+        NAMES_DB.forEach(nom => {
+            if (nom && String(nom).toLowerCase().includes(q)) personHits.add(nom);
+        });
+    }
+    
+    const sortedPersons = Array.from(personHits).sort();
+    
+    if (sortedPersons.length > 0) {
+        html += `<div class="search-section-title">Personnes (${sortedPersons.length})</div>`;
+        sortedPersons.forEach(nom => {
+            // UTILISATION DE encodeURIComponent pour gérer les ' et espaces
+            const safeNom = encodeURIComponent(nom);
+            
+            html += `
+            <div class="search-result-item" onclick="closeAllPopups(); openPersonPanel(decodeURIComponent('${safeNom}'))">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="bg-gray-100 text-secondary rounded-circle d-flex align-items-center justify-content-center fw-bold border" style="width:32px; height:32px; font-size:11px;">
+                        ${nom.substring(0,2).toUpperCase()}
+                    </div>
+                    <div class="fw-medium text-dark" style="font-size:14px;">${nom}</div>
+                </div>
+                <!-- Icône plus explicite pour "Voir Planning" -->
+                <i class="bi bi-calendar-week text-primary opacity-75" title="Voir le planning"></i>
+            </div>`;
+        });
+    }
+    
+    if (html === "") html = '<div class="text-center text-muted py-5 small">Aucun résultat.</div>';
+    container.innerHTML = html;
+}
+
+function openPersonPanel(nom) {
+    document.getElementById('pspName').innerText = nom;
+    const container = document.getElementById('pspContent');
+    const panel = document.getElementById('personSchedulePanel');
+    const overlay = document.getElementById('popupOverlay');
+    
+    const now = new Date().setHours(0,0,0,0);
+    let events = [];
+    
+    PLANNING_DATA.forEach(e => {
+        if(e.assignments) {
+            for (const [role, assignedName] of Object.entries(e.assignments)) {
+                if (assignedName === nom) {
+                    events.push({
+                        date: e.date,
+                        dateObj: e.dateObj,
+                        heure: e.heure,
+                        titre: e.titre || "Culte",
+                        role: role,
+                        isPast: e.dateObj < now,
+                        isNext: false 
+                    });
+                }
+            }
+        }
+    });
+    
+    events.sort((a,b) => a.dateObj - b.dateObj);
+    const nextIdx = events.findIndex(e => !e.isPast);
+    if(nextIdx > -1) events[nextIdx].isNext = true;
+    
+    let html = "";
+    if (events.length === 0) {
+        html = `<div class="h-100 d-flex flex-column align-items-center justify-content-center text-muted opacity-50">
+            <i class="bi bi-calendar-x display-4 mb-3"></i>
+            <div class="small">Aucune intervention planifiée.</div>
+        </div>`;
+    } else {
+        events.forEach((ev, idx) => {
+            let classes = "psp-card";
+            if (ev.isPast) classes += " is-past";
+            if (ev.isNext) classes += " is-next";
+            let idAttr = ev.isNext ? 'id="pspNextEvent"' : '';
+            
+            // Formatage date pour la carte
+            const dObj = new Date(ev.dateObj);
+            const day = dObj.getDate();
+            const month = dObj.toLocaleDateString('fr-FR', {month:'short'}).toUpperCase().replace('.','');
+            
+            html += `
+            <div class="${classes}" ${idAttr}>
+                <div class="psp-header">
+                    <div class="psp-day">${day}</div>
+                    <div class="psp-meta">
+                        <div class="psp-month">${month}</div>
+                        <div class="psp-time">${ev.heure}</div>
+                    </div>
+                </div>
+                <div>
+                    <div class="psp-role-badge">${ev.role}</div>
+                    <div class="psp-title">${ev.titre}</div>
+                </div>
+            </div>`;
+        });
+    }
+    
+    container.innerHTML = html;
+    
+    // Affichage
+    panel.classList.add('open');
+    if(overlay) {
+        overlay.style.display = 'block';
+        overlay.onclick = closePersonPanel;
+    }
+    
+    setTimeout(() => {
+        const nextEl = document.getElementById('pspNextEvent');
+        if (nextEl) nextEl.scrollIntoView({behavior: 'smooth', block: 'center'});
+    }, 300);
+}
+
+function closePersonPanel() {
+    const panel = document.getElementById('personSchedulePanel');
+    const overlay = document.getElementById('popupOverlay');
+    panel.classList.remove('open');
+    if(overlay) { overlay.style.display = 'none'; overlay.onclick = closeAllPopups; }
+}
+
+// --- HELPER COULEURS & ICONES (CRUCIAL : RESTAURATION) ---
+
+function getTypeColorClassFromType(typeRaw) {
+    const t = (typeRaw || "").toUpperCase();
+    if(t.includes('LITURG') || t.includes('PASTEUR')) return 'th-type-liturgie';
+    if(t.includes('MUSI') || t.includes('CHANT')) return 'th-type-musique';
+    if(t.includes('TECH') || t.includes('SON')) return 'th-type-technique';
+    if(t.includes('TRAD')) return 'th-type-traduction';
+    if(t.includes('SEC') || t.includes('ADMIN')) return 'th-type-secretaire';
+    return 'th-type-accueil'; 
+}
+
+function getRoleHeaderClass(roleName) {
+    const roleObj = ROLES_CONFIG.find(r => r.name === roleName);
+    const type = roleObj ? (roleObj.type || "").toUpperCase() : roleName.toUpperCase();
+    
+    // LITURGIE (Bleu)
+    if(type.includes('LITURG') || roleName.includes('Mpitari')) return 'th-type-liturgie';
+    
+    // MUSIQUE (Vert)
+    if(type.includes('MUSI') || type.includes('CHANT')) return 'th-type-musique';
+    
+    // TECHNIQUE (Rouge/Orange)
+    if(type.includes('TECH') || type.includes('SON') || type.includes('PROJ')) return 'th-type-technique';
+    
+    // TRADUCTION (Violet)
+    if(type.includes('TRAD')) return 'th-type-traduction';
+    
+    // SECRÉTAIRE (Turquoise)
+    if(type.includes('SEC') || type.includes('ADMIN')) return 'th-type-secretaire';
+    
+    return ''; 
+}
+
+function getRoleIconClass(roleName) {
+    // On cherche le type dans la config si possible, sinon on devine par le nom
+    const roleObj = ROLES_CONFIG.find(r => r.name === roleName);
+    const type = roleObj ? (roleObj.type || "").toUpperCase() : roleName.toUpperCase();
+    
+    if(type.includes('LITURG') || roleName.includes('Mpitari')) return 'bi-book';
+    if(type.includes('MUSI') || type.includes('CHANT')) return 'bi-music-note-beamed';
+    if(type.includes('TECH') || type.includes('SON') || type.includes('PROJ')) return 'bi-sliders';
+    if(type.includes('TRAD')) return 'bi-translate';
+    if(type.includes('SEC') || type.includes('ADMIN')) return 'bi-pencil-square';
+    if(type.includes('ACCUEIL')) return 'bi-emoji-smile';
+    if(type.includes('VAKITENY')) return 'bi-journal-text'; 
+    
+    return 'bi-person'; // Défaut
+}
+
 // Admin Actions
 function openGenerateYearModal(){ document.getElementById('genYearModal').style.display='block'; document.getElementById('popupOverlay').style.display='block'; document.getElementById('genYearModal').style.position='fixed'; document.getElementById('genYearModal').style.top='50%'; document.getElementById('genYearModal').style.left='50%'; document.getElementById('genYearModal').style.transform='translate(-50%,-50%)'; document.getElementById('genYearInput').value=new Date().getFullYear(); }
 function submitGenerateYear(){ const y=document.getElementById('genYearInput').value; google.script.run.withSuccessHandler(r=>{alert(r);closeAllPopups();initPlanningView()}).generateYearBackend(y); }
@@ -460,20 +848,93 @@ function handlePersonSearch(q){
 }
 function goToEvent(d,h) { const idx = PLANNING_DATA.findIndex(e => e.date === d && e.heure === h); if(idx > -1) { NEXT_CULT_INDEX = idx; forceScrollToNext(); } }
 function handleKeyboardNav(e) {}
-// --- ICON HELPER ---
-function getRoleIconClass(roleName) {
-    // On cherche le type dans la config si possible, sinon on devine par le nom
-    const roleObj = ROLES_CONFIG.find(r => r.name === roleName);
-    const type = roleObj ? (roleObj.type || "").toUpperCase() : roleName.toUpperCase();
-    
-    if(type.includes('LITURG') || roleName.includes('Mpitari')) return 'bi-book';
-    if(type.includes('MUSI') || type.includes('CHANT')) return 'bi-music-note-beamed';
-    if(type.includes('TECH') || type.includes('SON') || type.includes('PROJ')) return 'bi-sliders';
-    if(type.includes('TRAD')) return 'bi-translate';
-    if(type.includes('SEC') || type.includes('ADMIN')) return 'bi-pencil-square';
-    if(type.includes('ACCUEIL')) return 'bi-emoji-smile';
-    if(type.includes('VAKITENY')) return 'bi-journal-text'; // Spécifique lecture
-    
-    return 'bi-person'; // Défaut
+
+// --- CUSTOM DATE PICKER LOGIC ---
+let CDP_CURRENT_DATE = new Date(); // Mois affiché
+
+function toggleCustomDatePicker(btn) {
+    const picker = document.getElementById('customDatePicker');
+    if (picker.classList.contains('show')) {
+        picker.classList.remove('show');
+        document.removeEventListener('click', closePickerOutside);
+    } else {
+        picker.classList.add('show');
+        renderCustomPicker();
+        // Fermeture au clic dehors
+        setTimeout(() => document.addEventListener('click', closePickerOutside), 10);
+    }
 }
+
+function closePickerOutside(e) {
+    const picker = document.getElementById('customDatePicker');
+    if (picker && !picker.contains(e.target) && !e.target.closest('.nav-hero-btn')) {
+        picker.classList.remove('show');
+        document.removeEventListener('click', closePickerOutside);
+    }
+}
+
+function changePickerMonth(delta) {
+    CDP_CURRENT_DATE.setMonth(CDP_CURRENT_DATE.getMonth() + delta);
+    renderCustomPicker();
+}
+
+function renderCustomPicker() {
+    const grid = document.getElementById('cdpGrid');
+    const title = document.getElementById('cdpTitle');
+    const y = CDP_CURRENT_DATE.getFullYear();
+    const m = CDP_CURRENT_DATE.getMonth();
+    
+    // Titre
+    title.innerText = new Intl.DateTimeFormat('fr-FR', { month: 'long', year: 'numeric' }).format(CDP_CURRENT_DATE);
+    
+    grid.innerHTML = "";
+    // Jours Semaine
+    const days = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
+    days.forEach(d => grid.innerHTML += `<div class="cdp-day-head">${d}</div>`);
+    
+    // Scan des dates avec culte pour ce mois
+    const eventsInMonth = new Set();
+    PLANNING_DATA.forEach(e => {
+        // e.date est JJ/MM/AAAA
+        const [dd, mm, yyyy] = e.date.split('/');
+        if (parseInt(mm) === m + 1 && parseInt(yyyy) === y) {
+            eventsInMonth.add(parseInt(dd));
+        }
+    });
+
+    // Remplissage Jours
+    const firstDay = new Date(y, m, 1).getDay(); // 0=Dimanche
+    const startOffset = (firstDay === 0 ? 6 : firstDay - 1); // Lundi=0
+    const daysInMonth = new Date(y, m + 1, 0).getDate();
+    
+    // Vides début
+    for(let i=0; i<startOffset; i++) grid.innerHTML += `<div></div>`;
+    
+    // Jours
+    for(let d=1; d<=daysInMonth; d++) {
+        const hasEvent = eventsInMonth.has(d);
+        let classes = "cdp-day";
+        let onClick = "";
+        let dot = "";
+        
+        if (hasEvent) {
+            classes += " has-event";
+            const dateStr = `${('0'+d).slice(-2)}/${('0'+(m+1)).slice(-2)}/${y}`;
+            onClick = `onclick="selectPickerDate('${dateStr}')"`;
+            dot = `<div class="cdp-dot"></div>`;
+        }
+        
+        grid.innerHTML += `<div class="${classes}" ${onClick}>${d}${dot}</div>`;
+    }
+}
+
+function selectPickerDate(dateStr) {
+    // Jump
+    const idx = PLANNING_DATA.findIndex(e => e.date === dateStr);
+    if (idx > -1) jumpToEventIndex(idx);
+    
+    // Fermer
+    document.getElementById('customDatePicker').classList.remove('show');
+}
+
 </script>
