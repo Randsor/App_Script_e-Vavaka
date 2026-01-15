@@ -86,7 +86,7 @@ function getPlanningMatrixData(minDays, maxDays) {
   return response;
 }
 
-function createPlanningEvent(dateStr, timeStr) {
+function createPlanningEvent(dateStr, timeStr, titleStr) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName(SHEET_NAME_PLANNING);
   if (!sheet) return "Erreur DB";
@@ -94,7 +94,9 @@ function createPlanningEvent(dateStr, timeStr) {
   var dateObj = parseDateFR(dateStr);
   if (!dateObj) return "Date Invalide"; 
   
-  sheet.appendRow([dateObj, timeStr, "Culte", "", "_INIT_", "CREATED"]);
+  var titre = titleStr || "Culte"; // Titre par défaut si vide
+  
+  sheet.appendRow([dateObj, timeStr, titre, "", "_INIT_", "CREATED"]);
   return "OK";
 }
 

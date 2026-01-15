@@ -363,30 +363,112 @@ function renderMasterView(container) {
     table.appendChild(tbody); container.innerHTML = ""; container.appendChild(table);
 }
 
-// Vue Par Date (Horizontale / PIVOT) -> Dates en Colonnes
+// Vue Par Date (Horizontale) -> RETOUR AUX COMPOSANTS MASTER (Standardisés)
 function renderPivotView(container) {
     if(!container) return;
     const state = PAGINATION.PIVOT;
     const visibleEvents = PLANNING_DATA.slice(state.start, state.start + state.visible);
+    const now = new Date().setHours(0,0,0,0);
     
     const table = document.createElement('table'); table.className = 'pl-table';
-    let thead = `<thead class="pl-thead"><tr><th class="th-corner">RÔLE</th>`;
+    
+    // --- EN-TÊTE (inchangé, ton code validé) ---
+    let thead = `<thead class="pl-thead"><tr><th class="th-corner" style="vertical-align:middle; padding-left:24px; background:#fff; border-bottom:1px solid #E2E8F0;">RÔLES</th>`;
+    
     visibleEvents.forEach((evt, idx) => {
         const realIdx = state.start + idx;
-        const dShort = new Date(evt.dateObj).toLocaleDateString('fr-FR', {day:'numeric', month:'short'});
-        const style = (evt.date === NEXT_CULT_DATE_STR) ? "color:var(--pl-primary); font-weight:800;" : "";
-        thead += `<th class="th-col" id="col-pivot-${realIdx}"><span style="${style}">${dShort}</span><br><small>${evt.heure}</small></th>`;
+        const dObj = new Date(evt.dateObj);
+        
+        const day = dObj.toLocaleDateString('fr-FR', {day:'numeric'});
+        const month = dObj.toLocaleDateString('fr-FR', {month:'short'}).toUpperCase().replace('.','');
+        const weekday = dObj.toLocaleDateString('fr-FR', {weekday:'short'}).toUpperCase().replace('.','');
+        
+        const isPast = evt.dateObj < now;
+        const isNext = (evt.date === NEXT_CULT_DATE_STR);
+        const titreCulte = evt.titre || "Culte";
+        
+        let thClass = "th-col hover-trigger"; 
+        let wrapperStyle = "";
+        
+        if (isPast) {
+            wrapperStyle = "opacity: 0.5; filter: grayscale(100%);";
+        } else if (isNext) {
+            thClass += " th-next-active"; 
+        }
+
+        thead += `
+        <th class="${thClass}" id="col-pivot-${realIdx}" style="padding: 12px; vertical-align: top;">
+            <div class="hover-actions-group" style="position:absolute; top:6px; right:6px; z-index:10;">
+                <i class="bi bi-trash3-fill btn-action-danger cursor-pointer text-secondary opacity-50" 
+                   onclick="window.TARGET_SLOT={d:'${evt.date}',h:'${evt.heure}'}; confirmDeleteSlot();" 
+                   title="Supprimer ce culte" style="font-size: 14px;"></i>
+            </div>
+            <div style="${wrapperStyle} display:flex; flex-direction:column; align-items:center; gap:4px;">
+                <div class="date-inline-row">
+                    <span style="font-size:10px; font-weight:800; color:#DC2626;">${weekday}</span>
+                    <span style="font-size:18px; font-weight:800; color:#1E293B;">${day}</span>
+                    <span style="font-size:10px; font-weight:700; color:#94A3B8;">${month}</span>
+                </div>
+                <div style="background:#F1F5F9; color:#475569; padding:2px 8px; border-radius:4px; font-size:11px; font-weight:600;">${evt.heure}</div>
+                <div style="font-size:11px; font-weight:700; color:#0F172A; text-transform:uppercase; margin-top:2px; text-align:center; line-height:1.2; white-space:normal;">${titreCulte}</div>
+            </div>
+        </th>`;
     });
     thead += `</tr></thead>`; table.innerHTML = thead;
     
     const tbody = document.createElement('tbody');
+    
+    // --- CORPS ---
     FILTERED_ROLES.forEach(role => {
         const tr = document.createElement('tr'); tr.className = 'pl-row';
-        tr.innerHTML = `<td class="td-date"><div style="padding:0 16px; font-weight:600; color:#64748B; font-size:12px;">${role.name}</div></td>`;
+        
+        const colorClass = getRoleHeaderClass(role.name);
+        const iconClass = getRoleIconClass(role.name);
+        
+        tr.innerHTML = `
+        <td class="td-date" style="padding:0; height: 50px;">
+            <div class="${colorClass}" style="width:100%; height:100%; display:flex; align-items:center; padding:0 12px; border-right:1px solid rgba(0,0,0,0.05);">
+                <i class="bi ${iconClass} me-2 opacity-50" style="font-size:12px;"></i>
+                <div style="font-weight:700; font-size:10px; text-transform:uppercase; letter-spacing:0.3px; opacity:0.9; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${role.name}</div>
+            </div>
+        </td>`;
+        
         visibleEvents.forEach(evt => {
+            const isPast = evt.dateObj < now;
+            const isNext = (evt.date === NEXT_CULT_DATE_STR);
             const val = evt.assignments[role.name] || "";
-            const cssClass = val ? "user-cell filled" : "user-cell";
-            tr.innerHTML += `<td onclick="openNamePopup(this, '${evt.date}', '${evt.heure}', '${role.name}', '${val}')"><div class="${cssClass}"><span>${val || ""}</span></div></td>`;
+            
+            let cellStyle = "";
+            let innerContent = "";
+            
+            if (isPast) {
+                cellStyle = "background-color: #FAFAFA !important; filter: grayscale(100%); opacity: 0.5; pointer-events: none;";
+                innerContent = val ? `<span class="text-truncate" style="font-size:12px; color:#64748B;">${val}</span>` : "";
+            } else {
+                if (isNext) cellStyle = "background-color: #fff; border-left: 1px solid rgba(0,0,0,0.04); border-right: 1px solid rgba(0,0,0,0.04);";
+                
+                if (val) {
+                    // --- CAS 1 : NOM REMPLI ---
+                    // On utilise .user-cell.filled + .hover-actions-group pour le crayon
+                    // Le crayon est positionné en absolu à droite (right: 8px)
+                    innerContent = `
+                        <span class="text-truncate fw-medium" style="font-size:12px; width:100%; text-align:center;">${val}</span>
+                        <div class="hover-actions-group" style="position:absolute; right:10px; top:50%; transform:translateY(-50%);">
+                            <div class="btn-circle-action" title="Modifier" style="width:24px; height:24px;"><i class="bi bi-pencil-fill" style="font-size:10px;"></i></div>
+                        </div>`;
+                } else {
+                    // --- CAS 2 : VIDE (BOUTON +) ---
+                    // On utilise EXACTEMENT la structure du Master : .hover-actions-group + .btn-circle-action.add
+                    // L'opacité est gérée par le CSS global via la classe hover-trigger du TD
+                    innerContent = `
+                        <div class="hover-actions-group" style="width:100%; height:100%; display:flex; align-items:center; justify-content:center;">
+                            <div class="btn-circle-action add" style="width:24px; height:24px;"><i class="bi bi-plus-lg"></i></div>
+                        </div>`;
+                }
+            }
+
+            // IMPORTANT : class="hover-trigger" sur le TD est la clé pour que le CSS Global fonctionne
+            tr.innerHTML += `<td style="${cellStyle}" onclick="openNamePopup(this, '${evt.date}', '${evt.heure}', '${role.name}', '${val}')" class="hover-trigger"><div class="user-cell">${innerContent}</div></td>`;
         });
         tbody.appendChild(tr);
     });
@@ -642,15 +724,15 @@ function handleGlobalSearch(query) {
                     <div class="search-date-badge">${niceDate}</div>
                     <div class="fw-medium text-dark" style="font-size:14px;">${e.titre}</div>
                 </div>
-            <i class="bi bi-bullseye text-muted opacity-50" title="Aller à cette date"></i>
+                <!-- CORRECTION ICONE CIBLE ICI -->
+                <i class="bi bi-calendar-event text-muted opacity-50" title="Aller à cette date"></i>
             </div>`;
         });
     }
     
-    // B. RECHERCHE PERSONNES (Correction BUG)
+    // B. RECHERCHE PERSONNES
     const personHits = new Set();
     
-    // Scan du planning existant
     PLANNING_DATA.forEach(e => {
         if(e.assignments) {
             Object.values(e.assignments).forEach(nom => {
@@ -659,7 +741,6 @@ function handleGlobalSearch(query) {
         }
     });
     
-    // Scan de la DB noms (pour ceux qui n'ont pas encore de rôle mais existent)
     if(NAMES_DB) {
         NAMES_DB.forEach(nom => {
             if (nom && String(nom).toLowerCase().includes(q)) personHits.add(nom);
@@ -671,9 +752,7 @@ function handleGlobalSearch(query) {
     if (sortedPersons.length > 0) {
         html += `<div class="search-section-title">Personnes (${sortedPersons.length})</div>`;
         sortedPersons.forEach(nom => {
-            // UTILISATION DE encodeURIComponent pour gérer les ' et espaces
             const safeNom = encodeURIComponent(nom);
-            
             html += `
             <div class="search-result-item" onclick="closeAllPopups(); openPersonPanel(decodeURIComponent('${safeNom}'))">
                 <div class="d-flex align-items-center gap-3">
@@ -682,7 +761,6 @@ function handleGlobalSearch(query) {
                     </div>
                     <div class="fw-medium text-dark" style="font-size:14px;">${nom}</div>
                 </div>
-                <!-- Icône plus explicite pour "Voir Planning" -->
                 <i class="bi bi-calendar-week text-primary opacity-75" title="Voir le planning"></i>
             </div>`;
         });
@@ -692,6 +770,79 @@ function handleGlobalSearch(query) {
     container.innerHTML = html;
 }
 
+/* --- CORRECTION : FONCTIONS MANQUANTES --- */
+
+// 1. GESTION DU POPUP D'ÉDITION DE NOM (Correction du bug "not defined")
+let TARGET_CELL_DATA = null;
+
+function openNamePopup(el, date, time, role, currentVal) {
+    TARGET_CELL_DATA = { date, time, role };
+    const popup = document.getElementById('namePopup');
+    const list = document.getElementById('namePopupList');
+    const input = document.getElementById('namePopupSearch');
+    const overlay = document.getElementById('popupOverlay');
+    
+    // Positionnement intelligent
+    popup.style.display = 'block'; // Nécessaire pour les mesures
+    const rect = el.getBoundingClientRect();
+    const winH = window.innerHeight;
+    const popupH = 300; 
+
+    // Vertical
+    if (rect.bottom + popupH > winH && rect.top > popupH) {
+        popup.style.top = 'auto'; popup.style.bottom = (winH - rect.top + 5) + 'px';
+    } else {
+        popup.style.top = (rect.bottom + 5) + 'px'; popup.style.bottom = 'auto';
+    }
+    // Horizontal
+    if (rect.left + 260 > window.innerWidth) {
+        popup.style.left = 'auto'; popup.style.right = '10px';
+    } else {
+        popup.style.left = rect.left + 'px'; popup.style.right = 'auto';
+    }
+    
+    overlay.style.display = 'block';
+    input.value = "";
+    
+    // Liste
+    let html = `<div class="p-2 border-bottom hover-bg cursor-pointer text-danger fw-bold small" onclick="saveName('')"><i class="bi bi-x-circle me-2"></i>Effacer</div>`;
+    const uniqueNames = new Set(NAMES_DB); if(currentVal) uniqueNames.add(currentVal);
+    Array.from(uniqueNames).sort().forEach(n => {
+        const isSel = (n === currentVal);
+        html += `<div class="p-2 border-bottom hover-bg cursor-pointer d-flex justify-content-between name-option" onclick="saveName('${n.replace(/'/g, "\\'")}')"><span>${n}</span>${isSel?'<i class="bi bi-check text-primary"></i>':''}</div>`;
+    });
+    list.innerHTML = html;
+    setTimeout(() => input.focus(), 50);
+}
+
+function filterNamePopup(q) {
+    const term = q.toLowerCase();
+    document.querySelectorAll('.name-option').forEach(it => {
+        const txt = it.querySelector('span').innerText.toLowerCase();
+        it.style.display = txt.includes(term) ? 'flex' : 'none';
+    });
+}
+
+function saveName(newName) {
+    if (!TARGET_CELL_DATA) return;
+    const { date, time, role } = TARGET_CELL_DATA;
+    
+    // Mise à jour optimiste (Interface immédiate)
+    const evt = PLANNING_DATA.find(e => e.date === date && e.heure === time);
+    if(evt) {
+        if(!evt.assignments) evt.assignments = {};
+        if(newName === "") delete evt.assignments[role];
+        else evt.assignments[role] = newName;
+    }
+    
+    refreshAllViews(true); // Rafraîchissement silencieux
+    closeAllPopups();
+    
+    // Sauvegarde Serveur
+    google.script.run.withFailureHandler(err => alert("Erreur: " + err)).updatePlanningCell(date, time, role, newName);
+}
+
+// 2. LOGIQUE PLANNING PERSONNEL (Mise à jour HERO & Scroll)
 function openPersonPanel(nom) {
     document.getElementById('pspName').innerText = nom;
     const container = document.getElementById('pspContent');
@@ -699,85 +850,133 @@ function openPersonPanel(nom) {
     const overlay = document.getElementById('popupOverlay');
     
     const now = new Date().setHours(0,0,0,0);
-    let events = [];
+    let groupedEvents = {};
     
+    // 1. Regroupement des données
     PLANNING_DATA.forEach(e => {
         if(e.assignments) {
             for (const [role, assignedName] of Object.entries(e.assignments)) {
                 if (assignedName === nom) {
-                    events.push({
-                        date: e.date,
-                        dateObj: e.dateObj,
-                        heure: e.heure,
-                        titre: e.titre || "Culte",
-                        role: role,
-                        isPast: e.dateObj < now,
-                        isNext: false 
-                    });
+                    const key = e.date + "_" + e.heure;
+                    if(!groupedEvents[key]) {
+                        const dObj = new Date(e.dateObj);
+                        groupedEvents[key] = {
+                            dateObj: e.dateObj,
+                            // Formatage Date
+                            dayNum: dObj.getDate(),
+                            monthName: dObj.toLocaleDateString('fr-FR', {month:'short'}).replace('.',''),
+                            weekDay: dObj.toLocaleDateString('fr-FR', {weekday:'long'}).replace('.',''),
+                            heure: e.heure,
+                            titre: e.titre || "Culte", // <--- RÉCUPÉRATION DU TITRE RÉEL
+                            isPast: e.dateObj < now,
+                            rolesByType: {}
+                        };
+                    }
+                    
+                    // Identification du Type de Rôle
+                    let type = "AUTRE";
+                    const roleConfig = ROLES_CONFIG.find(r => r.name === role);
+                    if(roleConfig && roleConfig.type) type = roleConfig.type.toUpperCase();
+                    
+                    if(!groupedEvents[key].rolesByType[type]) groupedEvents[key].rolesByType[type] = [];
+                    groupedEvents[key].rolesByType[type].push(role);
                 }
             }
         }
     });
     
+    let events = Object.values(groupedEvents);
     events.sort((a,b) => a.dateObj - b.dateObj);
-    const nextIdx = events.findIndex(e => !e.isPast);
-    if(nextIdx > -1) events[nextIdx].isNext = true;
     
     let html = "";
     if (events.length === 0) {
-        html = `<div class="h-100 d-flex flex-column align-items-center justify-content-center text-muted opacity-50">
-            <i class="bi bi-calendar-x display-4 mb-3"></i>
-            <div class="small">Aucune intervention planifiée.</div>
-        </div>`;
+        html = `<div class="h-100 d-flex flex-column align-items-center justify-content-center text-muted opacity-50"><i class="bi bi-calendar-x display-4 mb-3"></i><div class="small">Aucune intervention.</div></div>`;
     } else {
+        let firstFutureId = null;
+        
         events.forEach((ev, idx) => {
-            let classes = "psp-card";
-            if (ev.isPast) classes += " is-past";
-            if (ev.isNext) classes += " is-next";
-            let idAttr = ev.isNext ? 'id="pspNextEvent"' : '';
+            const cardId = `psp-card-${idx}`;
+            const isFuture = !ev.isPast;
+            // On capture le premier élément futur
+            if(isFuture && !firstFutureId) firstFutureId = cardId;
             
-            // Formatage date pour la carte
-            const dObj = new Date(ev.dateObj);
-            const day = dObj.getDate();
-            const month = dObj.toLocaleDateString('fr-FR', {month:'short'}).toUpperCase().replace('.','');
+            const cardClass = isFuture ? "psp-session-card is-future" : "psp-session-card is-past";
+            
+            // Construction des Groupes
+            let groupsHtml = "";
+            const typeOrder = ["LITURGIE", "MUSIQUE", "TECHNIQUE", "TRADUCTION", "AUTRE"];
+            const types = Object.keys(ev.rolesByType).sort((a,b) => {
+                let ia = typeOrder.indexOf(a); if(ia===-1) ia=99;
+                let ib = typeOrder.indexOf(b); if(ib===-1) ib=99;
+                return ia - ib;
+            });
+            
+            types.forEach(t => {
+                let rolesList = "";
+                ev.rolesByType[t].forEach(r => {
+                    rolesList += `<div class="psp-role-row">${r}</div>`;
+                });
+                
+                let icon = "circle";
+                if(t.includes('LIT')) icon = "book";
+                if(t.includes('MUS')) icon = "music-note-beamed";
+                if(t.includes('TECH')) icon = "sliders";
+                
+                groupsHtml += `
+                <div class="psp-cat-group">
+                    <div class="psp-cat-title"><i class="bi bi-${icon}"></i> ${t}</div>
+                    <div>${rolesList}</div>
+                </div>`;
+            });
             
             html += `
-            <div class="${classes}" ${idAttr}>
-                <div class="psp-header">
-                    <div class="psp-day">${day}</div>
-                    <div class="psp-meta">
-                        <div class="psp-month">${month}</div>
-                        <div class="psp-time">${ev.heure}</div>
-                    </div>
+            <div class="${cardClass}" id="${cardId}">
+                <div class="psp-card-strip"></div>
+                <div class="psp-date-box">
+                    <div class="psp-weekday-top">${ev.weekDay}</div>
+                    <div class="psp-d-day">${ev.dayNum}</div>
+                    <div class="psp-d-month">${ev.monthName}</div>
                 </div>
-                <div>
-                    <div class="psp-role-badge">${ev.role}</div>
-                    <div class="psp-title">${ev.titre}</div>
+                <div class="psp-info-box">
+                    <div class="psp-header-row border-bottom pb-2 mb-2">
+                        <!-- AFFICHAGE DU TITRE RÉEL ICI -->
+                        <div class="fw-bold text-dark text-truncate" style="font-size:13px; max-width: 160px;" title="${ev.titre}">${ev.titre}</div>
+                        <div class="psp-time-badge"><i class="bi bi-clock me-1" style="font-size:10px;"></i>${ev.heure}</div>
+                    </div>
+                    <div>${groupsHtml}</div>
                 </div>
             </div>`;
         });
+        
+        container.setAttribute('data-scroll-target', firstFutureId || "");
     }
     
     container.innerHTML = html;
     
-    // Affichage
-    panel.classList.add('open');
-    if(overlay) {
-        overlay.style.display = 'block';
-        overlay.onclick = closePersonPanel;
-    }
+    panel.style.display = 'flex'; 
+    setTimeout(() => { panel.classList.add('open'); }, 10);
+    if(overlay) { overlay.style.display = 'block'; overlay.onclick = closePersonPanel; }
     
+    // --- SCROLL AUTOMATIQUE (CORRIGÉ : START) ---
     setTimeout(() => {
-        const nextEl = document.getElementById('pspNextEvent');
-        if (nextEl) nextEl.scrollIntoView({behavior: 'smooth', block: 'center'});
+        const targetId = container.getAttribute('data-scroll-target');
+        if (targetId) {
+            const el = document.getElementById(targetId);
+            if(el) {
+                // block: 'start' force l'élément tout en haut
+                el.scrollIntoView({behavior: 'smooth', block: 'start'});
+            }
+        } else {
+            container.scrollTop = container.scrollHeight;
+        }
     }, 300);
 }
 
 function closePersonPanel() {
-    const panel = document.getElementById('personSchedulePanel');
-    const overlay = document.getElementById('popupOverlay');
-    panel.classList.remove('open');
-    if(overlay) { overlay.style.display = 'none'; overlay.onclick = closeAllPopups; }
+    const p = document.getElementById('personSchedulePanel');
+    const o = document.getElementById('popupOverlay');
+    p.classList.remove('open');
+    if(o) { o.style.display='none'; o.onclick=closeAllPopups; }
 }
 
 // --- HELPER COULEURS & ICONES (CRUCIAL : RESTAURATION) ---
@@ -833,8 +1032,110 @@ function getRoleIconClass(roleName) {
 // Admin Actions
 function openGenerateYearModal(){ document.getElementById('genYearModal').style.display='block'; document.getElementById('popupOverlay').style.display='block'; document.getElementById('genYearModal').style.position='fixed'; document.getElementById('genYearModal').style.top='50%'; document.getElementById('genYearModal').style.left='50%'; document.getElementById('genYearModal').style.transform='translate(-50%,-50%)'; document.getElementById('genYearInput').value=new Date().getFullYear(); }
 function submitGenerateYear(){ const y=document.getElementById('genYearInput').value; google.script.run.withSuccessHandler(r=>{alert(r);closeAllPopups();initPlanningView()}).generateYearBackend(y); }
-function openAddEventPopup(){ document.getElementById('addEventPopup').style.display='block'; document.getElementById('popupOverlay').style.display='block'; document.getElementById('addEventPopup').style.position='fixed'; document.getElementById('addEventPopup').style.top='50%'; document.getElementById('addEventPopup').style.left='50%'; document.getElementById('addEventPopup').style.transform='translate(-50%,-50%)'; document.getElementById('newEventDate').value=new Date().toISOString().split('T')[0]; }
-function submitNewEvent(){ const d=document.getElementById('newEventDate').value; const t=document.getElementById('newEventTime').value; if(!d)return; const p=d.split('-'); google.script.run.withSuccessHandler(()=>initPlanningView()).createPlanningEvent(`${p[2]}/${p[1]}/${p[0]}`,t); closeAllPopups(); }
+let MODAL_CAL_DATE = new Date(); // Date de navigation du calendrier modal
+
+function openAddEventPopup() {
+    const modal = document.getElementById('addEventPopup');
+    const overlay = document.getElementById('popupOverlay');
+    
+    // Positionnement Centré
+    modal.style.display = 'flex';
+    modal.style.position = 'fixed';
+    modal.style.top = '50%';
+    modal.style.left = '50%';
+    modal.style.transform = 'translate(-50%, -50%)';
+    modal.style.zIndex = '10060'; // Au dessus de tout
+    
+    overlay.style.display = 'block';
+    
+    // Init Date (Aujourd'hui ou Dimanche prochain)
+    const today = new Date();
+    // Trouver le prochain dimanche par défaut
+    const nextSunday = new Date(today);
+    nextSunday.setDate(today.getDate() + (7 - today.getDay()) % 7);
+    if(today.getDay() === 0) nextSunday.setDate(today.getDate()); // Si auj est dimanche
+    
+    setModalDate(nextSunday);
+    
+    // Init Time (Défaut 09:30 si rien sélectionné, ou reset)
+    document.getElementById('newEventTime').value = "09:30";
+    highlightTimeChip("09:30");
+    
+    // Fermer le calendrier s'il était resté ouvert
+    document.getElementById('newEventTitle').value = ""; // Reset Titre
+    document.getElementById('modalCalendarBox').classList.remove('show');
+}
+
+function submitNewEvent() {
+    const d = document.getElementById('newEventDate').value; // YYYY-MM-DD
+    const t = document.getElementById('newEventTime').value; // HH:MM
+    const title = document.getElementById('newEventTitle').value || "Culte";
+    
+    if(!d || !t) {
+        alert("Veuillez sélectionner une date et une heure.");
+        return;
+    }
+    
+    closeAllPopups(); // Fermeture immédiate
+    
+    // 1. CONVERSION & OBJET LOCAL (OPTIMISTIC)
+    const [yyyy, mm, dd] = d.split('-');
+    const dateFr = `${dd}/${mm}/${yyyy}`;
+    const dateObj = new Date(parseInt(yyyy), parseInt(mm)-1, parseInt(dd));
+    
+    const newEvent = {
+        date: dateFr,
+        heure: t,
+        titre: title,
+        dateObj: dateObj.getTime(),
+        assignments: {} // Vide au départ
+    };
+    
+    // 2. INSERTION DANS LES DONNÉES LOCALES
+    PLANNING_DATA.push(newEvent);
+    // Tri pour insérer au bon endroit chronologique
+    PLANNING_DATA.sort((a,b) => a.dateObj - b.dateObj);
+    
+    // Si c'est un événement futur, on met à jour l'index "Prochain culte"
+    const now = new Date().setHours(0,0,0,0);
+    if(dateObj.getTime() >= now) {
+        // On recalcule l'index du prochain culte
+        NEXT_CULT_INDEX = PLANNING_DATA.findIndex(e => e.dateObj >= now);
+    }
+    
+    // 3. RAFRAÎCHISSEMENT VISUEL IMMÉDIAT
+    // On force le rendu sans toucher au serveur
+    if (CURRENT_VIEW === VIEW_MODE_MASTER) {
+        calculateVisibleColumns('MASTER');
+        renderMasterView(document.getElementById('viewContainerMaster'));
+        // Scroll vers la nouvelle date (optionnel mais sympa)
+        setTimeout(() => {
+            const idx = PLANNING_DATA.indexOf(newEvent);
+            const row = document.getElementById(`row-master-${idx}`);
+            if(row) {
+                row.scrollIntoView({behavior: 'smooth', block: 'center'});
+                // Petit flash visuel pour dire "C'est là !"
+                row.style.transition = "background 0.5s";
+                row.style.backgroundColor = "#EFF6FF";
+                setTimeout(() => row.style.backgroundColor = "", 1000);
+            }
+        }, 100);
+    } else {
+        calculateVisibleColumns('PIVOT');
+        renderPivotView(document.getElementById('viewContainerPivot'));
+    }
+    
+    showPlanningToast("Culte ajouté !");
+    
+    // 4. SAUVEGARDE SERVEUR (BACKGROUND)
+    google.script.run
+        .withFailureHandler(err => {
+            alert("Erreur de sauvegarde : " + err);
+            // Si erreur, on pourrait retirer l'élément, mais c'est rare.
+        })
+        .createPlanningEvent(dateFr, t, title);
+}
+
 function openSlotMenu(el,d,h,t){ window.TARGET_SLOT={d,h,t}; const m=document.getElementById('slotActionMenu'); document.getElementById('slotActionTitle').innerText=d; m.style.display='block'; const r=el.getBoundingClientRect(); m.style.top=r.bottom+'px'; m.style.left=r.left+'px'; document.getElementById('popupOverlay').style.display='block'; }
 function editSlotTime(){ const v=prompt('Heure:',window.TARGET_SLOT.h); if(v){google.script.run.withSuccessHandler(()=>initPlanningView()).updateEventHeader(window.TARGET_SLOT.d,window.TARGET_SLOT.h,'TIME',v); closeAllPopups();} }
 function editSlotTitle(){ const v=prompt('Titre:',window.TARGET_SLOT.t); if(v){google.script.run.withSuccessHandler(()=>initPlanningView()).updateEventHeader(window.TARGET_SLOT.d,window.TARGET_SLOT.h,'TITLE',v); closeAllPopups();} }
@@ -935,6 +1236,128 @@ function selectPickerDate(dateStr) {
     
     // Fermer
     document.getElementById('customDatePicker').classList.remove('show');
+}
+
+/* --- LOGIQUE MODAL AJOUT (CALENDRIER & HEURE) --- */
+
+function toggleModalCalendar() {
+    const box = document.getElementById('modalCalendarBox');
+    const trigger = document.getElementById('modalDateTrigger');
+    
+    if (box.classList.contains('show')) {
+        box.classList.remove('show');
+        trigger.classList.remove('active');
+    } else {
+        box.classList.add('show');
+        trigger.classList.add('active');
+        renderModalCalendar(); // Rendu à l'ouverture
+    }
+}
+
+function changeModalCalMonth(delta) {
+    MODAL_CAL_DATE.setMonth(MODAL_CAL_DATE.getMonth() + delta);
+    renderModalCalendar();
+}
+
+function renderModalCalendar() {
+    const grid = document.getElementById('modalCalGrid');
+    const title = document.getElementById('modalCalTitle');
+    const y = MODAL_CAL_DATE.getFullYear();
+    const m = MODAL_CAL_DATE.getMonth();
+    
+    // Date du jour pour comparaison
+    const today = new Date();
+    const isCurrentMonth = (today.getFullYear() === y && today.getMonth() === m);
+    const todayDay = today.getDate();
+    
+    title.innerText = new Intl.DateTimeFormat('fr-FR', { month: 'long', year: 'numeric' }).format(MODAL_CAL_DATE);
+    grid.innerHTML = "";
+    
+    ['L','M','M','J','V','S','D'].forEach(d => grid.innerHTML += `<div class="cdp-day-head">${d}</div>`);
+    
+    const firstDay = new Date(y, m, 1).getDay(); 
+    const startOffset = (firstDay === 0 ? 6 : firstDay - 1);
+    const daysInMonth = new Date(y, m + 1, 0).getDate();
+    
+    for(let i=0; i<startOffset; i++) grid.innerHTML += `<div></div>`;
+    
+    const selectedIso = document.getElementById('newEventDate').value;
+    
+    for(let d=1; d<=daysInMonth; d++) {
+        const currentDateStr = `${y}-${('0'+(m+1)).slice(-2)}-${('0'+d).slice(-2)}`;
+        let classes = "cdp-day has-event";
+        
+        // Check Selected
+        if (currentDateStr === selectedIso) classes += " selected";
+        
+        // Check Today
+        if (isCurrentMonth && d === todayDay) classes += " is-today";
+        
+        grid.innerHTML += `<div class="${classes}" onclick="selectModalDate('${currentDateStr}')">${d}</div>`;
+    }
+}
+
+function selectModalDate(isoDate) {
+    const [y, m, d] = isoDate.split('-');
+    const dateObj = new Date(y, m-1, d);
+    
+    setModalDate(dateObj);
+    
+    // Fermer
+    document.getElementById('modalCalendarBox').classList.remove('show');
+    document.getElementById('modalDateTrigger').classList.remove('active');
+}
+
+function setModalDate(dateObj) {
+    // 1. Stockage ISO pour le backend
+    const y = dateObj.getFullYear();
+    const m = ('0' + (dateObj.getMonth() + 1)).slice(-2);
+    const d = ('0' + dateObj.getDate()).slice(-2);
+    document.getElementById('newEventDate').value = `${y}-${m}-${d}`;
+    
+    // 2. Affichage Joli (ex: Dimanche 14 Janv)
+    const options = { weekday: 'long', day: 'numeric', month: 'short' };
+    const niceDate = dateObj.toLocaleDateString('fr-FR', options);
+    // Capitalize
+    document.getElementById('modalDateDisplay').innerText = niceDate.charAt(0).toUpperCase() + niceDate.slice(1);
+    
+    // Synchro date interne du calendrier
+    MODAL_CAL_DATE = new Date(dateObj);
+}
+
+// --- GESTION HEURES ---
+
+function selectTimeChip(time, btn) {
+    document.getElementById('newEventTime').value = time;
+    
+    // Gestion classes
+    document.querySelectorAll('.time-chip-btn').forEach(b => b.classList.remove('selected'));
+    if(btn) btn.classList.add('selected');
+}
+
+function highlightTimeChip(time) {
+    document.querySelectorAll('.time-chip-btn').forEach(b => {
+        if(b.innerText === time) b.classList.add('selected');
+        else b.classList.remove('selected');
+    });
+}
+
+function resetTimeChips() {
+    document.querySelectorAll('.time-chip-btn').forEach(b => b.classList.remove('selected'));
+}
+
+/* --- NOTIFICATION TOAST --- */
+function showPlanningToast(msg) {
+    const toast = document.getElementById('plToast');
+    const txt = document.getElementById('plToastMsg');
+    if(!toast || !txt) return;
+    
+    txt.innerText = msg;
+    toast.classList.add('show');
+    
+    setTimeout(() => {
+        toast.classList.remove('show');
+    }, 3000);
 }
 
 </script>
