@@ -175,7 +175,7 @@
 </style>
 
 <!-- TOAST -->
-<div class="toast-container position-fixed bottom-0 start-50 translate-middle-x p-3">
+<div class="toast-container position-fixed bottom-0 start-50 translate-middle-x p-3" style="z-index: 10060;">
 <div id="liveToast" class="toast align-items-center text-white bg-dark border-0" role="alert" aria-live="assertive" aria-atomic="true">
 <div class="d-flex"><div class="toast-body" id="toastMessage">Action effectuée !</div><button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button></div>
 </div>
@@ -360,7 +360,7 @@
 </div>
 
 <!-- CONFIRMATION MODAL -->
-<div id="confirmDiscardModal" class="notion-dialog" style="display:none; width: 320px; padding: 20px; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);">
+<div id="confirmDiscardModal" class="notion-dialog" style="display:none; width: 320px; padding: 20px; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 10070;">
 <div class="text-center mb-3">
 <div class="mb-2"><i class="bi bi-exclamation-circle text-warning fs-3"></i></div>
 <h6 class="fw-bold m-0 text-dark">Modifications en cours</h6>
@@ -371,4 +371,4 @@
 <button class="btn btn-sm btn-danger text-white" onclick="confirmDiscard()">Quitter sans sauver</button>
 </div>
 </div>
-<div id="confirmOverlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.4);" onclick="cancelDiscard()"></div>
+<div id="confirmOverlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.4); z-index:10065;" onclick="cancelDiscard()"></div>

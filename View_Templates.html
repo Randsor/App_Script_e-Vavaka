@@ -43,8 +43,8 @@
   <div class="col-md-9 d-none d-md-flex align-items-center justify-content-center text-muted bg-white" id="emptyStatePanel"><div class="text-center opacity-50"><i class="bi bi-file-earmark-text display-1 mb-3"></i><p>Sélectionnez un modèle à gauche.</p></div></div>
 </div>
 
-<div id="menuOverlay" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; cursor:default;"></div>
-<div id="insertMenu" class="dropdown-menu custom-popup" style="display:none; position:absolute; width: 180px;">
+<div id="menuOverlay" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; z-index:1040; cursor:default;"></div>
+<div id="insertMenu" class="dropdown-menu custom-popup" style="display:none; position:absolute; z-index:1050; width: 180px;">
   <h6 class="dropdown-header">STRUCTURE</h6>
   <button class="dropdown-item" onclick="insertBlock('TITRE')">Titre de section</button>
   <div class="dropdown-divider my-1 opacity-50"></div>
@@ -59,4 +59,4 @@
   <button class="dropdown-item" onclick="insertBlock('LIBRE')">Section libre</button>
   <button class="dropdown-item" onclick="insertBlock('TEXTE_LIBRE')">Texte libre</button>
 </div>
-<div id="roleMenu" class="dropdown-menu custom-popup" style="display:none; position:absolute; width: 180px;">
+<div id="roleMenu" class="dropdown-menu custom-popup" style="display:none; position:absolute; z-index:1050; width: 180px;"></div>

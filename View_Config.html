@@ -260,7 +260,7 @@
 </div>
 
 <!-- CONFIRMATION MODAL -->
-<div id="cfgConfirmModal" class="notion-dialog" style="display:none; width: 350px; padding: 25px; text-align: center;">
+<div id="cfgConfirmModal" class="notion-dialog" style="display:none; width: 350px; padding: 25px; text-align: center; z-index: 10070;">
     <div class="mb-3">
         <i class="bi bi-exclamation-circle text-warning fs-1"></i>
         <h6 class="fw-bold mt-3" id="cfgConfirmTitle">Confirmation</h6>
@@ -270,7 +270,7 @@
 </div>
 
 <!-- NOUVEAU TYPE MODAL -->
-<div id="newTypeModal" class="notion-dialog" style="display:none; width: 320px; padding: 25px;">
+<div id="newTypeModal" class="notion-dialog" style="display:none; width: 320px; padding: 25px; z-index: 10070;">
     <div class="mb-3">
         <h6 class="fw-bold mb-3">Nouveau Type de Rôle</h6>
         <label class="small text-muted mb-1">NOM DE LA CATÉGORIE</label>
@@ -282,4 +282,4 @@
     </div>
 </div>
 
-<div id="configOverlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); backdrop-filter: blur(4px);" onclick="closeAllAdminModals()"></div>
+<div id="configOverlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:10060; backdrop-filter: blur(4px);" onclick="closeAllAdminModals()"></div>

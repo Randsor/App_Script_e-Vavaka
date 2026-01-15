@@ -562,6 +562,12 @@
       background: #CBD5E1; margin-right: 8px;
   }
 
+  /* --- Z-INDEX BÉTON --- */
+  #popupOverlay { z-index: 9990 !important; }
+  .notion-dialog, .notion-popup, .dropdown-menu { z-index: 10000 !important; }
+  #globalSearchModal { z-index: 10010 !important; }
+  .offcanvas-custom { z-index: 10020 !important; }
+
 /* --- NAVIGATION HERO --- */
 .nav-hero-group {
     display: flex; align-items: center; gap: 4px;
@@ -587,7 +593,7 @@
 
 /* --- CUSTOM DATE PICKER (Pop-over) --- */
 #customDatePicker {
-    position: absolute; top: 100%; left: 0; 
+    position: absolute; top: 100%; left: 0; z-index: 10050;
     margin-top: 8px; background: white;
     border: 1px solid #E2E8F0; border-radius: 12px;
     box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1);

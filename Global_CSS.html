@@ -35,94 +35,26 @@
     --radius-md: 8px;
     --radius-lg: 12px;
     
-    /* --- Z-INDEX STRATEGY (MASTER) --- */
+    /* --- Z-INDEX STRATEGY (CORRECTIF FINAL) --- */
     
-    /* NIVEAU 1 : NAVIGATION MOBILE & SIDEBAR */
-    --z-mobile: 1050;
+    /* Niveau 1 : Navigation Mobile */
+    --z-mobile-header: 1030;
+    --z-overlay-mobile: 1040; 
+    --z-sidebar: 1050;        
     
-    /* NIVEAU 2 : FONDS GRIS (Overlays) */
-    /* Doit être juste derrière les modales */
-    --z-overlay: 10050; 
+    /* Niveau 2 : Modales Bootstrap (Standard) */
+    --z-overlay-modal: 10050; 
+    --z-modal-bootstrap: 10060;
     
-    /* NIVEAU 3 : MODALES APPLICATIVES (Edition, Création, Recherche) */
-    /* Le cœur de l'activité utilisateur */
-    --z-modal: 10060;
+    /* Niveau 3 : Dialogues Custom (Selecteurs, Editeurs) */
+    --z-overlay-custom: 10070; 
+    --z-modal-custom: 10080;
     
-    /* NIVEAU 4 : ÉLÉMENTS FLOTTANTS (Menus, DatePicker, Selects) */
-    /* Doivent flotter au-dessus des modales */
-    --z-floating: 10070;
-    
-    /* NIVEAU 5 : ALERTES SYSTÈME (Danger, Confirmation, Toast) */
-    /* Rien ne doit passer au-dessus */
+    /* Niveau 4 : ALERTES SYSTÈME (URGENCE ABSOLUE) */
     --z-alert-overlay: 20000;
     --z-alert-dialog: 20010;
     --z-toast: 21000;
   }
-
-  /* --- APPLICATION STRICTE DES Z-INDEX --- */
-
-  /* 1. OVERLAYS (Fonds gris) */
-  #popupOverlay, 
-  #progCreatorOverlay, 
-  #configOverlay, 
-  #fnkOverlay, 
-  #menuOverlay,
-  .modal-backdrop {
-      z-index: var(--z-overlay) !important;
-  }
-
-  /* 2. MODALES APPLICATIVES (Fenêtres principales) */
-  .notion-dialog, 
-  .notion-popup, 
-  .custom-popup, 
-  .modal-content,
-  .offcanvas-custom, /* Le panneau latéral du planning */
-  #creationModal, 
-  #addEventPopup, 
-  #globalSearchModal, 
-  #songSelectorModal, 
-  #fanekenaSelectorModal,
-  #exportPdfModal, 
-  #adminAuthModal, 
-  #newTypeModal, 
-  #modalEditChant,
-  #personSchedulePanel, /* Planning personne */
-  #genYearModal,
-  #searchPersonModal,
-  #namePopup {
-      z-index: var(--z-modal) !important;
-  }
-
-  /* 3. ÉLÉMENTS FLOTTANTS (Menus contextuels & Pickers) */
-  /* Doivent passer au-dessus des modales (ex: Datepicker dans AddEvent) */
-  #slotActionMenu, 
-  #roleMenu, 
-  #insertMenu,
-  #customDatePicker, /* Le calendrier custom */
-  .dropdown-menu {
-      z-index: var(--z-floating) !important;
-  }
-
-  /* 4. ALERTES CRITIQUES (Confirmation suppression / Navigation) */
-  #sysNavOverlay, 
-  #confirmOverlay {
-      z-index: var(--z-alert-overlay) !important;
-  }
-
-  #confirmDiscardModal, 
-  #deleteModal, 
-  #sysNavModal,
-  #cfgConfirmModal {
-      z-index: var(--z-alert-dialog) !important;
-  }
-
-  /* 5. NOTIFICATIONS (Toasts) */
-  .notion-toast-container,
-  .planning-toast,
-  .toast-container {
-      z-index: var(--z-toast) !important;
-  }
-
 
   body {
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
@@ -138,14 +70,17 @@
   /* --- APPLICATION DES LAYERS (Z-INDEX) --- */
   
   /* Navigation */
-  .sidebar { z-index: var(--z-mobile); }
-  .mobile-header { z-index: var(--z-mobile); }
-  #mobile-menu-overlay { z-index: var(--z-mobile); background: rgba(0,0,0,0.3); position: fixed; inset: 0; backdrop-filter: blur(2px); }
+  .sidebar { z-index: var(--z-sidebar); }
+  .mobile-header { z-index: var(--z-mobile-header); }
+  #mobile-menu-overlay { z-index: var(--z-overlay-mobile); background: rgba(0,0,0,0.3); position: fixed; inset: 0; backdrop-filter: blur(2px); }
   
+  /* Modales Bootstrap */
+  .modal-backdrop { z-index: var(--z-overlay-modal) !important; }
+  .modal { z-index: var(--z-modal-bootstrap) !important; }
   
   /* Overlays Custom */
   #progCreatorOverlay, #popupOverlay, #menuOverlay { 
-      z-index: var(--z-overlay) !important; 
+      z-index: var(--z-overlay-custom) !important; 
       background: rgba(0,0,0,0.4); 
       backdrop-filter: blur(2px); 
       position: fixed; inset: 0;
@@ -153,7 +88,7 @@
   
   /* Custom Dialogs (Fixed & Centered) */
   .notion-dialog, .notion-dialog-wrapper { 
-      z-index: var(--z-modal) !important;
+      z-index: var(--z-modal-custom) !important;
       position: fixed; 
       top: 50%; left: 50%; 
       transform: translate(-50%, -50%);
@@ -168,7 +103,7 @@
 
   /* Menus Contextuels */
   .notion-popup, .custom-popup, .dropdown-menu { 
-      z-index: var(--z-modal) !important;
+      z-index: var(--z-modal-custom) !important;
       background: white; border: 1px solid var(--border-medium); 
       box-shadow: var(--shadow-floating); border-radius: var(--radius-md); 
       padding: 4px; font-size: 12px !important; 
@@ -178,7 +113,7 @@
   
   /* Alertes Système (Priorité Max) */
   #sysNavOverlay, #confirmOverlay, #fnkOverlay { 
-      z-index: var(--z-overlay) !important; 
+      z-index: var(--z-alert-overlay) !important; 
       position: fixed; inset: 0;
       background: rgba(0,0,0,0.5);
       backdrop-filter: blur(4px);
@@ -258,15 +193,9 @@
       max-width: 1600px;
   }
   
-  #view-templates, 
-  #view-fanekena, 
-  #view-programme,
-  #view-planning,
-  #view-config {
-      height: 100%; 
-      overflow: hidden; /* Délègue le scroll aux enfants */
-      display: flex;
-      flex-direction: column;
+  #view-templates, #view-fanekena {
+      height: 100%; /* Prend tout l'espace de main-content */
+      overflow: hidden; /* Délègue le scroll aux enfants (panneaux) */
   }
 
   .mobile-header { display: none; }
