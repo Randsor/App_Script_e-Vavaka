@@ -18,6 +18,13 @@
   let activeRecueilFilter = "";
 
   // --- INITIALISATION ---
+  
+  function initProgrammeView() {
+      // On lance le chargement des widgets
+      if(document.getElementById('fullCalendarGrid')) renderFullCalendar();
+      if(document.getElementById('nextCultWidgetContainer')) initNextCultWidget();
+  }
+  
   document.addEventListener("DOMContentLoaded", function() {
       closeAllModals();
       
@@ -396,11 +403,9 @@
       }
       if(modal) {
           modal.style.display = 'flex'; 
-          modal.style.zIndex = '10060';
       }
       if(overlay) {
           overlay.style.display = 'block';
-          overlay.style.zIndex = '10055';
       }
       document.body.classList.add('modal-open');
   }
