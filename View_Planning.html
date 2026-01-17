@@ -326,7 +326,8 @@
     top: 0; right: -400px; bottom: 0;
     width: 380px; 
     background: white; 
-    z-index: 20050 !important; /* DOIT ÊTRE TRÈS HAUT */
+    
+    z-index: 10100 !important; /* 10100 : Au-dessus des modales (10080) mais SOUS les alertes système (20000) */
     transition: right 0.3s cubic-bezier(0.2, 0, 0, 1);
     display: flex; flex-direction: column;
     box-shadow: -5px 0 30px rgba(0,0,0,0.1) !important;
@@ -561,12 +562,6 @@
       content: ""; display: block; width: 4px; height: 4px; border-radius: 50%; 
       background: #CBD5E1; margin-right: 8px;
   }
-
-  /* --- Z-INDEX BÉTON --- */
-  #popupOverlay { z-index: 9990 !important; }
-  .notion-dialog, .notion-popup, .dropdown-menu { z-index: 10000 !important; }
-  #globalSearchModal { z-index: 10010 !important; }
-  .offcanvas-custom { z-index: 10020 !important; }
 
 /* --- NAVIGATION HERO --- */
 .nav-hero-group {
