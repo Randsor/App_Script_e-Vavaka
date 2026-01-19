@@ -31,8 +31,13 @@
 
   /* --- LOADER --- */
   .pl-loader-overlay {
-    position: absolute; inset: 0; background: white; z-index: 2000;
-    display: flex; flex-direction: column; gap: 16px; align-items: center; justify-content: center;
+    position: absolute; 
+    /* On laisse l'espace pour le Header (~80px) et la Toolbar (64px) */
+    top: 144px; 
+    left: 0; right: 0; bottom: 0;
+    background: white; z-index: 2000;
+    display: flex; flex-direction: column; gap: 16px; align-items: center; justify-content: start;
+    padding-top: 40px; /* On pousse un peu le squelette vers le bas */
     transition: opacity 0.3s ease;
   }
   .pl-loader-overlay.hidden { opacity: 0; pointer-events: none; }
@@ -196,9 +201,29 @@
     opacity: 1; pointer-events: auto;
   }
 
-  .pl-row:hover td { background-color: var(--pl-focus-bg); }
+  /* --- HOVER CELLULE (Cell Focus) --- */
+/* Cas normal : Gris très léger */
+.pl-row td:not(.td-date):hover { 
+    background-color: #F8FAFC !important; /* var(--pl-focus-bg) */
+    box-shadow: inset 0 0 0 1px #CBD5E1; /* Petit contour discret */
+    z-index: 10; /* Monte la cellule pour voir le contour */
+}
 
-  /* --- NEXT CULTE --- */
+/* Cas Next (Barre noire) : On garde le blanc mais on ajoute le contour */
+.pl-row.is-next td:not(.td-date):hover {
+    background-color: #FFFFFF !important;
+    box-shadow: inset 0 0 0 1px #2563EB; /* Contour bleu pour le focus sur le prochain culte */
+    z-index: 40 !important; /* Au dessus de la ligne is-next (35) */
+}
+
+/* Cas Past : On désactive ou on réduit */
+.pl-row.is-past td:hover {
+    background-color: #F1F5F9 !important;
+    cursor: not-allowed;
+    box-shadow: none !important;
+}
+  
+    /* --- NEXT CULTE --- */
   .pl-row.is-next {
     position: relative;
     z-index: 35 !important; 
@@ -224,6 +249,7 @@
   .pl-row.is-past td, .pl-row.is-past .td-date {
     background-color: #FAFAFA !important;
     color: #9CA3AF !important; 
+    pointer-events: none; /* Bloque tous les clics (boutons, cellules, etc.) */
   }
   .pl-row.is-past .d-day, .pl-row.is-past .d-month, .pl-row.is-past .d-title, 
   .pl-row.is-past .d-weekday, .pl-row.is-past .user-cell, .pl-row.is-past .d-time { 
@@ -863,12 +889,7 @@
     <div class="pl-actions">
         <button class="btn-ghost" onclick="toggleFilterMenu(this)"><i class="bi bi-funnel"></i> Filtre</button>
         <button class="btn-ghost" onclick="openGlobalSearch()"><i class="bi bi-search"></i></button>
-        <div class="dropdown">
-            <button class="btn-ghost dropdown-toggle" type="button" data-bs-toggle="dropdown"><i class="bi bi-gear"></i></button>
-            <ul class="dropdown-menu shadow-sm border-0" style="font-size:13px;">
-                <li><a class="dropdown-item rounded" href="#" onclick="openGenerateYearModal()">Générer année</a></li>
-            </ul>
-        </div>
+        <button class="btn-ghost" id="btnSettingsMenu" onclick="toggleSettingsMenu(this)"><i class="bi bi-gear"></i></button>
         <button class="btn-primary" onclick="openAddEventPopup(this)"><i class="bi bi-plus-lg"></i> Ajouter un culte</button>
     </div>
   </div>
@@ -879,21 +900,101 @@
 
 </div>
 
-<!-- OVERLAY (Z-Index 9990) -->
+<!-- OVERLAY -->
 <div id="popupOverlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.4); backdrop-filter: blur(2px);"></div>
 
-<!-- MODALES (Z-Index > 10000) -->
-<div id="namePopup" class="notion-popup shadow-lg border-0" style="display:none; width: 260px; padding:0; border-radius:12px; overflow:hidden;">
-    <div class="p-2 border-bottom bg-white">
-        <input type="text" id="namePopupSearch" class="form-control form-control-sm border-0 shadow-none" placeholder="Chercher...">
+<!-- POPUP SÉLECTION NOM (NETTOYÉE) -->
+<div id="namePopup" class="notion-popup shadow-lg" style="display:none; width: 280px; flex-direction: column; overflow: hidden; border-radius: 12px;">
+    <!-- HEADER RECHERCHE -->
+    <div class="p-2 border-bottom bg-white d-flex align-items-center gap-2">
+        <i class="bi bi-search text-muted ps-2"></i>
+        <input type="text" id="namePopupSearch" class="form-control form-control-sm border-0 shadow-none fw-bold" 
+               placeholder="Chercher..." onkeyup="handleNameFilter(this.value)">
     </div>
+
+    <!-- LISTE DÉROULANTE (avec le bouton Ajouter dedans) -->
     <div id="namePopupList" class="custom-scrollbar" style="max-height:250px; overflow-y:auto; background:white;"></div>
+
+    <!-- FOOTER ACTIONS -->
+    <div id="namePopupFooter" class="p-2 bg-light border-top text-center">
+        <div class="text-danger small cursor-pointer hover-bg p-1 rounded" onclick="saveName('')">
+            <i class="bi bi-trash3 me-1"></i>Retirer l'assignation
+        </div>
+    </div>
 </div>
 
-<div id="genYearModal" class="notion-dialog" style="display:none; width:300px; padding:24px;">
-    <h6 class="fw-bold mb-3">Générer Planning</h6>
-    <input type="number" id="genYearInput" class="form-control mb-3 text-center fw-bold" placeholder="2025">
-    <button class="btn btn-dark w-100" onclick="submitGenerateYear()">Lancer</button>
+<!-- NOUVELLE MODALE : CRÉATION PERSONNE -->
+<div id="addPersonModal" class="notion-dialog shadow-lg" style="display:none; width: 300px; padding: 20px; flex-direction: column;">
+    <div class="text-center mb-3">
+        <div class="bg-primary bg-opacity-10 rounded-circle d-inline-flex align-items-center justify-content-center mb-2" style="width:50px; height:50px;">
+            <i class="bi bi-person-plus-fill text-primary fs-4"></i>
+        </div>
+        <h6 class="fw-bold m-0 text-dark">Ajouter une personne</h6>
+        <p class="text-muted small mt-1 mb-0">Créer "<span id="newPersonNameDisplay" class="fw-bold text-dark">...</span>" ?</p>
+    </div>
+
+    <div class="mb-3">
+        <input type="text" id="newPersonPass" class="form-control text-center fw-bold letter-spacing-2 pass-mask" 
+               placeholder="Code Équipe" autocomplete="off"
+               onkeydown="if(event.key === 'Enter') submitNewPerson()">
+        <div class="form-text text-center text-danger d-none mt-1 small fw-bold" id="newPersonError">Code incorrect</div>
+    </div>
+    
+    <div class="d-grid gap-2">
+        <button id="btnConfirmAddPerson" class="btn btn-primary btn-sm shadow-sm" onclick="submitNewPerson()">Confirmer</button>
+        <button class="btn btn-light btn-sm border text-secondary" onclick="cancelAddPerson()">Annuler</button>
+    </div>
+</div>
+
+<!-- MODALE GÉNÉRATION ANNÉE -->
+<div id="genYearModal" class="notion-dialog" style="display:none; width: 380px; padding: 25px; flex-direction: column;">
+    
+    <!-- ETAT CHARGEMENT -->
+    <div id="genYearStateLoad" class="text-center py-4 d-none">
+        <div class="spinner-border text-primary mb-3" role="status"></div>
+        <div class="text-muted small fw-bold">Génération en cours...</div>
+        <div class="text-muted x-small mt-1">Cela peut prendre quelques secondes.</div>
+    </div>
+
+    <!-- ETAT FORMULAIRE -->
+    <div id="genYearStateForm">
+        <div class="text-center mb-4">
+            <div class="bg-primary bg-opacity-10 rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width:64px; height:64px;">
+                <i class="bi bi-calendar-check text-primary fs-2"></i>
+            </div>
+            <h5 class="fw-bold m-0 text-dark">Générer le Planning</h5>
+            <p class="text-muted small mt-2 mb-0 px-3">
+                Crée automatiquement les cultes des dimanches (08h30 / 11h00) et événements spéciaux pour l'année choisie.
+            </p>
+        </div>
+
+        <div class="mb-3">
+            <label class="small fw-bold text-muted mb-1 text-uppercase" style="font-size:10px;">ANNÉE CIBLE</label>
+            <input type="number" id="genYearInput" class="form-control text-center fw-bold fs-5" value="2025">
+        </div>
+
+        <div class="mb-4">
+            <label class="small fw-bold text-muted mb-1 text-uppercase" style="font-size:10px;">CODE SÉCURITÉ</label>
+            <!-- REUTILISATION DE LA CLASSE PASS-MASK -->
+            <input type="text" id="genYearPass" class="form-control text-center fw-bold letter-spacing-2 pass-mask" 
+                   placeholder="Code Admin / Équipe" autocomplete="off">
+            <div class="form-text text-center text-danger d-none mt-2 small fw-bold" id="genYearErrorMsg">Code incorrect</div>
+        </div>
+        
+        <div class="d-grid gap-2">
+            <button id="btnGenConfirm" class="btn btn-dark shadow-sm" onclick="submitGenerateYear()">Lancer la génération</button>
+            <button class="btn btn-light border text-secondary" onclick="closeAllPopups()">Annuler</button>
+        </div>
+    </div>
+</div>
+
+<!-- MENU PARAMÈTRES -->
+<div id="settingsMenu" class="dropdown-menu custom-popup shadow-lg" style="display:none; min-width: 200px; padding: 8px 0;">
+    <h6 class="dropdown-header text-uppercase fw-bold small text-muted px-3 mb-1">Administration</h6>
+    <!-- REMPLACEMENT <a> PAR <button> POUR EVITER LE RELOAD -->
+    <button type="button" class="dropdown-item py-2 px-3 d-flex align-items-center gap-2 bg-transparent border-0 w-100 text-start" onclick="openGenerateYearModal()">
+        <i class="bi bi-calendar-range text-primary"></i> Générer année
+    </button>
 </div>
 
 <div id="addEventPopup" class="notion-popup shadow-lg" style="display:none; width:320px; border-radius:12px; padding: 0; overflow: hidden; flex-direction: column;">
@@ -924,7 +1025,7 @@
 
         <!-- TITRE CULTE -->
         <div class="mb-3">
-           <label class="small fw-bold text-muted mb-1" style="font-size: 10px;">TITRE (OPTIONNEL)</label>
+           <label class="small fw-bold text-muted mb-1" style="font-size: 10px;">TITRE DU CULTE</label>
             <input type="text" id="newEventTitle" class="form-control border-0 bg-light fw-bold text-dark" 
                           style="font-size: 14px; padding: 10px 12px;" 
                           placeholder="Ex: Isantaona, Fandraisana...">
@@ -953,6 +1054,50 @@
     <div class="p-3 bg-light d-flex gap-2">
         <button class="btn btn-light border w-50 small fw-bold text-secondary" onclick="closeAllPopups()">Annuler</button>
         <button class="btn btn-dark w-50 small fw-bold" onclick="submitNewEvent()">Créer</button>
+    </div>
+</div>
+
+<!-- MODALE MODIFICATION HORAIRE -->
+<div id="editTimeModal" class="notion-dialog shadow-lg" style="display:none; width:320px; border-radius:12px; padding: 0; overflow: hidden; flex-direction: column;">
+    <div class="p-4 border-bottom bg-white">
+        <h6 class="fw-bold mb-1 text-dark">Modifier l'horaire</h6>
+        <div class="text-muted small mb-3" id="editTimeContextDate">...</div>
+        
+        <div class="time-chips-grid">
+            <button class="time-chip-btn" onclick="selectEditTimeChip('08:30', this)">08:30</button>
+            <button class="time-chip-btn" onclick="selectEditTimeChip('10:00', this)">10:00</button>
+            <button class="time-chip-btn" onclick="selectEditTimeChip('10:30', this)">10:30</button>
+            <button class="time-chip-btn" onclick="selectEditTimeChip('11:00', this)">11:00</button>
+            <button class="time-chip-btn" onclick="selectEditTimeChip('15:00', this)">15:00</button>
+            <button class="time-chip-btn" onclick="selectEditTimeChip('15:30', this)">15:30</button>
+        </div>
+
+        <input type="text" id="editTimeInput" class="saas-time-input" placeholder="HH:MM" maxlength="5">
+    </div>
+    <div class="p-3 bg-light d-flex gap-2">
+        <button class="btn btn-light border w-50 small fw-bold text-secondary" onclick="closeAllPopups()">Annuler</button>
+        <button class="btn btn-dark w-50 small fw-bold" onclick="submitEditTime()">Valider</button>
+    </div>
+</div>
+
+<!-- MODALE MODIFICATION TITRE -->
+<div id="editTitleModal" class="notion-dialog shadow-lg" style="display:none; width:350px; border-radius:12px; padding: 0; overflow: hidden; flex-direction: column;">
+    <div class="p-4 border-bottom bg-white">
+        <h6 class="fw-bold mb-1 text-dark">Modifier le titre</h6>
+        <div class="text-muted small mb-3" id="editTitleContextDate">...</div>
+        
+        <label class="small fw-bold text-muted mb-1" style="font-size: 10px;">TITRE DU CULTE</label>
+        <input type="text" id="editTitleInput" class="form-control fw-bold text-dark border-secondary border-opacity-25" 
+               placeholder="Ex: Fandraisana, Culte Spécial..." 
+               onkeydown="if(event.key === 'Enter') submitEditTitle()">
+        
+        <div class="mt-2 small text-muted fst-italic">
+            <i class="bi bi-info-circle me-1"></i>Modifie aussi le titre du programme lié.
+        </div>
+    </div>
+    <div class="p-3 bg-light d-flex gap-2">
+        <button class="btn btn-light border w-50 small fw-bold text-secondary" onclick="closeAllPopups()">Annuler</button>
+        <button class="btn btn-dark w-50 small fw-bold" onclick="submitEditTitle()">Enregistrer</button>
     </div>
 </div>
 
@@ -1008,4 +1153,51 @@
 <div id="plToast" class="planning-toast">
     <i class="bi bi-check-circle-fill text-success"></i>
     <span id="plToastMsg">Culte ajouté</span>
+</div>
+
+<!-- MODALE SUPPRESSION DATE (SECURISEE & ANTI-AUTOFILL) -->
+<div id="deleteSlotModal" class="notion-dialog" style="display:none; width: 380px; padding: 25px; flex-direction: column; overflow: hidden;">
+    
+    <!-- ÉTAT 0 : CHARGEMENT (C'est cet élément qui manquait !) -->
+    <div id="delSlotStateLoad" class="text-center py-4 d-none">
+        <div class="spinner-border text-secondary mb-3" role="status"></div>
+        <div class="text-muted small fw-bold">Vérification du planning...</div>
+    </div>
+
+    <!-- ÉTAT 1 : DEMANDE MOT DE PASSE -->
+    <div id="delSlotStateAuth" class="d-none">
+        <div class="text-center mb-4">
+            <div class="bg-danger bg-opacity-10 rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width:64px; height:64px;">
+                <i class="bi bi-calendar-x text-danger fs-2"></i>
+            </div>
+            <h5 class="fw-bold m-0 text-dark">Supprimer ce culte ?</h5>
+            <div class="text-muted small mt-1" id="delSlotTargetDate">...</div>
+        </div>
+
+        <div class="mb-4">
+            <label class="small fw-bold text-muted mb-2 text-uppercase" style="font-size:10px;">Sécurité</label>
+            <input type="text" id="delSlotPass" class="form-control text-center fw-bold letter-spacing-2 pass-mask" 
+                   placeholder="Code Équipe / Pasteur" autocomplete="off"
+                   onkeydown="if(event.key === 'Enter') submitSlotDeletion()">
+            <div class="form-text text-center text-danger d-none mt-2 small fw-bold" id="delSlotErrorMsg">Code incorrect</div>
+        </div>
+        
+        <div class="d-grid gap-2">
+            <button id="btnDelConfirm" class="btn btn-danger shadow-sm" onclick="submitSlotDeletion()">Confirmer la suppression</button>
+            <button class="btn btn-light border text-secondary" onclick="closeAllPopups()">Annuler</button>
+        </div>
+    </div>
+
+    <!-- ÉTAT 2 : BLOCAGE PROGRAMME EXISTANT -->
+    <div id="delSlotStateBlock" class="d-none text-center">
+        <div class="bg-warning bg-opacity-10 rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width:64px; height:64px;">
+            <i class="bi bi-file-earmark-lock2-fill text-warning fs-2"></i>
+        </div>
+        <h5 class="fw-bold text-dark mb-2">Impossible de supprimer</h5>
+        <p class="text-muted small mb-4 px-2" style="line-height: 1.5;">
+            Un programme est déjà actif pour cette date.<br>
+            Par sécurité, vous devez d'abord supprimer le document dans le module <strong>"Programme Culte"</strong>.
+        </p>
+        <button class="btn btn-dark w-100" onclick="closeAllPopups()">Compris</button>
+    </div>
 </div>

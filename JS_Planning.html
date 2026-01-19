@@ -201,61 +201,57 @@ function switchPlanningMode(mode) {
     
     const masterEl = document.getElementById('viewContainerMaster');
     const pivotEl = document.getElementById('viewContainerPivot');
-    
-    let targetEventIndex = -1;
+    const skel = document.getElementById('plSkeleton');
 
-    // Transition PIVOT (Date) -> MASTER (Rôles)
+    let targetEventIndex = -1;
     if (mode === VIEW_MODE_MASTER && CURRENT_VIEW === VIEW_MODE_PIVOT) {
         const currentStart = PAGINATION.PIVOT.start;
-        const visibleCols = PAGINATION.PIVOT.visible || 6;
-        targetEventIndex = currentStart + Math.floor(visibleCols / 2);
-    }
-    
-    // Transition MASTER (Rôles) -> PIVOT (Date)
-    if (mode === VIEW_MODE_PIVOT && CURRENT_VIEW === VIEW_MODE_MASTER) {
+        targetEventIndex = currentStart + Math.floor((PAGINATION.PIVOT.visible || 6) / 2);
+    } else if (mode === VIEW_MODE_PIVOT && CURRENT_VIEW === VIEW_MODE_MASTER) {
         targetEventIndex = getCenterVisibleEventIndex();
-        const visibleCols = PAGINATION.PIVOT.visible || 6;
-        let newStart = targetEventIndex - Math.floor(visibleCols / 2);
-        if (newStart < 0) newStart = 0;
-        PAGINATION.PIVOT.start = newStart;
+        PAGINATION.PIVOT.start = Math.max(0, targetEventIndex - 2);
     }
 
     CURRENT_VIEW = mode;
 
-    if (mode === 'PIVOT') {
-        // AFFICHER VUE PAR DATE (HORIZONTALE)
-        if(masterEl) masterEl.classList.add('pl-view-hidden');
-        if(pivotEl) {
-            pivotEl.classList.remove('pl-view-hidden');
-            pivotEl.classList.remove('view-animate-enter');
-            void pivotEl.offsetWidth;
-            pivotEl.classList.add('view-animate-enter');
+    // 1. Masquer et afficher le squelette
+    if(skel) skel.classList.remove('hidden');
+    if(masterEl) masterEl.classList.add('pl-view-hidden');
+    if(pivotEl) pivotEl.classList.add('pl-view-hidden');
+
+    setTimeout(() => {
+        const targetEl = (mode === 'MASTER') ? masterEl : pivotEl;
+        
+        if (targetEl) {
+            targetEl.scrollLeft = 0; 
+            targetEl.classList.remove('pl-view-hidden');
             
-            calculateVisibleColumns('PIVOT');
-            renderPivotView(pivotEl);
-        }
-    } else {
-        // AFFICHER VUE PAR RÔLES (VERTICALE)
-        if(pivotEl) pivotEl.classList.add('pl-view-hidden');
-        if(masterEl) {
-            masterEl.classList.remove('pl-view-hidden');
-            masterEl.classList.remove('view-animate-enter');
-            void masterEl.offsetWidth;
-            masterEl.classList.add('view-animate-enter');
+            // Animation
+            targetEl.classList.remove('view-animate-enter');
+            void targetEl.offsetWidth; 
+            targetEl.classList.add('view-animate-enter');
             
-            calculateVisibleColumns('MASTER');
-            renderMasterView(masterEl);
+            // Rendu
+            calculateVisibleColumns(mode);
+            if (mode === 'MASTER') renderMasterView(targetEl);
+            else renderPivotView(targetEl);
             
-            if (targetEventIndex > -1) {
-                setTimeout(() => {
-                    const row = document.getElementById(`row-master-${targetEventIndex}`);
-                    if (row) row.scrollIntoView({behavior: 'auto', block: 'center'});
-                }, 10);
-            } else {
-                setTimeout(forceScrollToNext, 50);
+            // --- CORRECTION DU SAUT (SCROLL MANUEL) ---
+            if (targetEventIndex > -1 && mode === 'MASTER') {
+                const row = document.getElementById(`row-master-${targetEventIndex}`);
+                if (row) {
+                    // Calcul mathématique précis pour centrer sans faire sauter la page
+                    // Position de la ligne - Moitié de l'écran + Moitié de la ligne
+                    targetEl.scrollTop = row.offsetTop - (targetEl.clientHeight / 2) + (row.clientHeight / 2);
+                }
+            } else if (mode === 'MASTER') {
+                forceScrollToNext();
             }
+            
+            // 2. Cacher le squelette
+            if(skel) skel.classList.add('hidden');
         }
-    }
+    }, 50); 
 }
 
 function refreshAllViews(silent = false) {
@@ -290,7 +286,7 @@ function calculateVisibleColumns(mode) {
     const containerId = (mode === 'MASTER') ? 'viewContainerMaster' : 'viewContainerPivot';
     const container = document.getElementById(containerId);
     const containerW = (container && container.clientWidth > 0) ? container.clientWidth : document.querySelector('.pl-wrapper').clientWidth;
-    const dateColW = 220; const userColW = 160;
+    const dateColW = 220; const userColW = 200;
     const available = containerW - dateColW - 40;
     const count = Math.floor(available / userColW);
     PAGINATION[mode].visible = Math.max(1, count);
@@ -349,15 +345,27 @@ function renderMasterView(container) {
         const month = dObj.toLocaleDateString('fr-FR', {month:'short'}).replace('.', '');
         const titleSafe = (evt.titre || "").replace(/'/g, "\\'");
 
-        const dateHtml = `<td class="td-date hover-trigger"><div class="date-layout" onclick="openSlotMenu(this, '${evt.date}', '${evt.heure}', '${titleSafe}')"><div class="d-calendar"><div class="d-weekday">${weekday}</div><div class="d-day">${day}</div><div class="d-month">${month}</div></div><div class="d-separator"></div><div class="d-info"><div class="d-title" title="${titleSafe}">${titleSafe}</div><div class="d-time">${evt.heure}</div></div></div><div class="trash-wrapper"><i class="bi bi-trash3 btn-action-danger cursor-pointer" style="font-size: 14px;" onclick="window.TARGET_SLOT={d:'${evt.date}',h:'${evt.heure}'}; confirmDeleteSlot();" title="Supprimer"></i></div></td>`;
+        const dateHtml = `<td class="td-date hover-trigger"><div class="date-layout" style="cursor:default;"><div class="d-calendar"><div class="d-weekday">${weekday}</div><div class="d-day">${day}</div><div class="d-month">${month}</div></div><div class="d-separator"></div><div class="d-info"><div class="d-title hover-bg rounded px-1 cursor-pointer" onclick="event.stopPropagation(); openEditTitleModal('${evt.date}', '${evt.heure}', '${titleSafe}')" title="Modifier le titre">${titleSafe}</div>
+        <div class="d-time hover-bg rounded px-1 cursor-pointer" onclick="event.stopPropagation(); openEditTimeModal('${evt.date}', '${evt.heure}')" title="Modifier l'heure">${evt.heure}</div>
+        </div></div><div class="trash-wrapper"><i class="bi bi-trash3 btn-action-danger cursor-pointer" style="font-size: 14px;" onclick="window.TARGET_SLOT={d:'${evt.date}',h:'${evt.heure}'}; confirmDeleteSlot();" title="Supprimer"></i></div></td>`;
         
         let rowHtml = dateHtml;
         visibleRoles.forEach(role => {
             const val = evt.assignments[role.name] || "";
             const cssClass = val ? "user-cell filled" : "user-cell";
-            let inner = val ? `<span class="text-truncate" style="flex:1;">${val}</span><div class="hover-actions-group"><div class="btn-circle-action" title="Modifier"><i class="bi bi-pencil-fill" style="font-size:10px;"></i></div></div>` : `<div class="hover-actions-group" style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;opacity:0.6;"><div class="btn-circle-action add"><i class="bi bi-plus-lg"></i></div></div>`;
-            rowHtml += `<td onclick="openNamePopup(this, '${evt.date}', '${evt.heure}', '${role.name}', '${val}')" class="hover-trigger"><div class="${cssClass}">${inner}</div></td>`;
-        });
+            let inner = val ? 
+            // CAS REMPLI
+            `<span class="text-truncate" style="flex:1;">${val}</span>
+            <div class="hover-actions-group">
+                <div class="btn-circle-action" title="Modifier" style="width:24px; height:24px;"><i class="bi bi-pencil-fill" style="font-size:10px;"></i></div>
+            </div>` 
+            : 
+            // CAS VIDE (Strictement identique à PivotView)
+            `<div class="hover-actions-group" style="width:100%; height:100%; display:flex; align-items:center; justify-content:center;">
+                <div class="btn-circle-action add" style="width:24px; height:24px;"><i class="bi bi-plus-lg"></i></div>
+            </div>`;
+                    rowHtml += `<td onclick="openNamePopup(this, '${evt.date}', '${evt.heure}', '${role.name}', '${val}')" class="hover-trigger"><div class="${cssClass}">${inner}</div></td>`;
+                });
         tr.innerHTML = rowHtml; tbody.appendChild(tr);
     });
     table.appendChild(tbody); container.innerHTML = ""; container.appendChild(table);
@@ -409,8 +417,8 @@ function renderPivotView(container) {
                     <span style="font-size:18px; font-weight:800; color:#1E293B;">${day}</span>
                     <span style="font-size:10px; font-weight:700; color:#94A3B8;">${month}</span>
                 </div>
-                <div style="background:#F1F5F9; color:#475569; padding:2px 8px; border-radius:4px; font-size:11px; font-weight:600;">${evt.heure}</div>
-                <div style="font-size:11px; font-weight:700; color:#0F172A; text-transform:uppercase; margin-top:2px; text-align:center; line-height:1.2; white-space:normal;">${titreCulte}</div>
+                <div onclick="openEditTimeModal('${evt.date}', '${evt.heure}')" style="background:#F1F5F9; color:#475569; padding:2px 8px; border-radius:4px; font-size:11px; font-weight:600; cursor:pointer; transition:0.2s;" onmouseover="this.style.background='#E2E8F0'" onmouseout="this.style.background='#F1F5F9'">${evt.heure}</div>
+                <div onclick="openEditTitleModal('${evt.date}', '${evt.heure}', '${(evt.titre||"").replace(/'/g, "\\'")}')" class="hover-bg rounded px-1 cursor-pointer" style="font-size:11px; font-weight:700; color:#0F172A; text-transform:uppercase; margin-top:2px; text-align:center; line-height:1.2; white-space:normal;">${titreCulte}</div>
             </div>
         </th>`;
     });
@@ -535,7 +543,9 @@ function closeAllPopups() {
         e.style.display='none';
         e.classList.remove('open');
     });
-    document.getElementById('popupOverlay').style.display='none';
+    
+    const overlay = document.getElementById('popupOverlay');
+    if(overlay) overlay.style.display='none';
 }
 
 function movePopupsToBody() {
@@ -548,7 +558,12 @@ function movePopupsToBody() {
         'slotActionMenu', 
         'popupOverlay', 
         'globalSearchModal', 
-        'personSchedulePanel'
+        'personSchedulePanel',
+        'deleteSlotModal',
+        'settingsMenu',
+        'editTimeModal',
+        'editTitleModal',
+        'addPersonModal'
     ];
     
     ids.forEach(id => {
@@ -776,43 +791,196 @@ function handleGlobalSearch(query) {
 let TARGET_CELL_DATA = null;
 
 function openNamePopup(el, date, time, role, currentVal) {
+    // 1. VERIFICATION DATE PASSÉE (READ-ONLY)
+    // Format date: JJ/MM/AAAA
+    const parts = date.split('/');
+    // On crée une date à minuit le jour J
+    const eventDate = new Date(parts[2], parts[1]-1, parts[0]); 
+    // On compare à "Hier minuit" pour permettre l'édition le jour même
+    const now = new Date();
+    now.setHours(0,0,0,0);
+    
+    if (eventDate < now) {
+        // Optionnel : Un petit feedback visuel ou rien du tout
+        // showPlanningToast("Modification impossible : Culte passé", "warning");
+        return; 
+    }
+
     TARGET_CELL_DATA = { date, time, role };
+    
     const popup = document.getElementById('namePopup');
-    const list = document.getElementById('namePopupList');
     const input = document.getElementById('namePopupSearch');
     const overlay = document.getElementById('popupOverlay');
     
-    // Positionnement intelligent
-    popup.style.display = 'block'; // Nécessaire pour les mesures
+    // Reset UI
+    input.value = "";
+    // SUPPRESSION DE LA LIGNE QUI FAISAIT PLANTER (namePopupCreate n'existe plus)
+    // document.getElementById('namePopupCreate').classList.add('d-none'); <--- SUPPRIMÉ
+    
+    document.getElementById('namePopupList').classList.remove('d-none');
+    document.getElementById('namePopupFooter').classList.remove('d-none');
+    
+    // Positionnement
+    popup.style.display = 'flex';
     const rect = el.getBoundingClientRect();
     const winH = window.innerHeight;
-    const popupH = 300; 
-
-    // Vertical
-    if (rect.bottom + popupH > winH && rect.top > popupH) {
+    
+    // Logique haut/bas
+    if (rect.bottom + 350 > winH && rect.top > 350) {
         popup.style.top = 'auto'; popup.style.bottom = (winH - rect.top + 5) + 'px';
     } else {
         popup.style.top = (rect.bottom + 5) + 'px'; popup.style.bottom = 'auto';
     }
-    // Horizontal
-    if (rect.left + 260 > window.innerWidth) {
+    // Logique gauche/droite
+    if (rect.left + 280 > window.innerWidth) {
         popup.style.left = 'auto'; popup.style.right = '10px';
     } else {
         popup.style.left = rect.left + 'px'; popup.style.right = 'auto';
     }
     
     overlay.style.display = 'block';
-    input.value = "";
     
-    // Liste
-    let html = `<div class="p-2 border-bottom hover-bg cursor-pointer text-danger fw-bold small" onclick="saveName('')"><i class="bi bi-x-circle me-2"></i>Effacer</div>`;
-    const uniqueNames = new Set(NAMES_DB); if(currentVal) uniqueNames.add(currentVal);
-    Array.from(uniqueNames).sort().forEach(n => {
-        const isSel = (n === currentVal);
-        html += `<div class="p-2 border-bottom hover-bg cursor-pointer d-flex justify-content-between name-option" onclick="saveName('${n.replace(/'/g, "\\'")}')"><span>${n}</span>${isSel?'<i class="bi bi-check text-primary"></i>':''}</div>`;
-    });
-    list.innerHTML = html;
+    // Initialiser la liste
+    renderNameList(NAMES_DB, currentVal);
+    
     setTimeout(() => input.focus(), 50);
+}
+
+function renderNameList(list, selectedVal) {
+    const container = document.getElementById('namePopupList');
+    if (list.length === 0) {
+        container.innerHTML = '<div class="p-3 text-muted text-center small fst-italic">Aucun résultat</div>';
+        return;
+    }
+    
+    let html = "";
+    // Tri alphabétique
+    const sorted = [...list].sort();
+    
+    sorted.forEach(n => {
+        const isSel = (n === selectedVal);
+        const bgClass = isSel ? "bg-primary-subtle text-primary fw-bold" : "hover-bg";
+        html += `<div class="p-2 border-bottom cursor-pointer d-flex justify-content-between ${bgClass}" onclick="saveName('${n.replace(/'/g, "\\'")}')">
+                    <span>${n}</span>
+                    ${isSel ? '<i class="bi bi-check-lg"></i>' : ''}
+                 </div>`;
+    });
+    container.innerHTML = html;
+}
+
+function handleNameFilter(query) {
+    const q = query.trim();
+    const qLower = q.toLowerCase();
+    
+    // 1. Filtrer la liste
+    const matches = NAMES_DB.filter(n => n.toLowerCase().includes(qLower));
+    
+    // 2. Rendu de la liste
+    renderNameList(matches, null);
+    
+    // 3. Injection Bouton Création (si pas de match exact et saisie > 2 chars)
+    const exactMatch = NAMES_DB.some(n => n.toLowerCase() === qLower);
+    
+    if (!exactMatch && q.length >= 2) {
+        const container = document.getElementById('namePopupList');
+        // On l'ajoute à la fin de la liste existante
+        // Style discret : Lien bleu en bas
+        const btnHtml = `
+            <div class="p-2 border-top mt-1 hover-bg cursor-pointer text-center" onclick="openAddPersonModal('${q.replace(/'/g, "\\'")}')">
+                <span class="text-primary fw-bold small"><i class="bi bi-plus-lg me-1"></i>Créer "${q}"</span>
+            </div>`;
+        container.insertAdjacentHTML('beforeend', btnHtml);
+    }
+}
+
+// --- GESTION CRÉATION PERSONNE ---
+
+function openAddPersonModal(name) {
+    window.TARGET_NEW_PERSON = name;
+    
+    document.getElementById('namePopup').style.display = 'none';
+    const modal = document.getElementById('addPersonModal');
+    const overlay = document.getElementById('popupOverlay');
+    
+    // Reset UI COMPLET
+    document.getElementById('newPersonNameDisplay').innerText = name;
+    const passInput = document.getElementById('newPersonPass');
+    passInput.value = "";
+    passInput.classList.remove('shake-error'); // IMPORTANT
+    
+    document.getElementById('newPersonError').classList.add('d-none');
+    
+    const btn = document.getElementById('btnConfirmAddPerson');
+    btn.innerText = "Confirmer"; // On remet le texte par défaut
+    btn.disabled = false; // On réactive le bouton
+    
+    if(modal && overlay) {
+        modal.style.display = 'flex';
+        modal.style.position = 'fixed'; modal.style.top = '50%'; modal.style.left = '50%'; 
+        modal.style.transform = 'translate(-50%, -50%)'; modal.style.zIndex = '10060';
+        
+        overlay.style.display = 'block';
+        setTimeout(() => passInput.focus(), 50);
+    }
+}
+
+function cancelAddPerson() {
+    // Si on annule, on revient à la liste des noms (pour ne pas perdre le fil)
+    document.getElementById('addPersonModal').style.display = 'none';
+    document.getElementById('namePopup').style.display = 'flex';
+    document.getElementById('namePopupSearch').focus();
+}
+
+function submitNewPerson() {
+    const name = window.TARGET_NEW_PERSON;
+    const passInput = document.getElementById('newPersonPass');
+    const pass = passInput.value;
+    const btn = document.getElementById('btnConfirmAddPerson');
+    const errorDiv = document.getElementById('newPersonError');
+    
+    // Reset erreur visuelle avant envoi
+    passInput.classList.remove('shake-error');
+    
+    if (!pass) {
+        // Petit délai pour permettre au navigateur de retirer la classe avant de la remettre (si besoin de rejouer l'anim)
+        void passInput.offsetWidth; 
+        passInput.classList.add('shake-error');
+        return;
+    }
+    
+    btn.innerText = "Ajout..."; btn.disabled = true;
+    errorDiv.classList.add('d-none');
+    
+    google.script.run.withSuccessHandler(res => {
+        // Même si on a fermé entre temps, ceci s'exécutera
+        if (res.success) {
+            // 1. Mise à jour Locale
+            if (!NAMES_DB.includes(res.name)) {
+                NAMES_DB.push(res.name);
+                NAMES_DB.sort(); 
+            }
+            
+            // 2. Assigner et Fermer
+            saveName(res.name); 
+            closeAllPopups(); // Ferme tout proprement
+            showPlanningToast(res.name + " ajouté !");
+            
+        } else {
+            // ERREUR
+            // On vérifie si la modale est toujours ouverte avant de toucher à l'UI
+            const modal = document.getElementById('addPersonModal');
+            if(modal && modal.style.display !== 'none') {
+                btn.innerText = "Confirmer"; btn.disabled = false;
+                errorDiv.classList.remove('d-none');
+                passInput.value = "";
+                passInput.focus();
+                passInput.classList.add('shake-error');
+            }
+        }
+    }).withFailureHandler(err => {
+        alert("Erreur serveur : " + err);
+        btn.innerText = "Confirmer"; btn.disabled = false;
+    }).addNameFromPlanning(name, pass);
 }
 
 function filterNamePopup(q) {
@@ -1030,8 +1198,73 @@ function getRoleIconClass(roleName) {
 }
 
 // Admin Actions
-function openGenerateYearModal(){ document.getElementById('genYearModal').style.display='block'; document.getElementById('popupOverlay').style.display='block'; document.getElementById('genYearModal').style.position='fixed'; document.getElementById('genYearModal').style.top='50%'; document.getElementById('genYearModal').style.left='50%'; document.getElementById('genYearModal').style.transform='translate(-50%,-50%)'; document.getElementById('genYearInput').value=new Date().getFullYear(); }
-function submitGenerateYear(){ const y=document.getElementById('genYearInput').value; google.script.run.withSuccessHandler(r=>{alert(r);closeAllPopups();initPlanningView()}).generateYearBackend(y); }
+function openGenerateYearModal() {
+    closeAllPopups(); // Ferme le menu
+    
+    const modal = document.getElementById('genYearModal');
+    const overlay = document.getElementById('popupOverlay');
+    
+    // Reset UI
+    document.getElementById('genYearStateLoad').classList.add('d-none');
+    document.getElementById('genYearStateForm').classList.remove('d-none');
+    document.getElementById('genYearErrorMsg').classList.add('d-none');
+    document.getElementById('genYearPass').value = "";
+    document.getElementById('genYearPass').classList.remove('shake-error');
+    
+    // Année par défaut
+    document.getElementById('genYearInput').value = new Date().getFullYear();
+    
+    if(modal && overlay) {
+        modal.style.display = 'flex';
+        overlay.style.display = 'block';
+        setTimeout(() => document.getElementById('genYearPass').focus(), 100);
+    }
+}
+
+function submitGenerateYear() {
+    const year = document.getElementById('genYearInput').value;
+    const passInput = document.getElementById('genYearPass');
+    const password = passInput.value;
+    const btn = document.getElementById('btnGenConfirm');
+    const errorMsg = document.getElementById('genYearErrorMsg');
+    
+    if (!password) {
+        passInput.classList.add('shake-error');
+        setTimeout(() => passInput.classList.remove('shake-error'), 500);
+        return;
+    }
+
+    // UI Chargement
+    btn.disabled = true;
+    errorMsg.classList.add('d-none');
+    document.getElementById('genYearStateForm').classList.add('d-none');
+    document.getElementById('genYearStateLoad').classList.remove('d-none');
+
+    google.script.run.withSuccessHandler(res => {
+        if (res.success) {
+            closeAllPopups();
+            showPlanningToast(res.msg); // Toast vert
+            // Rechargement complet nécessaire pour voir les nouveaux créneaux
+            initPlanningView();
+        } else {
+            // Erreur (Mot de passe ou autre)
+            document.getElementById('genYearStateLoad').classList.add('d-none');
+            document.getElementById('genYearStateForm').classList.remove('d-none');
+            btn.disabled = false;
+            
+            if (res.reason === "PASSWORD_INVALID") {
+                passInput.value = "";
+                errorMsg.innerText = "Code incorrect";
+                errorMsg.classList.remove('d-none');
+                passInput.classList.add('shake-error');
+            } else {
+                alert("Erreur : " + res.msg);
+            }
+        }
+    }).generateYearBackend(year, password); // On envoie le mot de passe
+}
+
+
 let MODAL_CAL_DATE = new Date(); // Date de navigation du calendrier modal
 
 function openAddEventPopup() {
@@ -1136,10 +1369,259 @@ function submitNewEvent() {
         .createPlanningEvent(dateFr, t, title);
 }
 
+// --- MODIFICATION HORAIRE ---
+
+function openEditTimeModal(dateStr, oldTime) {
+    // Variable globale temporaire pour savoir ce qu'on modifie
+    window.TARGET_TIME_EDIT = { date: dateStr, oldTime: oldTime };
+    
+    // UI Setup
+    document.getElementById('editTimeContextDate').innerText = dateStr;
+    document.getElementById('editTimeInput').value = oldTime;
+    
+    // Reset Chips Style
+    document.querySelectorAll('#editTimeModal .time-chip-btn').forEach(b => {
+        if(b.innerText === oldTime) b.classList.add('selected');
+        else b.classList.remove('selected');
+    });
+    
+    // Affichage
+    closeAllPopups(); // Ferme les autres
+    const modal = document.getElementById('editTimeModal');
+    const overlay = document.getElementById('popupOverlay');
+    
+    if(modal && overlay) {
+        // Juste afficher. Le CSS .notion-dialog gère le centrage (top: 50%, left: 50%, translate...)
+        modal.style.display = 'flex';
+        // On s'assure juste du zIndex si besoin (bien que le CSS le gère aussi souvent)
+        modal.style.zIndex = '10060'; 
+        
+        overlay.style.display = 'block';
+        setTimeout(() => document.getElementById('editTimeInput').focus(), 50);
+    }
+}
+
+function selectEditTimeChip(time, btn) {
+    document.getElementById('editTimeInput').value = time;
+    document.querySelectorAll('#editTimeModal .time-chip-btn').forEach(b => b.classList.remove('selected'));
+    if(btn) btn.classList.add('selected');
+}
+
+function submitEditTime() {
+    const newTime = document.getElementById('editTimeInput').value;
+    if(!newTime) return;
+    
+    const target = window.TARGET_TIME_EDIT;
+    
+    // UI Feedback immédiat (Optimistic)
+    // On met à jour les données locales pour éviter le saut au rechargement
+    const evt = PLANNING_DATA.find(e => e.date === target.date && e.heure === target.oldTime);
+    if(evt) evt.heure = newTime;
+    
+    closeAllPopups();
+    // Rafraîchissement silencieux de la vue
+    refreshAllViews(true);
+    
+    // Sauvegarde Backend
+    google.script.run.withFailureHandler(err => alert("Erreur sauvegarde : " + err))
+        .updateEventHeader(target.date, target.oldTime, 'TIME', newTime);
+}
+
+// --- MODIFICATION TITRE (CORRIGÉ) ---
+
+function openEditTitleModal(dateStr, timeStr, oldTitle) {
+    window.TARGET_TITLE_EDIT = { date: dateStr, time: timeStr, oldTitle: oldTitle };
+    
+    document.getElementById('editTitleContextDate').innerText = `${dateStr} à ${timeStr}`;
+    document.getElementById('editTitleInput').value = oldTitle;
+    
+    closeAllPopups();
+    const modal = document.getElementById('editTitleModal');
+    const overlay = document.getElementById('popupOverlay');
+    
+    if(modal && overlay) {
+        modal.style.display = 'flex';
+        modal.style.zIndex = '10060';
+        overlay.style.display = 'block';
+        setTimeout(() => {
+            const inp = document.getElementById('editTitleInput');
+            inp.focus(); inp.select();
+        }, 50);
+    }
+}
+
+function submitEditTitle() {
+    const newTitle = document.getElementById('editTitleInput').value;
+    const target = window.TARGET_TITLE_EDIT;
+    
+    // 1. Update Local (SUR TOUS LES CRÉNEAUX DE LA DATE)
+    PLANNING_DATA.forEach(e => {
+        if (e.date === target.date) {
+            e.titre = newTitle; // On force le titre partout pour ce jour
+        }
+    });
+    
+    closeAllPopups();
+    refreshAllViews(true);
+    
+    // 2. Update Backend
+    google.script.run.withFailureHandler(err => alert("Erreur : " + err))
+        .updateEventHeader(target.date, target.time, 'TITLE', newTitle);
+}
+
+function toggleSettingsMenu(btn) {
+    const menu = document.getElementById('settingsMenu');
+    const overlay = document.getElementById('popupOverlay');
+    
+    if (menu.style.display === 'block') {
+        closeAllPopups();
+    } else {
+        closeAllPopups(); // Ferme les autres
+        const rect = btn.getBoundingClientRect();
+        menu.style.display = 'block';
+        menu.style.top = (rect.bottom + 5) + 'px';
+        // Aligné à droite du bouton
+        menu.style.left = 'auto';
+        menu.style.right = (window.innerWidth - rect.right) + 'px';
+        menu.style.position = 'fixed';
+        menu.style.zIndex = '10060'; // Au dessus
+        
+        if(overlay) overlay.style.display = 'block';
+    }
+}
+
 function openSlotMenu(el,d,h,t){ window.TARGET_SLOT={d,h,t}; const m=document.getElementById('slotActionMenu'); document.getElementById('slotActionTitle').innerText=d; m.style.display='block'; const r=el.getBoundingClientRect(); m.style.top=r.bottom+'px'; m.style.left=r.left+'px'; document.getElementById('popupOverlay').style.display='block'; }
 function editSlotTime(){ const v=prompt('Heure:',window.TARGET_SLOT.h); if(v){google.script.run.withSuccessHandler(()=>initPlanningView()).updateEventHeader(window.TARGET_SLOT.d,window.TARGET_SLOT.h,'TIME',v); closeAllPopups();} }
 function editSlotTitle(){ const v=prompt('Titre:',window.TARGET_SLOT.t); if(v){google.script.run.withSuccessHandler(()=>initPlanningView()).updateEventHeader(window.TARGET_SLOT.d,window.TARGET_SLOT.h,'TITLE',v); closeAllPopups();} }
-function confirmDeleteSlot(){ if(confirm('Supprimer?')){google.script.run.withSuccessHandler(()=>{initPlanningView()}).deletePlanningEventBackend(window.TARGET_SLOT.d,window.TARGET_SLOT.h); closeAllPopups();} }
+
+function confirmDeleteSlot() {
+    const target = window.TARGET_SLOT;
+    
+    // 1. Ouvrir la modale immédiatement (Feedback instantané)
+    const modal = document.getElementById('deleteSlotModal');
+    const overlay = document.getElementById('popupOverlay');
+    
+    if (modal && overlay) {
+        // Reset des états : On affiche d'abord le Loader
+        document.getElementById('delSlotStateLoad').classList.remove('d-none');
+        document.getElementById('delSlotStateAuth').classList.add('d-none');
+        document.getElementById('delSlotStateBlock').classList.add('d-none');
+        
+        // Reset des inputs
+        document.getElementById('delSlotErrorMsg').classList.add('d-none');
+        document.getElementById('delSlotPass').value = "";
+        document.getElementById('delSlotPass').classList.remove('shake-error');
+        document.getElementById('delSlotTargetDate').innerText = `${target.d} à ${target.h}`;
+        
+        // Fermer le menu contextuel
+        document.getElementById('slotActionMenu').style.display = 'none';
+        
+        // Affichage
+        modal.style.display = 'flex';
+        overlay.style.display = 'block';
+        
+        // 2. Vérification Serveur (Existe-t-il un programme ?)
+        google.script.run.withSuccessHandler(exists => {
+            document.getElementById('delSlotStateLoad').classList.add('d-none');
+            
+            if (exists) {
+                // SCÉNARIO A : Programme existe -> BLOCAGE
+                document.getElementById('delSlotStateBlock').classList.remove('d-none');
+                document.getElementById('delSlotStateBlock').classList.add('animation-fade-in');
+            } else {
+                // SCÉNARIO B : Pas de programme -> AUTHENTIFICATION
+                document.getElementById('delSlotStateAuth').classList.remove('d-none');
+                document.getElementById('delSlotStateAuth').classList.add('animation-fade-in');
+                setTimeout(() => document.getElementById('delSlotPass').focus(), 100);
+            }
+        }).withFailureHandler(err => {
+            alert("Erreur de connexion : " + err);
+            closeAllPopups();
+        }).checkProgExistsForDate(target.d);
+    }
+}
+
+function submitSlotDeletion() {
+    const passInput = document.getElementById('delSlotPass');
+    const password = passInput.value;
+    const btn = document.getElementById('btnDelConfirm');
+    const errorMsg = document.getElementById('delSlotErrorMsg');
+
+    if (!password) {
+        passInput.classList.add('shake-error');
+        setTimeout(() => passInput.classList.remove('shake-error'), 500);
+        return;
+    }
+
+    const originalTxt = btn.innerText;
+    btn.innerText = "Vérification...";
+    btn.disabled = true;
+    errorMsg.classList.add('d-none');
+
+    google.script.run.withSuccessHandler(res => {
+        btn.innerText = originalTxt;
+        btn.disabled = false;
+
+        if (res.success) {
+            closeAllPopups();
+
+            // 1. MISE A JOUR LOCALE
+            const targetD = window.TARGET_SLOT.d;
+            const targetH = window.TARGET_SLOT.h;
+            PLANNING_DATA = PLANNING_DATA.filter(e => !(e.date === targetD && e.heure === targetH));
+
+            // 2. ANIMATION
+            animateDeletion(targetD, targetH);
+            showPlanningToast("Culte supprimé avec succès");
+
+        } else {
+            if (res.reason === "PASSWORD_INVALID") {
+                passInput.classList.add('shake-error');
+                passInput.value = "";
+                errorMsg.innerText = "Mot de passe incorrect";
+                errorMsg.classList.remove('d-none');
+                setTimeout(() => passInput.classList.remove('shake-error'), 500);
+            } else if (res.reason === "PROGRAMME_EXISTS") {
+                document.getElementById('delSlotStateAuth').classList.add('d-none');
+                document.getElementById('delSlotStateBlock').classList.remove('d-none');
+            } else {
+                alert("Erreur: " + res.reason);
+            }
+        }
+    }).withFailureHandler(err => {
+        alert("Erreur serveur : " + err);
+        btn.innerText = originalTxt;
+        btn.disabled = false;
+    }).deletePlanningEventBackend(window.TARGET_SLOT.d, window.TARGET_SLOT.h, password);
+}
+
+function animateDeletion(date, heure) {
+    if (CURRENT_VIEW === VIEW_MODE_MASTER) {
+        const targetUid = `${date}_${heure}`;
+        const rows = document.querySelectorAll('.pl-row');
+        let found = false;
+
+        rows.forEach(row => {
+            if (row.getAttribute('data-uid') === targetUid) {
+                found = true;
+                row.style.transition = "all 0.4s ease";
+                row.style.opacity = "0";
+                row.style.transform = "translateX(-20px)";
+
+                setTimeout(() => {
+                    row.remove();
+                    refreshAllViews(true);
+                }, 400);
+            }
+        });
+
+        if (!found) refreshAllViews(true);
+
+    } else {
+        refreshAllViews(true);
+    }
+}
+
 function openSearchPersonModal(){ document.getElementById('searchPersonModal').style.display='flex'; document.getElementById('popupOverlay').style.display='block'; document.getElementById('spInput').value=''; document.getElementById('spInput').focus(); handlePersonSearch(''); }
 function handlePersonSearch(q){
     const c=document.getElementById('spResults'); c.innerHTML=''; const query=q.toLowerCase();

@@ -112,23 +112,27 @@ function updateEventHeader(dateStr, oldHeure, type, newVal) {
       var rDate = formatDateRobust(data[i][0]);
       var rHeure = formatTimeRobust(data[i][1]);
       
-      if(rDate === dateStr && rHeure === oldHeure) {
-          if (type === 'TIME') sheet.getRange(i+1, 2).setValue(newVal); 
-          else if (type === 'TITLE') sheet.getRange(i+1, 3).setValue(newVal); 
+      // Si on change l'HEURE, on ne touche que la ligne concernée
+      if (type === 'TIME' && rDate === dateStr && rHeure === oldHeure) {
+          sheet.getRange(i+1, 2).setValue(newVal); 
+      }
+      
+      // Si on change le TITRE, on applique à TOUS les créneaux de cette date
+      // (Car le titre "Noël", "Fandraisana", etc. s'applique à la journée entière pour le programme)
+      else if (type === 'TITLE' && rDate === dateStr) {
+          sheet.getRange(i+1, 3).setValue(newVal); 
       }
   }
 
-  // 2. SYNCHRONISATION AVEC LE PROGRAMME (Ajouté)
-  // Si on change le TITRE dans le planning, on met à jour le programme correspondant
+  // 2. SYNCHRONISATION AVEC LE PROGRAMME
   if (type === 'TITLE') {
       var sheetProg = ss.getSheetByName("DB_PROGRAMMES");
       if (sheetProg) {
           var dataP = sheetProg.getDataRange().getValues();
-          // Parcours des programmes pour trouver celui correspondant à la date
           for(var j=1; j<dataP.length; j++) {
               var progDate = formatDateRobust(dataP[j][1]); // Col B = Date
               if (progDate === dateStr) {
-                  // On met à jour le titre (Col C = Index 2)
+                  // On met à jour le titre du programme correspondant
                   sheetProg.getRange(j+1, 3).setValue(newVal);
               }
           }
@@ -241,16 +245,23 @@ function formatTimeRobust(val) {
   return s.length >= 5 ? s.substring(0, 5) : s;
 }
 
-function generateYearBackend(year) {
+function generateYearBackend(year, password) {
+  // 1. SECURITE
+  var isAdmin = checkAdminCode(password);
+  
+  if (!isAdmin) {
+      return { success: false, reason: "PASSWORD_INVALID", msg: "Modification refusée : Code Admin requis." };
+  }
+
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName(SHEET_NAME_PLANNING);
-  if (!sheet) return "Erreur: Onglet Planning introuvable";
+  if (!sheet) return { success: false, msg: "Onglet Planning introuvable" };
   
   var y = parseInt(year);
-  if (isNaN(y)) return "Année invalide";
+  if (isNaN(y)) return { success: false, msg: "Année invalide" };
   
-  // 1. Récupération des dates existantes pour ne pas créer de doublons
-  var existingMap = {}; // Format "JJ/MM/AAAA-HH:MM"
+  // 2. RECUPERATION EXISTANTS
+  var existingMap = {}; 
   var lastRow = sheet.getLastRow();
   if (lastRow > 1) {
     var data = sheet.getRange(2, 1, lastRow - 1, 2).getValues();
@@ -265,7 +276,6 @@ function generateYearBackend(year) {
   var endDate = new Date(y, 11, 31);
   var entriesToAdd = [];
   
-  // Helper d'ajout interne
   function addEntry(dateObj, timeStr, title) {
       var dF = formatDateRobust(dateObj);
       if (!existingMap[dF + "-" + timeStr]) {
@@ -274,73 +284,159 @@ function generateYearBackend(year) {
       }
   }
 
-  // Boucle jour par jour
+  // 3. BOUCLE DE GENERATION
   for (var d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
     var isSunday = (d.getDay() === 0);
     var isXmas = (d.getMonth() === 11 && d.getDate() === 25);
     
-    // CAS NOEL : 25 Décembre à 15h00
     if (isXmas) {
         addEntry(new Date(d), "15:00", "Krismasy");
     }
     
-    // CAS DIMANCHE
     if (isSunday) {
-        // Est-ce le 1er dimanche du mois ? (Le jour est <= 7)
         if (d.getDate() <= 7) {
-            // 1er Dimanche : 15h30 uniquement ("Fandraisana")
             addEntry(new Date(d), "15:30", "Fandraisana");
         } else {
-            // Autres Dimanches : 08h30 ET 11:00
             addEntry(new Date(d), "08:30", "Culte 1");
             addEntry(new Date(d), "11:00", "Culte 2");
         }
     }
   }
   
-  // Écriture et Tri (Partie manquante dans ton snippet)
+  // 4. ECRITURE
   if (entriesToAdd.length > 0) {
       sheet.getRange(lastRow + 1, 1, entriesToAdd.length, 6).setValues(entriesToAdd);
       
-      // Tri chronologique global (Col A puis Col B)
       var fullRange = sheet.getRange(2, 1, sheet.getLastRow() - 1, 6);
       fullRange.sort([{column: 1, ascending: true}, {column: 2, ascending: true}]);
       
-      return "Succès : " + entriesToAdd.length + " créneaux générés pour " + y + ".";
+      return { success: true, msg: entriesToAdd.length + " créneaux générés pour " + y };
   } else {
-      return "Année " + y + " déjà complète.";
+      return { success: true, msg: "Année " + y + " déjà complète." };
   }
 }
 
-function deletePlanningEventBackend(dateStr, timeStr) {
+function deletePlanningEventBackend(dateStr, timeStr, password) {
+  // 1. VERIFICATION SECURITE (Equipe, Admin, Pasteurs)
+  var isResp = verifyResponsableCode(password);
+  var isAdmin = checkAdminCode(password);
+  
+  var isValideur = false;
+  var config = getConfigData(); 
+  if (config.valideurs) {
+      for(var k=0; k<config.valideurs.length; k++) {
+          if (String(config.valideurs[k].code).trim() === String(password).trim()) {
+              isValideur = true;
+              break;
+          }
+      }
+  }
+  
+  if (!isResp && !isAdmin && !isValideur) {
+      return { success: false, reason: "PASSWORD_INVALID" };
+  }
+
+  // ... Reste de la fonction identique (Check Programme & Delete) ...
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheetPlan = ss.getSheetByName(SHEET_NAME_PLANNING);
-  var sheetProg = ss.getSheetByName("DB_PROGRAMMES"); // Vérif croisée
+  var sheetProg = ss.getSheetByName("DB_PROGRAMMES"); 
   
-  // 1. Vérification Programme existant
   if (sheetProg) {
     var dataP = sheetProg.getDataRange().getValues();
     for (var j = 1; j < dataP.length; j++) {
-      var pDate = formatDateRobust(dataP[j][1]); // Col B = Date
-      if (pDate === dateStr) {
-        return { success: false, msg: "Impossible de supprimer : Un programme existe déjà pour cette date (" + dataP[j][2] + "). Veuillez supprimer le programme d'abord." };
+      if (formatDateRobust(dataP[j][1]) === dateStr) {
+        return { success: false, reason: "PROGRAMME_EXISTS" };
       }
     }
   }
   
-  // 2. Suppression dans Planning
   var data = sheetPlan.getDataRange().getValues();
-  var rowsToDelete = [];
+  var deletedCount = 0;
   
-  // On parcourt à l'envers pour supprimer sans décaler les index
   for (var i = data.length - 1; i >= 1; i--) {
     var rDate = formatDateRobust(data[i][0]);
     var rTime = formatTimeRobust(data[i][1]);
     
     if (rDate === dateStr && rTime === timeStr) {
       sheetPlan.deleteRow(i + 1);
+      deletedCount++;
     }
   }
   
-  return { success: true, msg: "Créneau du " + dateStr + " à " + timeStr + " supprimé." };
+  if (deletedCount > 0) return { success: true };
+  return { success: false, reason: "NOT_FOUND" };
+}
+
+function checkProgExistsForDate(dateStr) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheetProg = ss.getSheetByName("DB_PROGRAMMES");
+  if (!sheetProg) return false;
+  
+  var data = sheetProg.getDataRange().getValues();
+  // Parcours pour trouver si un programme existe à cette date
+  for (var i = 1; i < data.length; i++) {
+     // Date Programme est en colonne B (index 1)
+     if (formatDateRobust(data[i][1]) === dateStr) {
+         return true; // Programme trouvé !
+     }
+  }
+  return false;
+}
+
+function addNameFromPlanning(newName, password) {
+  // 1. SECURITE (ÉQUIPE + ADMIN + VALIDEURS)
+  var isResp = verifyResponsableCode(password);
+  var isAdmin = checkAdminCode(password);
+  
+  // Petite astuce pour vérifier si le mot de passe correspond à UN des valideurs
+  // On ne connait pas le nom, donc on doit itérer ou adapter verifyValidatorCode
+  // Mais verifyValidatorCode demande un NOM et un CODE. Ici on a que le CODE.
+  
+  // Correction: On va créer une fonction helper locale ou modifier la logique.
+  // Le plus simple est de scanner la liste des valideurs ici.
+  var isValideur = false;
+  var config = getConfigData(); // On récupère la config chargée
+  if (config.valideurs) {
+      for(var k=0; k<config.valideurs.length; k++) {
+          if (String(config.valideurs[k].code).trim() === String(password).trim()) {
+              isValideur = true;
+              break;
+          }
+      }
+  }
+  
+  if (!isResp && !isAdmin && !isValideur) {
+      return { success: false, msg: "Code incorrect." };
+  }
+
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheetConfig = ss.getSheetByName("CONFIG");
+  
+  // 2. AJOUT DANS CONFIG
+  var lastRow = sheetConfig.getLastRow();
+  // Colonne D (Index 4) pour les noms
+  var existingRange = sheetConfig.getRange(2, 4, lastRow - 1, 1);
+  var existingValues = existingRange.getValues().flat();
+  var cleanNew = String(newName).trim();
+  
+  // Check doublons (insensible à la casse)
+  for(var i=0; i<existingValues.length; i++) {
+      if(String(existingValues[i]).toLowerCase() === cleanNew.toLowerCase()) {
+          return { success: true, name: existingValues[i] }; 
+      }
+  }
+  
+  // Ajout à la première ligne vide trouvée ou à la fin
+  var targetRow = lastRow + 1;
+  // On cherche un trou vide pour éviter les trous
+  for(var j=0; j<existingValues.length; j++) {
+      if(existingValues[j] === "") {
+          targetRow = j + 2; // +2 car index 0 = ligne 2
+          break;
+      }
+  }
+  
+  sheetConfig.getRange(targetRow, 4).setValue(cleanNew);
+  
+  return { success: true, name: cleanNew };
 }
