@@ -1028,4 +1028,149 @@ textarea.auto-expand {
     font-family: 'Inter', sans-serif !important; /* Force la police pour éviter les symboles bizarres */
 }
 
+/* --- MOBILE SPECIFIC : BOTTOM SHEET & CARDS --- */
+
+/* Bottom Sheet (Tiroir du bas) */
+.bottom-sheet {
+    position: fixed; 
+    left: 0; right: 0; bottom: -100%; /* Caché en bas */
+    background: white; 
+    z-index: 10100 !important; /* Niveau Modale */
+    border-radius: 20px 20px 0 0;
+    box-shadow: 0 -5px 25px rgba(0,0,0,0.15);
+    transition: bottom 0.3s cubic-bezier(0.2, 0, 0, 1);
+    max-height: 85vh; /* Max 85% de l'écran */
+    display: flex; flex-direction: column;
+}
+.bottom-sheet.open { bottom: 0; }
+
+/* Overlay spécifique Mobile */
+.mobile-overlay {
+    position: fixed; inset: 0; 
+    background: rgba(0,0,0,0.5); 
+    z-index: 10090 !important; /* Juste sous le sheet */
+    backdrop-filter: blur(2px);
+    opacity: 0; pointer-events: none; transition: opacity 0.3s;
+}
+.mobile-overlay.show { opacity: 1; pointer-events: auto; }
+
+/* Smart Card Mobile */
+.m-card {
+    background: white; 
+    border-radius: 12px; 
+    margin-bottom: 16px; 
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    border: 1px solid #F1F5F9;
+    overflow: hidden;
+}
+.m-card.is-next { border: 1px solid #2563EB; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.1); }
+
+.m-card-header {
+    padding: 12px 16px; background: white;
+    display: flex; justify-content: space-between; align-items: center;
+    border-bottom: 1px solid #F1F5F9;
+}
+
+/* Accordéon Rôles */
+.m-group-header {
+    padding: 10px 16px; background: #F8FAFC; 
+    font-size: 11px; font-weight: 700; color: #64748B; 
+    text-transform: uppercase; letter-spacing: 0.5px;
+    display: flex; justify-content: space-between; align-items: center;
+    cursor: pointer; border-bottom: 1px solid #F1F5F9;
+}
+.m-group-body { display: none; }
+.m-group-body.open { display: block; }
+
+/* Ligne Rôle Mobile */
+.m-role-row {
+    padding: 12px 16px; border-bottom: 1px solid #F1F5F9;
+    display: flex; align-items: center; gap: 12px;
+    background: white; cursor: pointer;
+}
+.m-role-row:active { background: #F1F5F9; }
+.m-avatar {
+    width: 32px; height: 32px; border-radius: 50%;
+    background: #E0E7FF; color: #3730A3;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700; flex-shrink: 0;
+}
+.m-avatar.empty { background: white; border: 1px dashed #CBD5E1; color: #94A3B8; }
+
+/* FAB (Floating Action Button) */
+.fab-btn {
+    position: fixed; bottom: 24px; right: 24px;
+    width: 56px; height: 56px; border-radius: 50%;
+    background: #0F172A; color: white;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 24px; z-index: 10050; border: none;
+    transition: transform 0.2s;
+}
+.fab-btn:active { transform: scale(0.95); }
+
+/* --- MOBILE HEADER & TOOLBAR (NEW) --- */
+
+/* Cacher la toolbar PC sur mobile */
+@media (max-width: 768px) {
+    .pl-toolbar { display: none !important; }
+    .pl-page-header { display: none !important; } /* On cache aussi le gros titre PC */
+}
+
+/* Nouvelle Barre Mobile Sticky */
+.pl-mobile-header {
+    position: sticky; top: 0; z-index: 900;
+    background: rgba(255, 255, 255, 0.98);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid #E2E8F0;
+    padding: 12px 16px;
+    display: flex; align-items: center; justify-content: space-between;
+    box-shadow: 0 4px 20px -10px rgba(0,0,0,0.05);
+}
+
+.mh-title { font-size: 16px; font-weight: 800; color: #0F172A; letter-spacing: -0.5px; }
+
+/* Boutons d'action header */
+.mh-btn {
+    width: 36px; height: 36px;
+    border-radius: 50%; border: 1px solid #F1F5F9;
+    background: white; color: #475569;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; margin-left: 8px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+.mh-btn:active { transform: scale(0.95); background: #F8FAFC; }
+.mh-btn.active { background: #0F172A; color: white; border-color: #0F172A; }
+
+/* Bouton Pillule "Prochain" */
+.mh-pill {
+    padding: 6px 12px; background: #EFF6FF; color: #2563EB;
+    border-radius: 20px; font-size: 11px; font-weight: 700;
+    border: 1px solid #DBEAFE; text-transform: uppercase; letter-spacing: 0.5px;
+    display: flex; align-items: center; gap: 6px;
+}
+.mh-pill:active { background: #DBEAFE; }
+
+/* Filtres Mobile (Chips dans le bottom sheet) */
+.m-filter-chip {
+    padding: 8px 12px; border-radius: 8px; border: 1px solid #E2E8F0;
+    font-size: 12px; font-weight: 600; color: #475569;
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 8px; background: white;
+}
+.m-filter-chip.checked { background: #F0FDF4; border-color: #86EFAC; color: #166534; }
+
+@media (max-width: 768px) {
+      .pl-wrapper {
+          /* On pousse le contenu vers le bas pour ne pas qu'il soit caché par le header fixe */
+          padding-top: 140px !important; 
+          height: auto !important; /* Laisse scroller la page */
+          overflow: visible !important; /* Important pour que le sticky fonctionne */
+      }
+      .pl-mobile-header {
+          /* Ajustement fin selon ta navbar principale */
+          top: 50px !important; 
+      }
+  }
+
 </style>

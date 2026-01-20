@@ -484,31 +484,156 @@ function renderPivotView(container) {
 }
 
 function renderMobileView(container) {
-    const start = Math.max(0, NEXT_CULT_INDEX - 2);
-    const end = Math.min(PLANNING_DATA.length, NEXT_CULT_INDEX + 10);
-    const subset = PLANNING_DATA.slice(start, end);
-    let html = "";
-    subset.forEach(evt => {
-        const isNext = (PLANNING_DATA.indexOf(evt) === NEXT_CULT_INDEX);
+    if (!PLANNING_DATA || PLANNING_DATA.length === 0) {
+        container.innerHTML = '<div class="text-center py-5 text-muted">Aucun culte.</div>';
+        return;
+    }
+
+    let html = '<div class="pb-5">'; // Padding bottom pour le FAB
+    let lastMonth = "";
+
+    // On parcourt tout, mais on peut limiter si trop lourd (ex: next + 20)
+    // Pour l'instant on affiche tout, c'est du texte, ça va vite.
+    const startIndex = Math.max(0, NEXT_CULT_INDEX - 2); // Un peu de passé
+    const subset = PLANNING_DATA.slice(startIndex, startIndex + 15); // +15 futurs
+
+    subset.forEach((evt, idx) => {
         const dObj = new Date(evt.dateObj);
-        const dateStr = dObj.toLocaleDateString('fr-FR', {weekday:'long', day:'numeric', month:'long'});
-        const borderClass = isNext ? "border-primary" : "";
-        html += `
-        <div class="card mb-3 shadow-sm border-0 ${borderClass}" style="border-radius:12px;">
-            <div class="card-body">
-                <div class="d-flex justify-content-between mb-3 border-bottom pb-2">
-                    <div class="fw-bold text-capitalize">${dateStr}</div>
-                    <div class="badge bg-light text-dark border">${evt.heure}</div>
+        const monthStr = dObj.toLocaleDateString('fr-FR', {month: 'long', year: 'numeric'});
+        
+        // Sticky Month Header
+        if (monthStr !== lastMonth) {
+            html += `<div class="sticky-top bg-white p-2 px-3 fw-bold text-secondary small border-bottom shadow-sm mb-3 text-uppercase" style="top:0; z-index:10;">${monthStr}</div>`;
+            lastMonth = monthStr;
+        }
+
+        const isNext = (PLANNING_DATA.indexOf(evt) === NEXT_CULT_INDEX);
+        const dayNum = dObj.getDate();
+        const dayName = dObj.toLocaleDateString('fr-FR', {weekday: 'short'}).toUpperCase().replace('.','');
+        
+        // --- SMART CARD ---
+        html += `<div class="m-card ${isNext ? 'is-next' : ''}" id="m-card-${idx}">
+            <div class="m-card-header" onclick="openEditTimeModal('${evt.date}', '${evt.heure}')">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="text-center" style="min-width: 40px;">
+                        <div class="small fw-bold text-danger" style="font-size:10px;">${dayName}</div>
+                        <div class="fs-4 fw-bold text-dark lh-1">${dayNum}</div>
+                    </div>
+                    <div style="border-left:1px solid #E2E8F0; height:30px;"></div>
+                    <div>
+                        <div class="fw-bold text-dark" style="font-size:14px;">${evt.titre || "Culte"}</div>
+                        <div class="text-muted small">${evt.heure}</div>
+                    </div>
                 </div>
-                ${isNext ? '<div class="badge bg-primary mb-3">Prochain</div>' : ''}
-                <div class="d-flex flex-column gap-2">`;
-        ROLES_CONFIG.forEach(role => {
-            const val = evt.assignments[role.name];
-            if(val) html += `<div class="d-flex justify-content-between small"><span class="text-muted">${role.name}</span><span class="fw-bold">${val}</span></div>`;
-        });
-        html += `</div></div></div>`;
+                <i class="bi bi-three-dots-vertical text-muted opacity-50 p-2" onclick="event.stopPropagation(); openSlotMenu(this, '${evt.date}', '${evt.heure}', '${evt.titre}')"></i>
+            </div>
+            
+            <div class="bg-white">
+                ${generateMobileRolesAccordion(evt)}
+            </div>
+        </div>`;
     });
+
+    html += '</div>';
     container.innerHTML = html;
+}
+
+// Helper pour générer l'accordéon des rôles
+function generateMobileRolesAccordion(evt) {
+    // A. Groupement dynamique selon la CONFIG
+    const groups = {};
+    const rolesList = (FILTERED_ROLES.length > 0) ? FILTERED_ROLES : ROLES_CONFIG;
+
+    rolesList.forEach(roleConfig => {
+        // On récupère le type EXACT défini dans la config
+        let type = roleConfig.type ? roleConfig.type.trim() : "Autre";
+        // Capitalisation propre (ex: "Liturgie")
+        type = type.charAt(0).toUpperCase() + type.slice(1);
+        
+        if (!groups[type]) groups[type] = [];
+        
+        const val = evt.assignments[roleConfig.name];
+        groups[type].push({ name: roleConfig.name, value: val });
+    });
+
+    // B. Ordre d'affichage préférentiel (Optionnel mais recommandé pour l'UX)
+    // On met Liturgie en premier, le reste suit l'ordre alphabétique ou config
+    const sortOrder = ["Liturgie", "Musique", "Technique", "Accueil"];
+    const sortedTypes = Object.keys(groups).sort((a, b) => {
+        const idxA = sortOrder.indexOf(a);
+        const idxB = sortOrder.indexOf(b);
+        if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+        if (idxA !== -1) return -1;
+        if (idxB !== -1) return 1;
+        return a.localeCompare(b);
+    });
+
+    let html = "";
+    
+    // C. Génération HTML
+    sortedTypes.forEach(cat => {
+        const items = groups[cat];
+        if (items.length === 0) return;
+        
+        // Par défaut, on ouvre "Liturgie" (ou le premier groupe si pas de liturgie)
+        const isOpen = (cat === 'Liturgie'); 
+        const chevron = isOpen ? 'bi-chevron-up' : 'bi-chevron-down';
+        const display = isOpen ? 'block' : 'none';
+        
+        // Compteur assignés
+        const assignedCount = items.filter(i => i.value).length;
+        const badge = assignedCount > 0 ? `<span class="badge bg-light text-dark border ms-2">${assignedCount}/${items.length}</span>` : '';
+
+        // ID unique
+        const groupId = `grp-${evt.date}-${evt.heure}-${cat}`.replace(/[^a-zA-Z0-9-]/g, '');
+
+        // Icône de catégorie (Dynamique)
+        let iconClass = getRoleIconClass(items[0].name); // On prend l'icône du premier rôle pour deviner
+
+        html += `
+        <div class="m-group-header" onclick="toggleMobileGroup('${groupId}', this)">
+            <div class="d-flex align-items-center gap-2">
+                <i class="bi ${iconClass} opacity-50"></i>
+                <span>${cat.toUpperCase()}</span> ${badge}
+            </div>
+            <i class="bi ${chevron}"></i>
+        </div>
+        <div class="m-group-body" id="${groupId}" style="display:${display};">`;
+        
+        items.forEach(role => {
+            const isFilled = !!role.value;
+            const initials = isFilled ? role.value.substring(0,2).toUpperCase() : '?';
+            const avatarClass = isFilled ? 'm-avatar' : 'm-avatar empty';
+            
+            const textContent = isFilled 
+                ? `<div class="fw-bold text-dark" style="font-size:13px;">${role.value}</div><div class="small text-muted" style="font-size:11px;">${role.name}</div>`
+                : `<div class="text-primary fw-medium" style="font-size:13px;">Assigner ${role.name}</div>`;
+
+            html += `
+            <div class="m-role-row" onclick="openMobileAssign('${evt.date}', '${evt.heure}', '${role.name}', '${role.value||""}')">
+                <div class="${avatarClass}">${initials}</div>
+                <div class="flex-grow-1">${textContent}</div>
+                ${isFilled ? '<i class="bi bi-pencil-square text-muted opacity-25"></i>' : '<i class="bi bi-plus-circle text-primary opacity-50"></i>'}
+            </div>`;
+        });
+        
+        html += `</div>`;
+    });
+    
+    return html;
+}
+
+// Fonction Toggle Accordéon Mobile
+function toggleMobileGroup(id, header) {
+    const body = document.getElementById(id);
+    const icon = header.querySelector('i');
+    if (body.style.display === 'none') {
+        body.style.display = 'block';
+        icon.classList.replace('bi-chevron-down', 'bi-chevron-up');
+    } else {
+        body.style.display = 'none';
+        icon.classList.replace('bi-chevron-up', 'bi-chevron-down');
+    }
 }
 
 // --- UTILS & ACTIONS ---
@@ -563,7 +688,11 @@ function movePopupsToBody() {
         'settingsMenu',
         'editTimeModal',
         'editTitleModal',
-        'addPersonModal'
+        'addPersonModal',
+        'bsAssignRole',
+        'bsSearchGlobal',
+        'bsFilters',
+        'bsPersonPlan'
     ];
     
     ids.forEach(id => {
@@ -1273,12 +1402,7 @@ function openAddEventPopup() {
     
     // Positionnement Centré
     modal.style.display = 'flex';
-    modal.style.position = 'fixed';
-    modal.style.top = '50%';
-    modal.style.left = '50%';
-    modal.style.transform = 'translate(-50%, -50%)';
     modal.style.zIndex = '10060'; // Au dessus de tout
-    
     overlay.style.display = 'block';
     
     // Init Date (Aujourd'hui ou Dimanche prochain)
@@ -1840,6 +1964,288 @@ function showPlanningToast(msg) {
     setTimeout(() => {
         toast.classList.remove('show');
     }, 3000);
+}
+
+/* --- LOGIQUE MOBILE (BOTTOM SHEETS) --- */
+
+function closeBottomSheet() {
+    const sheets = document.querySelectorAll('.bottom-sheet.open');
+    document.getElementById('mobileOverlay').classList.remove('show');
+    
+    sheets.forEach(el => el.classList.remove('open'));
+    
+    setTimeout(() => {
+        document.getElementById('mobileOverlay').style.display = 'none';
+        sheets.forEach(el => el.style.display = 'none'); // On cache vraiment
+        
+        // Reset Search Global si besoin
+        const inp = document.getElementById('bsGlobalInput');
+        if(inp) inp.value = "";
+    }, 300); 
+}
+
+function openBottomSheet(id) {
+    const sheet = document.getElementById(id);
+    const overlay = document.getElementById('mobileOverlay');
+    if(sheet && overlay) {
+        // Fermer les autres
+        document.querySelectorAll('.bottom-sheet').forEach(el => {
+            if(el.id !== id) {
+                el.classList.remove('open');
+                setTimeout(() => el.style.display = 'none', 300);
+            }
+        });
+        
+        // 1. Rendre visible (mais encore en bas)
+        sheet.style.display = 'flex';
+        overlay.style.display = 'block';
+        
+        // 2. Animer (faire monter)
+        requestAnimationFrame(() => {
+            overlay.classList.add('show');
+            sheet.classList.add('open');
+        });
+    }
+}
+
+// 1. ASSIGNATION ROLE MOBILE
+function openMobileAssign(date, time, role, currentVal) {
+    // On prépare le contexte global (réutilisé par saveName/renderNameList)
+    TARGET_CELL_DATA = { date, time, role };
+    
+    // UI Setup
+    document.getElementById('bsDateTitle').innerText = date;
+    document.getElementById('bsRoleTitle').innerText = role;
+    
+    // Reuse Name List Logic (Smart)
+    const listContainer = document.getElementById('bsResultsList');
+    // On vide et on remplit avec la liste complète
+    // Note: On va créer une variante de renderNameList qui cible ce conteneur mobile
+    renderMobileNameList(NAMES_DB, currentVal);
+    
+    openBottomSheet('bsAssignRole');
+}
+
+function renderMobileNameList(list, selectedVal) {
+    const container = document.getElementById('bsResultsList');
+    if(!container) return;
+    
+    let html = "";
+    list.sort().forEach(n => {
+        const isSel = (n === selectedVal);
+        html += `
+        <div class="p-3 border-bottom bg-white d-flex justify-content-between align-items-center" onclick="saveName('${n.replace(/'/g, "\\'")}')">
+            <span class="fs-6">${n}</span>
+            ${isSel ? '<i class="bi bi-check-lg text-primary fs-5"></i>' : ''}
+        </div>`;
+    });
+    // Option Suppression Mobile
+    html += `
+    <div class="p-3 border-bottom bg-white text-danger fw-bold d-flex align-items-center gap-2" onclick="saveName('')">
+        <i class="bi bi-trash3"></i> Effacer
+    </div>`;
+    
+    container.innerHTML = html;
+}
+
+function handleMobileNameFilter(val) {
+    const q = val.toLowerCase();
+    const matches = NAMES_DB.filter(n => n.toLowerCase().includes(q));
+    renderMobileNameList(matches, null);
+}
+
+// 2. RECHERCHE GLOBALE MOBILE (FAB)
+function openMobileSearch() {
+    openBottomSheet('bsSearchGlobal');
+    setTimeout(() => document.getElementById('bsGlobalInput').focus(), 300);
+}
+
+function handleMobileGlobalSearch(val) {
+    const container = document.getElementById('bsGlobalResults');
+    if (val.length < 3) {
+        container.innerHTML = '<div class="text-center py-5 text-muted small">Tapez 3 lettres...</div>';
+        return;
+    }
+    
+    const q = val.toLowerCase();
+    let html = "";
+    
+    // A. Personnes
+    const people = NAMES_DB.filter(n => n.toLowerCase().includes(q));
+    if (people.length > 0) {
+        html += `<div class="p-2 bg-light fw-bold text-muted small">PERSONNES</div>`;
+        people.forEach(n => {
+            html += `<div class="p-3 bg-white border-bottom" onclick="openMobilePersonPlan('${n}')">${n}</div>`;
+        });
+    }
+    
+    // B. Dates (Cultes)
+    const cults = PLANNING_DATA.filter(e => (e.titre && e.titre.toLowerCase().includes(q)) || e.date.includes(q));
+    if (cults.length > 0) {
+        html += `<div class="p-2 bg-light fw-bold text-muted small">CULTES</div>`;
+        cults.forEach((e, idx) => {
+            // idx global
+            const realIdx = PLANNING_DATA.indexOf(e);
+            html += `<div class="p-3 bg-white border-bottom" onclick="jumpToMobileCard(${realIdx})">
+                <div class="fw-bold">${e.date}</div>
+                <div class="small text-muted">${e.titre}</div>
+            </div>`;
+        });
+    }
+    
+    container.innerHTML = html || '<div class="text-center py-5 text-muted">Rien trouvé.</div>';
+}
+
+function jumpToMobileCard(idx) {
+    closeBottomSheet();
+    // Scroll vers la carte
+    setTimeout(() => {
+        const card = document.getElementById('m-card-' + idx);
+        if(card) {
+            card.scrollIntoView({behavior: 'smooth', block: 'center'});
+            card.classList.add('is-next'); // Highlight temporaire
+            setTimeout(() => card.classList.remove('is-next'), 2000);
+        }
+    }, 400);
+}
+
+// 3. PLANNING PERSO MOBILE
+function openMobilePersonPlan(name) {
+    document.getElementById('bsPersonName').innerText = name;
+    
+    // Réutilisation de la logique Desktop (openPersonPanel) mais avec affichage adapté
+    // On génère le HTML et on l'injecte dans le sheet mobile
+    // Pour aller vite et propre : on va cloner la logique de génération HTML de openPersonPanel
+    // mais sans ouvrir l'offcanvas desktop.
+    
+    // ... (Logique simplifiée pour mobile) ...
+    // Note: Pour faire simple, on va appeler openPersonPanel (qui génère le HTML dans #pspContent)
+    // puis copier ce HTML dans le mobile. C'est un hack efficace.
+    
+    // Simulation silencieuse
+    const tempContainer = document.createElement('div');
+    // On copie la logique de openPersonPanel ici pour ne pas dépendre du DOM desktop
+    // (Voir implémentation ci-dessous)
+    
+    const html = generatePersonHtmlForMobile(name);
+    document.getElementById('bsPersonContent').innerHTML = html;
+    
+    openBottomSheet('bsPersonPersonPlan'); // Oups typo corrigée : bsPersonPlan
+    openBottomSheet('bsPersonPlan');
+}
+
+// Helper dédié Mobile pour éviter les dépendances croisées
+function generatePersonHtmlForMobile(nom) {
+    let html = "";
+    let count = 0;
+    const now = new Date().setHours(0,0,0,0);
+    
+    PLANNING_DATA.forEach(e => {
+        if(e.assignments) {
+            for (const [role, assignedName] of Object.entries(e.assignments)) {
+                if (assignedName === nom) {
+                    const isFuture = e.dateObj >= now;
+                    const colorClass = isFuture ? "border-primary" : "border-secondary opacity-50";
+                    html += `
+                    <div class="p-3 mb-2 bg-white border rounded shadow-sm ${colorClass}" style="border-left-width:4px;">
+                        <div class="d-flex justify-content-between mb-1">
+                            <span class="fw-bold">${e.date}</span>
+                            <span class="badge bg-light text-dark">${e.heure}</span>
+                        </div>
+                        <div class="small text-muted mb-2">${e.titre || "Culte"}</div>
+                        <div class="fw-bold text-primary">${role}</div>
+                    </div>`;
+                    count++;
+                }
+            }
+        }
+    });
+    
+    if (count === 0) return '<div class="text-center py-5 text-muted">Aucune intervention.</div>';
+    return html;
+}
+
+/* --- LOGIQUE MOBILE TOOLBAR --- */
+
+function goToNextMobile() {
+    // Trouve la carte avec la classe 'is-next' générée par renderMobileView
+    const nextCard = document.querySelector('.m-card.is-next');
+    if(nextCard) {
+        nextCard.scrollIntoView({behavior: 'smooth', block: 'center'});
+        // Petit flash visuel
+        nextCard.style.transition = "transform 0.2s";
+        nextCard.style.transform = "scale(1.02)";
+        setTimeout(() => nextCard.style.transform = "scale(1)", 300);
+    } else {
+        showPlanningToast("Aucun culte à venir trouvé.");
+    }
+}
+
+function openMobileFilters() {
+    renderMobileFilters();
+    openBottomSheet('bsFilters');
+}
+
+// 2. FILTRES MOBILES (COULEURS & TYPES DYNAMIQUES)
+function renderMobileFilters() {
+    const container = document.getElementById('bsFilterContent');
+    const allRoleNames = ROLES_CONFIG.map(r => r.name);
+    const currentSelection = (ACTIVE_FILTER_ROLES.length === 0) ? allRoleNames : ACTIVE_FILTER_ROLES;
+    
+    let html = "";
+    
+    // Groupement dynamique
+    const groups = {};
+    ROLES_CONFIG.forEach(r => {
+        let type = r.type ? r.type.trim() : "Autre";
+        type = type.charAt(0).toUpperCase() + type.slice(1);
+        if(!groups[type]) groups[type] = [];
+        groups[type].push(r.name);
+    });
+    
+    Object.keys(groups).sort().forEach(type => {
+        // Titre de section
+        html += `<div class="small fw-bold text-muted text-uppercase mt-3 mb-2 ps-1 border-bottom pb-1">${type}</div>`;
+        
+        // Récupération de la classe couleur (ex: th-type-liturgie)
+        // Note: getTypeColorClassFromType attend le type en majuscule souvent, on sécurise
+        const colorClassBase = getTypeColorClassFromType(type.toUpperCase());
+        
+        // On enlève le background pour garder juste la couleur du texte si non coché
+        // Mais si coché, on applique tout
+        
+        groups[type].forEach(role => {
+            const isChecked = currentSelection.includes(role);
+            const checkIcon = isChecked ? "bi-check-circle-fill" : "bi-circle";
+            
+            // Si coché, on applique le style complet (Fond + Couleur)
+            // Sinon, juste blanc
+            let chipClass = "m-filter-chip";
+            if (isChecked) {
+                chipClass += " checked " + colorClassBase; // Applique bg et color définis dans CSS
+            }
+            
+            html += `
+            <div class="${chipClass}" onclick="toggleMobileFilterRole('${role}', this)">
+                <span>${role}</span>
+                <i class="bi ${checkIcon} fs-5"></i>
+            </div>`;
+        });
+    });
+    
+    container.innerHTML = html;
+}
+
+function toggleMobileFilterRole(role, el) {
+    // On utilise la logique existante filterAction
+    filterAction('TOGGLE_ROLE', {role: role});
+    // On met à jour l'UI locale sans tout redessiner pour fluidité
+    refreshMobileFilterUI();
+}
+
+function refreshMobileFilterUI() {
+    // Re-render simple pour mettre à jour les états visuels
+    renderMobileFilters();
 }
 
 </script>

@@ -832,9 +832,29 @@
 
 </style>
 
+<!-- HEADER MOBILE (HORS WRAPPER POUR RESTER FIXE) -->
+<div class="pl-mobile-header d-md-none border-bottom bg-white shadow-sm" style="position:fixed; top:60px; left:0; right:0; z-index:900; padding: 16px;">
+    <div class="mb-3">
+        <h1 class="fw-bold text-dark m-0" style="font-size: 24px; letter-spacing: -0.5px;">Planning & Équipes</h1>
+        <div class="text-secondary small mt-1">Gestion des dates et des équipes</div>
+    </div>
+    
+    <div class="d-flex gap-2 overflow-x-auto pb-1" style="scrollbar-width:none;">
+        <button class="btn btn-sm btn-primary-soft text-primary fw-bold px-3 py-2 rounded-pill border border-primary border-opacity-25 d-flex align-items-center gap-2 flex-shrink-0" onclick="goToNextMobile()">
+            <i class="bi bi-calendar-check-fill"></i> Prochain Culte
+        </button>
+        <button class="btn btn-sm btn-light border fw-medium px-3 py-2 rounded-pill flex-shrink-0" onclick="openMobileFilters()">
+            <i class="bi bi-funnel"></i> Filtrer
+        </button>
+        <button class="btn btn-sm btn-light border fw-medium px-3 py-2 rounded-pill flex-shrink-0" onclick="openAddEventPopup(this)">
+            <i class="bi bi-plus-lg"></i> Nouveau
+        </button>
+    </div>
+</div>
+
 <div class="pl-wrapper">
   
-  <div id="plSkeleton" class="pl-loader-overlay">
+    <div id="plSkeleton" class="pl-loader-overlay">
     <div class="sk-grid">
         <div class="sk-head shimmer"></div>
         <div class="sk-row shimmer"></div><div class="sk-row shimmer"></div><div class="sk-row shimmer"></div><div class="sk-row shimmer"></div>
@@ -997,7 +1017,7 @@
     </button>
 </div>
 
-<div id="addEventPopup" class="notion-popup shadow-lg" style="display:none; width:320px; border-radius:12px; padding: 0; overflow: hidden; flex-direction: column;">
+<div id="addEventPopup" class="notion-dialog shadow-lg" style="display:none; width:320px; border-radius:12px; padding: 0; overflow: hidden; flex-direction: column;">
     
     <div class="p-4 border-bottom bg-white">
         <h6 class="fw-bold mb-3 text-dark">Nouveau Culte</h6>
@@ -1199,5 +1219,71 @@
             Par sécurité, vous devez d'abord supprimer le document dans le module <strong>"Programme Culte"</strong>.
         </p>
         <button class="btn btn-dark w-100" onclick="closeAllPopups()">Compris</button>
+    </div>
+</div>
+
+<!-- === MODULE MOBILE (ADD-ON) === -->
+
+<!-- FAB RECHERCHE (Bouton Flottant) -->
+<button class="fab-btn d-md-none" onclick="openMobileSearch()">
+    <i class="bi bi-search"></i>
+</button>
+
+<!-- OVERLAY MOBILE (Fond gris spécifique) -->
+<div id="mobileOverlay" class="mobile-overlay" onclick="closeBottomSheet()"></div>
+
+<!-- BOTTOM SHEET : ASSIGNATION RÔLE -->
+<div id="bsAssignRole" class="bottom-sheet d-md-none" style="display:none;">
+    <div class="p-3 border-bottom d-flex justify-content-between align-items-center bg-light rounded-top">
+        <div>
+            <div class="small text-muted fw-bold text-uppercase" id="bsRoleTitle">RÔLE</div>
+            <div class="fw-bold text-dark" id="bsDateTitle">...</div>
+        </div>
+        <button class="btn-close" onclick="closeBottomSheet()"></button>
+    </div>
+    
+    <div id="bsAssignContent" class="flex-grow-1 overflow-hidden d-flex flex-column">
+        <!-- Input Search Mobile -->
+        <div class="p-3 border-bottom">
+            <input type="text" id="bsSearchInput" class="form-control form-control-lg border-0 bg-light fw-bold" 
+                   placeholder="Chercher..." onkeyup="handleMobileNameFilter(this.value)">
+        </div>
+        <div id="bsResultsList" class="overflow-auto custom-scrollbar p-0" style="flex:1;"></div>
+    </div>
+</div>
+
+<!-- BOTTOM SHEET : RECHERCHE GLOBALE -->
+<div id="bsSearchGlobal" class="bottom-sheet d-md-none" style="display:none; height: 90vh;">
+    <div class="p-3 border-bottom d-flex gap-3 align-items-center">
+        <i class="bi bi-search text-muted fs-5"></i>
+        <input type="text" id="bsGlobalInput" class="form-control border-0 shadow-none p-0 fs-5" 
+               placeholder="Qui ou quand chercher ?" onkeyup="handleMobileGlobalSearch(this.value)">
+        <button class="btn-close" onclick="closeBottomSheet()"></button>
+    </div>
+    <div id="bsGlobalResults" class="flex-grow-1 overflow-auto custom-scrollbar bg-light p-0">
+        <div class="text-center py-5 text-muted small">Tapez 3 lettres...</div>
+    </div>
+</div>
+
+<!-- BOTTOM SHEET : PLANNING PERSO (Détail Personne) -->
+<div id="bsPersonPlan" class="bottom-sheet d-md-none" style="display:none;">
+    <div class="p-3 border-bottom bg-white d-flex justify-content-between align-items-center">
+        <div class="fw-bold fs-5" id="bsPersonName">...</div>
+        <button class="btn-close" onclick="closeBottomSheet()"></button>
+    </div>
+    <div id="bsPersonContent" class="flex-grow-1 overflow-auto custom-scrollbar bg-light p-3"></div>
+</div>
+
+<!-- BOTTOM SHEET : FILTRES -->
+<div id="bsFilters" class="bottom-sheet d-md-none" style="display:none; height: 70vh;">
+    <div class="p-3 border-bottom d-flex justify-content-between align-items-center bg-light rounded-top">
+        <div class="fw-bold">Filtrer l'affichage</div>
+        <button class="btn btn-sm btn-link text-decoration-none" onclick="filterAction('TOGGLE_ALL'); refreshMobileFilterUI()">Tout/Rien</button>
+    </div>
+    <div id="bsFilterContent" class="flex-grow-1 overflow-auto custom-scrollbar p-3 bg-light">
+        <!-- Rempli par JS -->
+    </div>
+    <div class="p-3 border-top bg-white">
+        <button class="btn btn-dark w-100 py-2" onclick="closeBottomSheet()">Appliquer</button>
     </div>
 </div>
