@@ -12,15 +12,14 @@ let ROLES_CONFIG = [];
 let NAMES_DB = [];
 let NEXT_CULT_INDEX = -1;
 let NEXT_CULT_DATE_STR = "";
-
-// PAGINATION
 let PAGINATION = {
     MASTER: { start: 0, visible: 5 },
     PIVOT: { start: 0, visible: 6 }
 };
-
 let IS_FULL_LOADED = false;
 let HAS_SCROLLED_ONCE = false;
+let MOBILE_STATE = { start: 0, end: 0, initialized: false };
+let ACTIVE_MOBILE_GROUP_ID = null; // Mémorise l'accordéon ouvert
 
 // --- INIT ---
 function initPlanningView() {
@@ -163,6 +162,7 @@ function processDataChunk(response) {
         calculateVisibleColumns('MASTER');
         calculateVisibleColumns('PIVOT');
         
+        MOBILE_STATE.initialized = false; 
         // Premier rendu (non silencieux)
         if (!IS_FULL_LOADED) refreshAllViews(false);
         
@@ -489,65 +489,81 @@ function renderMobileView(container) {
         return;
     }
 
-    let html = '<div class="pb-5">'; // Padding bottom pour le FAB
-    let lastMonth = "";
+    if (!MOBILE_STATE.initialized) {
+        MOBILE_STATE.start = Math.max(0, NEXT_CULT_INDEX - 5);
+        MOBILE_STATE.end = Math.min(PLANNING_DATA.length, NEXT_CULT_INDEX + 15);
+        MOBILE_STATE.initialized = true;
+    }
 
-    // On parcourt tout, mais on peut limiter si trop lourd (ex: next + 20)
-    // Pour l'instant on affiche tout, c'est du texte, ça va vite.
-    const startIndex = Math.max(0, NEXT_CULT_INDEX - 2); // Un peu de passé
-    const subset = PLANNING_DATA.slice(startIndex, startIndex + 15); // +15 futurs
+    let html = '<div class="pb-5">'; 
+    
+    if (MOBILE_STATE.start > 0) {
+        html += `<div class="text-center mb-4"><button class="btn btn-sm btn-light border text-secondary rounded-pill px-4 shadow-sm" onclick="loadMoreMobile('PREV')"><i class="bi bi-arrow-up-circle me-2"></i>Charger précédents</button></div>`;
+    }
+
+    let lastYear = "";
+    const subset = PLANNING_DATA.slice(MOBILE_STATE.start, MOBILE_STATE.end);
 
     subset.forEach((evt, idx) => {
+        const realIndex = MOBILE_STATE.start + idx;
         const dObj = new Date(evt.dateObj);
-        const monthStr = dObj.toLocaleDateString('fr-FR', {month: 'long', year: 'numeric'});
+        const currentYear = dObj.getFullYear().toString();
         
-        // Sticky Month Header
-        if (monthStr !== lastMonth) {
-            html += `<div class="sticky-top bg-white p-2 px-3 fw-bold text-secondary small border-bottom shadow-sm mb-3 text-uppercase" style="top:0; z-index:10;">${monthStr}</div>`;
-            lastMonth = monthStr;
+        if (currentYear !== lastYear) {
+            html += `<div class="sticky-top bg-light p-2 px-3 fw-bold text-muted border-bottom shadow-sm mb-3" style="top:0; z-index:10; font-size:12px; letter-spacing:1px;">${currentYear}</div>`;
+            lastYear = currentYear;
         }
 
-        const isNext = (PLANNING_DATA.indexOf(evt) === NEXT_CULT_INDEX);
+        const isNext = (evt.date === NEXT_CULT_DATE_STR);
+        const now = new Date(); now.setHours(0,0,0,0);
+        const isPast = dObj < now; 
+        
         const dayNum = dObj.getDate();
         const dayName = dObj.toLocaleDateString('fr-FR', {weekday: 'short'}).toUpperCase().replace('.','');
+        const monthShort = dObj.toLocaleDateString('fr-FR', {month: 'short'}).toUpperCase().replace('.','');
         
-        // --- SMART CARD ---
-        html += `<div class="m-card ${isNext ? 'is-next' : ''}" id="m-card-${idx}">
-            <div class="m-card-header" onclick="openEditTimeModal('${evt.date}', '${evt.heure}')">
+        // SUPPRESSION DU ONCLICK SUR LE HEADER
+        // REMPLACEMENT DU ONCLICK SUR LES 3 POINTS (Passe realIndex)
+        html += `<div class="m-card ${isNext ? 'is-next' : ''} ${isPast ? 'is-past' : ''}" id="m-card-${realIndex}">
+            <div class="m-card-header">
                 <div class="d-flex align-items-center gap-3">
-                    <div class="text-center" style="min-width: 40px;">
-                        <div class="small fw-bold text-danger" style="font-size:10px;">${dayName}</div>
-                        <div class="fs-4 fw-bold text-dark lh-1">${dayNum}</div>
+                    <div class="text-center d-flex flex-column justify-content-center" style="min-width: 45px; line-height: 1;">
+                        <div class="fw-bold text-danger" style="font-size:9px; margin-bottom:2px;">${dayName}</div>
+                        <div class="fw-bold text-dark" style="font-size:22px; letter-spacing:-1px;">${dayNum}</div>
+                        <div class="fw-bold text-secondary" style="font-size:9px; margin-top:2px;">${monthShort}</div>
                     </div>
-                    <div style="border-left:1px solid #E2E8F0; height:30px;"></div>
+                    <div style="border-left:1px solid #E2E8F0; height:36px;"></div>
                     <div>
                         <div class="fw-bold text-dark" style="font-size:14px;">${evt.titre || "Culte"}</div>
                         <div class="text-muted small">${evt.heure}</div>
                     </div>
                 </div>
-                <i class="bi bi-three-dots-vertical text-muted opacity-50 p-2" onclick="event.stopPropagation(); openSlotMenu(this, '${evt.date}', '${evt.heure}', '${evt.titre}')"></i>
+                <div class="p-3 m-n3" onclick="event.stopPropagation(); openMobileSlotActions(${realIndex})">
+                    <i class="bi bi-three-dots-vertical text-muted opacity-50"></i>
+                </div>
             </div>
-            
             <div class="bg-white">
                 ${generateMobileRolesAccordion(evt)}
             </div>
         </div>`;
     });
 
+    if (MOBILE_STATE.end < PLANNING_DATA.length) {
+        html += `<div class="text-center mt-4"><button class="btn btn-sm btn-light border text-secondary rounded-pill px-4 shadow-sm" onclick="loadMoreMobile('NEXT')"><i class="bi bi-arrow-down-circle me-2"></i>Charger suivants</button></div>`;
+    }
+
     html += '</div>';
     container.innerHTML = html;
 }
 
-// Helper pour générer l'accordéon des rôles
+// Helper pour générer l'accordéon des rôles (Version Finale Corrigée)
 function generateMobileRolesAccordion(evt) {
     // A. Groupement dynamique selon la CONFIG
     const groups = {};
     const rolesList = (FILTERED_ROLES.length > 0) ? FILTERED_ROLES : ROLES_CONFIG;
 
     rolesList.forEach(roleConfig => {
-        // On récupère le type EXACT défini dans la config
         let type = roleConfig.type ? roleConfig.type.trim() : "Autre";
-        // Capitalisation propre (ex: "Liturgie")
         type = type.charAt(0).toUpperCase() + type.slice(1);
         
         if (!groups[type]) groups[type] = [];
@@ -556,8 +572,7 @@ function generateMobileRolesAccordion(evt) {
         groups[type].push({ name: roleConfig.name, value: val });
     });
 
-    // B. Ordre d'affichage préférentiel (Optionnel mais recommandé pour l'UX)
-    // On met Liturgie en premier, le reste suit l'ordre alphabétique ou config
+    // B. Ordre d'affichage
     const sortOrder = ["Liturgie", "Musique", "Technique", "Accueil"];
     const sortedTypes = Object.keys(groups).sort((a, b) => {
         const idxA = sortOrder.indexOf(a);
@@ -575,20 +590,27 @@ function generateMobileRolesAccordion(evt) {
         const items = groups[cat];
         if (items.length === 0) return;
         
-        // Par défaut, on ouvre "Liturgie" (ou le premier groupe si pas de liturgie)
-        const isOpen = (cat === 'Liturgie'); 
+        // 1. DÉFINITION UNIQUE DE L'ID (C'est ici qu'il y avait le bug)
+        const groupId = `grp-${evt.date}-${evt.heure}-${cat}`.replace(/[^a-zA-Z0-9-]/g, '');
+
+        // 2. Gestion de l'état Ouvert/Fermé (Persistance)
+        // On vérifie si c'était celui ouvert avant le rafraîchissement
+        const isOpen = (groupId === ACTIVE_MOBILE_GROUP_ID); 
         const chevron = isOpen ? 'bi-chevron-up' : 'bi-chevron-down';
         const display = isOpen ? 'block' : 'none';
         
-        // Compteur assignés
+        // 3. Gestion des Badges (Compteur ou Alerte Rouge)
         const assignedCount = items.filter(i => i.value).length;
-        const badge = assignedCount > 0 ? `<span class="badge bg-light text-dark border ms-2">${assignedCount}/${items.length}</span>` : '';
+        let badge = "";
+        
+        if (assignedCount === 0) {
+            badge = `<span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25 ms-2" style="font-size:7px; letter-spacing:0.5px;">AUCUNE ASSIGNATION</span>`;
+        } else {
+            badge = `<span class="badge bg-light text-dark border ms-2">${assignedCount}/${items.length}</span>`;
+        }
 
-        // ID unique
-        const groupId = `grp-${evt.date}-${evt.heure}-${cat}`.replace(/[^a-zA-Z0-9-]/g, '');
-
-        // Icône de catégorie (Dynamique)
-        let iconClass = getRoleIconClass(items[0].name); // On prend l'icône du premier rôle pour deviner
+        // 4. Icône de catégorie
+        let iconClass = getRoleIconClass(items[0].name);
 
         html += `
         <div class="m-group-header" onclick="toggleMobileGroup('${groupId}', this)">
@@ -627,31 +649,57 @@ function generateMobileRolesAccordion(evt) {
 function toggleMobileGroup(id, header) {
     const body = document.getElementById(id);
     const icon = header.querySelector('i');
+    
     if (body.style.display === 'none') {
+        // Ouverture
         body.style.display = 'block';
         icon.classList.replace('bi-chevron-down', 'bi-chevron-up');
+        ACTIVE_MOBILE_GROUP_ID = id; // On mémorise
     } else {
+        // Fermeture
         body.style.display = 'none';
         icon.classList.replace('bi-chevron-up', 'bi-chevron-down');
+        if (ACTIVE_MOBILE_GROUP_ID === id) ACTIVE_MOBILE_GROUP_ID = null; // On oublie
     }
 }
 
 // --- UTILS & ACTIONS ---
 
 function forceScrollToNext() {
-    if (!NEXT_CULT_DATE_STR && NEXT_CULT_INDEX === -1) return;
-    let targetIdx = -1;
-    if (NEXT_CULT_DATE_STR) targetIdx = PLANNING_DATA.findIndex(e => e.date === NEXT_CULT_DATE_STR);
-    else targetIdx = NEXT_CULT_INDEX;
+    // 1. Chercher la carte marquée comme "Prochain Culte" dans le DOM
+    const nextCard = document.querySelector('.m-card.is-next');
     
-    if (targetIdx > -1) {
-        if (CURRENT_VIEW === VIEW_MODE_MASTER) {
-            const row = document.getElementById(`row-master-${targetIdx}`);
-            if(row) row.scrollIntoView({behavior: 'smooth', block: 'start'});
-        } else if (CURRENT_VIEW === VIEW_MODE_PIVOT) {
-            PAGINATION.PIVOT.start = targetIdx;
-            const pivotEl = document.getElementById('viewContainerPivot');
-            if(pivotEl) renderPivotView(pivotEl);
+    if (nextCard) {
+        // 2. Si on la trouve, on scrolle vers elle
+        // Le CSS 'scroll-margin-top' gérera automatiquement le décalage de la barre d'outils
+        nextCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        
+        // 3. Petit effet visuel pour confirmer
+        nextCard.style.transition = "transform 0.2s";
+        nextCard.style.transform = "scale(1.02)";
+        setTimeout(() => nextCard.style.transform = "scale(1)", 300);
+        
+    } else {
+        // Fallback si pas trouvé en mode Mobile (ou si on est sur PC)
+        if (CURRENT_VIEW === VIEW_MODE_MASTER || CURRENT_VIEW === VIEW_MODE_PIVOT) {
+             let targetIdx = -1;
+             if (NEXT_CULT_DATE_STR) targetIdx = PLANNING_DATA.findIndex(e => e.date === NEXT_CULT_DATE_STR);
+             else targetIdx = NEXT_CULT_INDEX;
+             
+             if (targetIdx > -1) {
+                 if(CURRENT_VIEW === 'MASTER') {
+                     const row = document.getElementById(`row-master-${targetIdx}`);
+                     if(row) row.scrollIntoView({behavior: 'smooth', block: 'start'});
+                 } else {
+                     PAGINATION.PIVOT.start = targetIdx;
+                     const pivotEl = document.getElementById('viewContainerPivot');
+                     if(pivotEl) renderPivotView(pivotEl);
+                 }
+             }
+        } else {
+             // Cas rare : Mobile chargé mais pas de classe is-next trouvée (ex: tout est passé)
+             // On scrolle tout en haut par défaut
+             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
     }
 }
@@ -692,7 +740,9 @@ function movePopupsToBody() {
         'bsAssignRole',
         'bsSearchGlobal',
         'bsFilters',
-        'bsPersonPlan'
+        'bsPersonPlan',
+        'bsDateSelector',
+        'bsAssignRole'
     ];
     
     ids.forEach(id => {
@@ -1970,15 +2020,23 @@ function showPlanningToast(msg) {
 
 function closeBottomSheet() {
     const sheets = document.querySelectorAll('.bottom-sheet.open');
-    document.getElementById('mobileOverlay').classList.remove('show');
+    const overlay = document.getElementById('mobileOverlay');
     
+    if(overlay) overlay.classList.remove('show');
     sheets.forEach(el => el.classList.remove('open'));
     
+    // DÉBLOQUER LE SCROLL DE FOND
+    document.body.classList.remove('no-scroll');
+    
+    // RÉAFFICHER LE FAB
+    const fab = document.querySelector('.fab-container');
+    if(fab) fab.classList.remove('hidden');
+    
     setTimeout(() => {
-        document.getElementById('mobileOverlay').style.display = 'none';
-        sheets.forEach(el => el.style.display = 'none'); // On cache vraiment
+        if(overlay) overlay.style.display = 'none';
+        sheets.forEach(el => el.style.display = 'none');
         
-        // Reset Search Global si besoin
+        // Reset Search Global
         const inp = document.getElementById('bsGlobalInput');
         if(inp) inp.value = "";
     }, 300); 
@@ -1988,7 +2046,7 @@ function openBottomSheet(id) {
     const sheet = document.getElementById(id);
     const overlay = document.getElementById('mobileOverlay');
     if(sheet && overlay) {
-        // Fermer les autres
+        // Fermer les autres (Nettoyage)
         document.querySelectorAll('.bottom-sheet').forEach(el => {
             if(el.id !== id) {
                 el.classList.remove('open');
@@ -1996,11 +2054,13 @@ function openBottomSheet(id) {
             }
         });
         
-        // 1. Rendre visible (mais encore en bas)
+        // Affichage
         sheet.style.display = 'flex';
         overlay.style.display = 'block';
         
-        // 2. Animer (faire monter)
+        // BLOQUER LE SCROLL DE FOND
+        document.body.classList.add('no-scroll');
+        
         requestAnimationFrame(() => {
             overlay.classList.add('show');
             sheet.classList.add('open');
@@ -2010,20 +2070,35 @@ function openBottomSheet(id) {
 
 // 1. ASSIGNATION ROLE MOBILE
 function openMobileAssign(date, time, role, currentVal) {
-    // On prépare le contexte global (réutilisé par saveName/renderNameList)
     TARGET_CELL_DATA = { date, time, role };
     
-    // UI Setup
-    document.getElementById('bsDateTitle').innerText = date;
-    document.getElementById('bsRoleTitle').innerText = role;
+    // 1. MASQUER FAB (Gestion Visuelle)
+    const fab = document.querySelector('.fab-container');
+    if(fab) fab.classList.add('hidden');
     
-    // Reuse Name List Logic (Smart)
-    const listContainer = document.getElementById('bsResultsList');
-    // On vide et on remplit avec la liste complète
-    // Note: On va créer une variante de renderNameList qui cible ce conteneur mobile
+    // 2. DESIGN HEADER (Date Joli Format)
+    const [d, m, y] = date.split('/');
+    const dObj = new Date(y, m-1, d);
+    const niceDate = dObj.toLocaleDateString('fr-FR', {weekday: 'long', day: 'numeric', month: 'long'}).toUpperCase();
+    
+    document.getElementById('bsDateTitle').innerHTML = `<i class="bi bi-calendar3 me-2"></i>${niceDate} <span class="text-muted fw-normal ms-1">(${time})</span>`;
+    document.getElementById('bsRoleTitle').innerText = role.toUpperCase();
+    
+    // 3. LOGIQUE LISTE
+    const searchInput = document.getElementById('bsSearchInput');
+    if(searchInput) searchInput.value = "";
+    
     renderMobileNameList(NAMES_DB, currentVal);
     
+    // 4. FIX CLAVIER (Plein écran uniquement)
+    // Pas de Z-Index ici, c'est géré par le CSS
+    const sheet = document.getElementById('bsAssignRole');
+    sheet.style.height = '100%';
+    
     openBottomSheet('bsAssignRole');
+    
+    // Focus auto
+    setTimeout(() => { if(searchInput) searchInput.focus(); }, 300);
 }
 
 function renderMobileNameList(list, selectedVal) {
@@ -2033,79 +2108,88 @@ function renderMobileNameList(list, selectedVal) {
     let html = "";
     list.sort().forEach(n => {
         const isSel = (n === selectedVal);
+        // On passe 'this' pour pouvoir animer l'élément cliqué
         html += `
-        <div class="p-3 border-bottom bg-white d-flex justify-content-between align-items-center" onclick="saveName('${n.replace(/'/g, "\\'")}')">
-            <span class="fs-6">${n}</span>
+        <div class="p-3 border-bottom bg-white d-flex justify-content-between align-items-center cursor-pointer transition-colors" 
+             onclick="selectNameWithFeedback(this, '${n.replace(/'/g, "\\'")}')">
+            <span class="fs-6 fw-medium text-dark">${n}</span>
             ${isSel ? '<i class="bi bi-check-lg text-primary fs-5"></i>' : ''}
         </div>`;
     });
-    // Option Suppression Mobile
+    
+    // Option Suppression
     html += `
-    <div class="p-3 border-bottom bg-white text-danger fw-bold d-flex align-items-center gap-2" onclick="saveName('')">
-        <i class="bi bi-trash3"></i> Effacer
+    <div class="p-3 border-bottom bg-white text-danger fw-bold d-flex align-items-center gap-2 cursor-pointer" 
+         onclick="selectNameWithFeedback(this, '')">
+        <i class="bi bi-trash3"></i> Retirer l'assignation
     </div>`;
     
     container.innerHTML = html;
 }
 
+// Nouvelle fonction helper pour l'animation
+function selectNameWithFeedback(el, name) {
+    // 1. Feedback Visuel
+    el.style.backgroundColor = "#EFF6FF"; // Flash bleu
+    el.classList.add("text-primary");
+    
+    // 2. Petit délai pour voir l'effet (150ms)
+    setTimeout(() => {
+        closeBottomSheet(); // Ferme le tiroir mobile
+        saveName(name);     // Lance la sauvegarde et le refresh
+    }, 150);
+}
+
 function handleMobileNameFilter(val) {
-    const q = val.toLowerCase();
-    const matches = NAMES_DB.filter(n => n.toLowerCase().includes(q));
+    const q = val.trim();
+    const qLower = q.toLowerCase();
+    
+    const matches = NAMES_DB.filter(n => n.toLowerCase().includes(qLower));
     renderMobileNameList(matches, null);
-}
-
-// 2. RECHERCHE GLOBALE MOBILE (FAB)
-function openMobileSearch() {
-    openBottomSheet('bsSearchGlobal');
-    setTimeout(() => document.getElementById('bsGlobalInput').focus(), 300);
-}
-
-function handleMobileGlobalSearch(val) {
-    const container = document.getElementById('bsGlobalResults');
-    if (val.length < 3) {
-        container.innerHTML = '<div class="text-center py-5 text-muted small">Tapez 3 lettres...</div>';
-        return;
-    }
     
-    const q = val.toLowerCase();
-    let html = "";
+    const exactMatch = NAMES_DB.some(n => n.toLowerCase() === qLower);
     
-    // A. Personnes
-    const people = NAMES_DB.filter(n => n.toLowerCase().includes(q));
-    if (people.length > 0) {
-        html += `<div class="p-2 bg-light fw-bold text-muted small">PERSONNES</div>`;
-        people.forEach(n => {
-            html += `<div class="p-3 bg-white border-bottom" onclick="openMobilePersonPlan('${n}')">${n}</div>`;
-        });
-    }
-    
-    // B. Dates (Cultes)
-    const cults = PLANNING_DATA.filter(e => (e.titre && e.titre.toLowerCase().includes(q)) || e.date.includes(q));
-    if (cults.length > 0) {
-        html += `<div class="p-2 bg-light fw-bold text-muted small">CULTES</div>`;
-        cults.forEach((e, idx) => {
-            // idx global
-            const realIdx = PLANNING_DATA.indexOf(e);
-            html += `<div class="p-3 bg-white border-bottom" onclick="jumpToMobileCard(${realIdx})">
-                <div class="fw-bold">${e.date}</div>
-                <div class="small text-muted">${e.titre}</div>
+    if (!exactMatch && q.length >= 2) {
+        const container = document.getElementById('bsResultsList');
+        
+        // AJOUT : closeBottomSheet() AVANT openAddPersonModal
+        const btnHtml = `
+            <div class="p-3 border-top mt-1 bg-light text-center">
+                <button class="btn btn-sm btn-primary rounded-pill px-4 shadow-sm fw-bold" 
+                        onclick="closeBottomSheet(); setTimeout(() => openAddPersonModal('${q.replace(/'/g, "\\'")}'), 300)">
+                    <i class="bi bi-plus-lg me-1"></i>Créer "${q}"
+                </button>
             </div>`;
-        });
+        container.insertAdjacentHTML('beforeend', btnHtml);
     }
-    
-    container.innerHTML = html || '<div class="text-center py-5 text-muted">Rien trouvé.</div>';
 }
 
 function jumpToMobileCard(idx) {
     closeBottomSheet();
-    // Scroll vers la carte
+    const container = document.getElementById('mobileViewport');
+    
+    // CAS 1 : C'est déjà visible -> Scroll Fluide
+    if (idx >= MOBILE_STATE.start && idx < MOBILE_STATE.end) {
+        setTimeout(() => {
+            const card = document.getElementById('m-card-' + idx);
+            if(card) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 400);
+        return;
+    }
+
+    // CAS 2 : Hors champ -> Fade Transition
+    container.style.transition = 'opacity 0.2s';
+    container.style.opacity = '0';
+    
     setTimeout(() => {
+        MOBILE_STATE.start = Math.max(0, idx - 5);
+        MOBILE_STATE.end = Math.min(PLANNING_DATA.length, idx + 15);
+        renderMobileView(container);
+        
         const card = document.getElementById('m-card-' + idx);
-        if(card) {
-            card.scrollIntoView({behavior: 'smooth', block: 'center'});
-            card.classList.add('is-next'); // Highlight temporaire
-            setTimeout(() => card.classList.remove('is-next'), 2000);
-        }
+        if(card) card.scrollIntoView({ behavior: 'auto', block: 'start' });
+        
+        requestAnimationFrame(() => { container.style.opacity = '1'; });
     }, 400);
 }
 
@@ -2113,72 +2197,137 @@ function jumpToMobileCard(idx) {
 function openMobilePersonPlan(name) {
     document.getElementById('bsPersonName').innerText = name;
     
-    // Réutilisation de la logique Desktop (openPersonPanel) mais avec affichage adapté
-    // On génère le HTML et on l'injecte dans le sheet mobile
-    // Pour aller vite et propre : on va cloner la logique de génération HTML de openPersonPanel
-    // mais sans ouvrir l'offcanvas desktop.
-    
-    // ... (Logique simplifiée pour mobile) ...
-    // Note: Pour faire simple, on va appeler openPersonPanel (qui génère le HTML dans #pspContent)
-    // puis copier ce HTML dans le mobile. C'est un hack efficace.
-    
-    // Simulation silencieuse
-    const tempContainer = document.createElement('div');
-    // On copie la logique de openPersonPanel ici pour ne pas dépendre du DOM desktop
-    // (Voir implémentation ci-dessous)
-    
+    // Génération du HTML
     const html = generatePersonHtmlForMobile(name);
-    document.getElementById('bsPersonContent').innerHTML = html;
+    const container = document.getElementById('bsPersonContent');
+    container.innerHTML = html;
     
-    openBottomSheet('bsPersonPersonPlan'); // Oups typo corrigée : bsPersonPlan
+    // Affichage
     openBottomSheet('bsPersonPlan');
+    
+    // SCROLL AUTOMATIQUE VERS LA PROCHAINE INTERVENTION
+    setTimeout(() => {
+        // La fonction generatePersonHtmlForMobile a ajouté la classe .is-future aux cartes futures
+        const nextIntervention = container.querySelector('.psp-session-card.is-future');
+        
+        if (nextIntervention) {
+            nextIntervention.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        } else {
+            // Si tout est passé, on va tout en bas (dernier souvenir)
+            container.scrollTop = container.scrollHeight;
+        }
+    }, 400); // Petit délai pour laisser l'animation d'ouverture se finir
 }
 
-// Helper dédié Mobile pour éviter les dépendances croisées
+// Helper Mobile : Génération du Planning Perso (Harmonisé PC)
 function generatePersonHtmlForMobile(nom) {
     let html = "";
     let count = 0;
     const now = new Date().setHours(0,0,0,0);
     
+    // Regroupement par créneau (Date + Heure)
+    let groupedEvents = {};
+    
     PLANNING_DATA.forEach(e => {
         if(e.assignments) {
             for (const [role, assignedName] of Object.entries(e.assignments)) {
                 if (assignedName === nom) {
-                    const isFuture = e.dateObj >= now;
-                    const colorClass = isFuture ? "border-primary" : "border-secondary opacity-50";
-                    html += `
-                    <div class="p-3 mb-2 bg-white border rounded shadow-sm ${colorClass}" style="border-left-width:4px;">
-                        <div class="d-flex justify-content-between mb-1">
-                            <span class="fw-bold">${e.date}</span>
-                            <span class="badge bg-light text-dark">${e.heure}</span>
-                        </div>
-                        <div class="small text-muted mb-2">${e.titre || "Culte"}</div>
-                        <div class="fw-bold text-primary">${role}</div>
-                    </div>`;
+                    const key = e.date + "_" + e.heure;
+                    if(!groupedEvents[key]) {
+                        const dObj = new Date(e.dateObj);
+                        groupedEvents[key] = {
+                            dateObj: e.dateObj,
+                            dayNum: dObj.getDate(),
+                            monthName: dObj.toLocaleDateString('fr-FR', {month:'short'}).toUpperCase().replace('.',''),
+                            weekDay: dObj.toLocaleDateString('fr-FR', {weekday:'long'}).toUpperCase().replace('.',''),
+                            heure: e.heure,
+                            titre: e.titre || "Culte",
+                            isPast: e.dateObj < now,
+                            rolesByType: {}
+                        };
+                    }
+                    
+                    // Récupération type rôle
+                    let type = "AUTRE";
+                    const roleConfig = ROLES_CONFIG.find(r => r.name === role);
+                    if(roleConfig && roleConfig.type) type = roleConfig.type.toUpperCase();
+                    
+                    if(!groupedEvents[key].rolesByType[type]) groupedEvents[key].rolesByType[type] = [];
+                    groupedEvents[key].rolesByType[type].push(role);
                     count++;
                 }
             }
         }
     });
     
-    if (count === 0) return '<div class="text-center py-5 text-muted">Aucune intervention.</div>';
+    if (count === 0) return '<div class="text-center py-5 text-muted small">Aucune intervention planifiée.</div>';
+
+    // Tri chronologique
+    let events = Object.values(groupedEvents).sort((a,b) => a.dateObj - b.dateObj);
+    
+    // Génération HTML (Structure identique au PC)
+    events.forEach(ev => {
+        const isFuture = !ev.isPast;
+        const cardClass = isFuture ? "psp-session-card is-future" : "psp-session-card is-past";
+        
+        // Construction des Groupes Rôles
+        let groupsHtml = "";
+        const typeOrder = ["LITURGIE", "MUSIQUE", "TECHNIQUE", "TRADUCTION", "AUTRE"];
+        const types = Object.keys(ev.rolesByType).sort((a,b) => {
+            let ia = typeOrder.indexOf(a); if(ia===-1) ia=99;
+            let ib = typeOrder.indexOf(b); if(ib===-1) ib=99;
+            return ia - ib;
+        });
+        
+        types.forEach(t => {
+            let rolesList = "";
+            ev.rolesByType[t].forEach(r => {
+                rolesList += `<div class="psp-role-row">${r}</div>`;
+            });
+            
+            let icon = "circle";
+            if(t.includes('LIT')) icon = "book";
+            if(t.includes('MUS')) icon = "music-note-beamed";
+            if(t.includes('TECH')) icon = "sliders";
+            
+            groupsHtml += `
+            <div class="psp-cat-group">
+                <div class="psp-cat-title"><i class="bi bi-${icon}"></i> ${t}</div>
+                <div class="ps-1">${rolesList}</div>
+            </div>`;
+        });
+        
+        // Le HTML de la carte (Copie conforme du PC, adaptée)
+        html += `
+        <div class="${cardClass}" style="margin-bottom:12px;">
+            <div class="psp-card-strip"></div>
+            
+            <!-- Date Box (Gauche) -->
+            <div class="psp-date-box" style="min-width:75px; padding:10px 0;">
+                <div class="psp-weekday-top" style="font-size:8px;">${ev.weekDay}</div>
+                <div class="psp-d-day" style="font-size:24px;">${ev.dayNum}</div>
+                <div class="psp-d-month" style="font-size:9px;">${ev.monthName}</div>
+            </div>
+            
+            <!-- Info Box (Droite) -->
+            <div class="psp-info-box p-2 ps-3">
+                <div class="psp-header-row border-bottom pb-2 mb-2">
+                    <div class="fw-bold text-dark text-truncate" style="font-size:13px; max-width: 160px;">${ev.titre}</div>
+                    <div class="psp-time-badge px-2 py-1" style="font-size:10px;">${ev.heure}</div>
+                </div>
+                <div>${groupsHtml}</div>
+            </div>
+        </div>`;
+    });
+    
     return html;
 }
 
 /* --- LOGIQUE MOBILE TOOLBAR --- */
 
 function goToNextMobile() {
-    // Trouve la carte avec la classe 'is-next' générée par renderMobileView
-    const nextCard = document.querySelector('.m-card.is-next');
-    if(nextCard) {
-        nextCard.scrollIntoView({behavior: 'smooth', block: 'center'});
-        // Petit flash visuel
-        nextCard.style.transition = "transform 0.2s";
-        nextCard.style.transform = "scale(1.02)";
-        setTimeout(() => nextCard.style.transform = "scale(1)", 300);
-    } else {
-        showPlanningToast("Aucun culte à venir trouvé.");
-    }
+    // On réutilise la fonction centrale qui contient maintenant le bon calcul
+    forceScrollToNext();
 }
 
 function openMobileFilters() {
@@ -2246,6 +2395,251 @@ function toggleMobileFilterRole(role, el) {
 function refreshMobileFilterUI() {
     // Re-render simple pour mettre à jour les états visuels
     renderMobileFilters();
+}
+
+function loadMoreMobile(direction) {
+    const STEP = 10;
+    
+    if (direction === 'PREV') {
+        // 1. ANCRAGE : On repère la carte qui est actuellement tout en haut de la liste visible
+        const anchorIndex = MOBILE_STATE.start;
+        const anchorId = 'm-card-' + anchorIndex;
+        const anchorEl = document.getElementById(anchorId);
+        
+        // On note sa position précise par rapport au haut de l'écran
+        let offsetBefore = 0;
+        if (anchorEl) offsetBefore = anchorEl.getBoundingClientRect().top;
+
+        // 2. MISE À JOUR : On ajoute les données précédentes
+        MOBILE_STATE.start = Math.max(0, MOBILE_STATE.start - STEP);
+        
+        // 3. RENDU : Le contenu s'ajoute en haut, poussant tout vers le bas
+        renderMobileView(document.getElementById('mobileViewport'));
+        
+        // 4. TELEPORTATION (Correction Silencieuse)
+        const newAnchorEl = document.getElementById(anchorId);
+        if (newAnchorEl) {
+            const offsetAfter = newAnchorEl.getBoundingClientRect().top;
+            const diff = offsetAfter - offsetBefore;
+            
+            // L'OPTION CLÉ : behavior: 'instant'
+            // Elle force le navigateur à sauter directement sans interpolation
+            window.scrollBy({
+                top: diff,
+                left: 0,
+                behavior: "instant" 
+            });
+        }
+
+    } else if (direction === 'NEXT') {
+        MOBILE_STATE.end = Math.min(PLANNING_DATA.length, MOBILE_STATE.end + STEP);
+        renderMobileView(document.getElementById('mobileViewport'));
+    }
+}
+
+// --- ACTIONS CRÉNEAU MOBILE ---
+
+function openMobileSlotActions(index) {
+    const evt = PLANNING_DATA[index];
+    if (!evt) return;
+
+    // On prépare la cible globale pour les actions (Comme sur PC)
+    // IMPORTANT : On utilise window.TARGET_SLOT pour la suppression
+    window.TARGET_SLOT = { d: evt.date, h: evt.heure, t: evt.titre };
+    
+    // On met à jour l'affichage du menu
+    document.getElementById('bsSlotDateDisplay').innerText = evt.date + ' à ' + evt.heure;
+    document.getElementById('bsSlotTitleDisplay').innerText = evt.titre || "Culte";
+    
+    openBottomSheet('bsSlotActions');
+}
+
+function triggerMobileAction(action) {
+    // On ferme le menu d'abord
+    closeBottomSheet();
+    
+    const target = window.TARGET_SLOT;
+    if (!target) return;
+
+    // Petit délai pour laisser le bottom sheet redescendre proprement
+    setTimeout(() => {
+        if (action === 'TITLE') {
+            openEditTitleModal(target.d, target.h, target.t || "");
+        } else if (action === 'TIME') {
+            openEditTimeModal(target.d, target.h);
+        } else if (action === 'DELETE') {
+            confirmDeleteSlot(); // Utilise TARGET_SLOT qu'on a défini juste avant
+        }
+    }, 300);
+}
+
+// --- FAB MENU LOGIC ---
+let SEARCH_MODE_MOBILE = 'GLOBAL'; // TITLE, NAME, DATE, GLOBAL
+
+function toggleFabMenu() {
+    const container = document.querySelector('.fab-container');
+    const overlay = document.getElementById('fabOverlay');
+    const btn = document.getElementById('fabMainBtn');
+    const icon = document.getElementById('fabIcon');
+    
+    if (container.classList.contains('open')) {
+        // Fermeture
+        container.classList.remove('open');
+        overlay.classList.remove('show');
+        btn.classList.remove('active');
+        icon.classList.replace('bi-plus-lg', 'bi-search'); // Retour icône loupe
+    } else {
+        // Ouverture
+        container.classList.add('open');
+        overlay.classList.add('show');
+        btn.classList.add('active');
+        // Astuce visuelle : La rotation 45deg du CSS transforme le + en x, 
+        // mais ici on change l'icone loupe en + pour que la rotation en fasse un X.
+        icon.classList.replace('bi-search', 'bi-plus-lg');
+    }
+}
+
+function openMobileSearch(mode) {
+    toggleFabMenu(); // Ferme le menu déployé
+    
+    // Masquer le FAB (Gestion Visuelle)
+    const fab = document.querySelector('.fab-container');
+    if(fab) fab.classList.add('hidden');
+    
+    SEARCH_MODE_MOBILE = mode;
+    
+    if (mode === 'DATE') {
+        renderMobileCalendar();
+        openBottomSheet('bsDateSelector');
+    } else {
+        // Mode Texte
+        const sheet = document.getElementById('bsSearchGlobal');
+        const input = document.getElementById('bsGlobalInput');
+        const results = document.getElementById('bsGlobalResults');
+        
+        let placeholder = "Rechercher...";
+        if (mode === 'TITLE') placeholder = "Titre du culte...";
+        if (mode === 'NAME') placeholder = "Nom d'une personne...";
+        
+        if(input) {
+            input.placeholder = placeholder;
+            input.value = "";
+        }
+        if(results) results.innerHTML = '<div class="text-center py-5 text-muted small">Tapez 3 lettres...</div>';
+        
+        if(sheet) sheet.style.height = '100%'; 
+        
+        openBottomSheet('bsSearchGlobal');
+        setTimeout(() => { if(input) input.focus(); }, 300);
+    }
+}
+
+// --- LOGIQUE RECHERCHE CIBLÉE (Override de handleMobileGlobalSearch) ---
+function handleMobileGlobalSearch(val) {
+    const container = document.getElementById('bsGlobalResults');
+    if (val.length < 3) {
+        container.innerHTML = '<div class="text-center py-5 text-muted small">Tapez 3 lettres...</div>';
+        return;
+    }
+    
+    const q = val.toLowerCase();
+    let html = "";
+    
+    // CAS 1 : RECHERCHE NOM (Harmonisé PC)
+    if (SEARCH_MODE_MOBILE === 'NAME') {
+        const people = NAMES_DB.filter(n => n.toLowerCase().includes(q));
+        if (people.length > 0) {
+            // Petit titre de section discret
+            html += `<div class="px-3 py-2 text-muted fw-bold small bg-light border-bottom">PERSONNES (${people.length})</div>`;
+            
+            people.forEach(n => {
+                html += `
+                <div class="m-search-item" onclick="openMobilePersonPlan('${n}')">
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="bg-white border rounded-circle d-flex align-items-center justify-content-center fw-bold text-secondary" style="width:32px; height:32px; font-size:11px;">
+                            ${n.substring(0,2).toUpperCase()}
+                        </div>
+                        <div class="fw-medium text-dark" style="font-size:14px;">${n}</div>
+                    </div>
+                    <!-- Icone Calendrier comme sur PC -->
+                    <i class="bi bi-calendar-week text-primary opacity-75"></i>
+                </div>`;
+            });
+        }
+    }
+    // ... (Le reste CAS 2 TITRE reste identique, je ne le remets pas pour ne pas surcharger)
+    // Assure-toi de garder la partie TITLE si elle y est déjà
+    else if (SEARCH_MODE_MOBILE === 'TITLE') {
+        // ... (ton code existant pour Titre)
+        const cults = PLANNING_DATA.filter(e => e.titre && e.titre.toLowerCase().includes(q));
+        if (cults.length > 0) {
+             html += `<div class="px-3 py-2 text-muted fw-bold small bg-light border-bottom">CULTES (${cults.length})</div>`;
+             cults.forEach((e, idx) => {
+                const realIdx = PLANNING_DATA.indexOf(e);
+                const niceDate = formatDateNice(e.date); 
+                html += `
+                <div class="m-search-item" onclick="jumpToMobileCard(${realIdx})">
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="search-date-badge">${niceDate}</div>
+                        <div class="fw-medium text-dark text-truncate" style="font-size:14px; max-width: 180px;">${e.titre}</div>
+                    </div>
+                    <i class="bi bi-arrow-right-short text-primary fs-5"></i>
+                </div>`;
+            });
+        }
+    }
+    
+    container.innerHTML = html || '<div class="text-center py-5 text-muted">Aucun résultat.</div>';
+}
+
+// --- CALENDRIER MOBILE (Même logique que le custom picker PC) ---
+let MOB_CAL_DATE = new Date();
+
+function renderMobileCalendar() {
+    const grid = document.getElementById('mobPickerGrid');
+    const title = document.getElementById('mobPickerTitle');
+    const y = MOB_CAL_DATE.getFullYear();
+    const m = MOB_CAL_DATE.getMonth();
+    
+    title.innerText = new Intl.DateTimeFormat('fr-FR', { month: 'long', year: 'numeric' }).format(MOB_CAL_DATE);
+    grid.innerHTML = "";
+    
+    ['L','M','M','J','V','S','D'].forEach(d => grid.innerHTML += `<div class="cdp-day-head">${d}</div>`);
+    
+    // Scan events
+    const eventsInMonth = new Set();
+    PLANNING_DATA.forEach(e => {
+        const [dd, mm, yyyy] = e.date.split('/');
+        if (parseInt(mm) === m + 1 && parseInt(yyyy) === y) eventsInMonth.add(parseInt(dd));
+    });
+
+    const firstDay = new Date(y, m, 1).getDay(); 
+    const startOffset = (firstDay === 0 ? 6 : firstDay - 1);
+    const daysInMonth = new Date(y, m + 1, 0).getDate();
+    
+    for(let i=0; i<startOffset; i++) grid.innerHTML += `<div></div>`;
+    
+    for(let d=1; d<=daysInMonth; d++) {
+        const hasEvent = eventsInMonth.has(d);
+        let classes = "cdp-day";
+        let onClick = "";
+        
+        if (hasEvent) {
+            classes += " has-event";
+            // On calcule l'index global pour le saut
+            const dateStr = `${('0'+d).slice(-2)}/${('0'+(m+1)).slice(-2)}/${y}`;
+            const idx = PLANNING_DATA.findIndex(e => e.date === dateStr);
+            onClick = `onclick="jumpToMobileCard(${idx})"`;
+            grid.innerHTML += `<div class="${classes}" ${onClick}>${d}<div class="cdp-dot"></div></div>`;
+        } else {
+            grid.innerHTML += `<div class="${classes}">${d}</div>`;
+        }
+    }
+}
+
+function changeMobilePickerMonth(delta) {
+    MOB_CAL_DATE.setMonth(MOB_CAL_DATE.getMonth() + delta);
+    renderMobileCalendar();
 }
 
 </script>

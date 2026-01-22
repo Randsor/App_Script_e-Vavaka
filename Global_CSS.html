@@ -1041,6 +1041,7 @@ textarea.auto-expand {
     transition: bottom 0.3s cubic-bezier(0.2, 0, 0, 1);
     max-height: 85vh; /* Max 85% de l'écran */
     display: flex; flex-direction: column;
+    z-index: 10300 !important;
 }
 .bottom-sheet.open { bottom: 0; }
 
@@ -1172,5 +1173,7 @@ textarea.auto-expand {
           top: 50px !important; 
       }
   }
+
+body.no-scroll { overflow: hidden !important; }
 
 </style>
