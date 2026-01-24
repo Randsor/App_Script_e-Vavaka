@@ -1046,6 +1046,13 @@
     transform: scale(0.99); /* Petit effet de presse */
 }
 
+/* CACHER LE FAB SUR PC */
+@media (min-width: 769px) {
+    .fab-container, #fabOverlay {
+        display: none !important;
+    }
+}
+
 </style>
 
 <!-- HEADER MOBILE CORRIGÉ (ALIGNEMENT GAUCHE & STICKY) -->
