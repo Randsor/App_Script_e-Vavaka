@@ -9,6 +9,10 @@ let IGNORE_DIRTY_FLAG = false;
 let modalInstance = null;
 let FORCE_CLOSE_FLAG = false;
 
+// VARIABLES DE MÉMORISATION DES FILTRES DE MAINTENANCE
+let CURRENT_SPECIAL_FILTER = null; 
+let CURRENT_SPECIAL_FILTER_IDS = [];
+
 function initChantsView() {
     document.getElementById('chantSearchInput').value = "";
     loadChantsData();
@@ -38,6 +42,10 @@ function moveModalsToBody() {
 }
 
 function loadChantsData() {
+    // Réinitialisation de la mémoire des filtres spéciaux
+    CURRENT_SPECIAL_FILTER = null;
+    CURRENT_SPECIAL_FILTER_IDS = [];
+
     const input = document.getElementById('chantSearchInput');
     input.placeholder = "Rechercher un chant...";
     input.style.borderColor = "";
@@ -210,8 +218,15 @@ function highlightText(text, query) {
 // --- FILTRES DASHBOARD ---
 
 function applySpecialFilter(params) {
+    // FIX : S'assurer que les modales sont libérées du Stacking Context même via un accès externe
+    if(typeof moveModalsToBody === 'function') moveModalsToBody();
+
     let filterType = typeof params === 'string' ? params : params.filter;
     let idsList = params.ids || [];
+    
+    // Mémorisation pour le rechargement après sauvegarde
+    CURRENT_SPECIAL_FILTER = filterType;
+    CURRENT_SPECIAL_FILTER_IDS = idsList;
     const input = document.getElementById('chantSearchInput');
 
     input.value = "";
@@ -503,7 +518,15 @@ function submitChantSave() {
         
         btn.disabled = false;
         btn.innerText = "Enregistrer";
-        loadChantsData(); 
+        
+        // RELANCE INTELLIGENTE DU CONTEXTE
+        if (CURRENT_SPECIAL_FILTER) {
+            applySpecialFilter({ filter: CURRENT_SPECIAL_FILTER, ids: CURRENT_SPECIAL_FILTER_IDS });
+            // Mise à jour des compteurs (KPI) du haut pour voir le chiffre baisser en direct
+            google.script.run.withSuccessHandler(updateKPIs).getRepoStats();
+        } else {
+            loadChantsData(); 
+        }
     }).saveChantBackend(formData);
 }
 </script>

@@ -114,4 +114,22 @@ function animateCounter(id, start, end, duration) {
 document.addEventListener("DOMContentLoaded", function() {
     document.querySelectorAll('textarea').forEach(el => autoResize(el));
 });
+
+// --- MASTER ESCAPE KEY HANDLER (GLOBAL) ---
+// Gère la fermeture propre de tous les overlays de l'application, peu importe le module actif.
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        // Module Planning
+        if (typeof closeAllPopups === 'function') closeAllPopups(); 
+        // Module Programme & Modales partagées (Chants, Fanekena, Export)
+        if (typeof closeAllModals === 'function') closeAllModals(); 
+        // Menus contextuels (Sélecteur de rôles, Menus d'insertion)
+        if (typeof closeAllMenus === 'function') closeAllMenus(); 
+        // Module Admin/Config
+        if (typeof closeAllAdminModals === 'function') closeAllAdminModals(); 
+        // Modales d'alerte système de navigation
+        if (typeof cancelSysNav === 'function') cancelSysNav();
+        if (typeof cancelFnkNavigation === 'function') cancelFnkNavigation();
+    }
+});
 </script>

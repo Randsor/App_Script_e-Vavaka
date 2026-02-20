@@ -57,10 +57,7 @@ function initPlanningView() {
         })
         .getPlanningMatrixData(-30, 90);
 
-    // Gestionnaire global fermeture
-    document.addEventListener('keydown', function(e) {
-        if (e.key === 'Escape') closeAllPopups();
-    });
+    // Gestionnaire global fermeture déplacé dans Global_JS pour éviter les conflits
     const overlay = document.getElementById('popupOverlay');
     if (overlay) overlay.addEventListener('click', closeAllPopups);
 }
