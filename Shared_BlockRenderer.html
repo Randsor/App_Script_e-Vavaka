@@ -1,7 +1,7 @@
 <script>
 /**
  * MOTEUR DE RENDU UNIFIÉ - BLOCS PROGRAMME & TEMPLATES
- * Version Complète & Sécurisée (Fix: Justification, Marges, Commentaires, Texte Libre)
+ * Version Complète & Sécurisée (Fix: Justification, Marges, Commentaires, Texte Libre + ONINPUT)
  */
 
 // --- GETTERS DE CONTEXTE ---
@@ -239,17 +239,14 @@ function renderSharedBlocks(containerId, blocks, context) {
         let extraFields = "";
         
         // --- STYLES ---
-        // Style Standard (Gauche)
         let contentStyle = 'style="font-size:14px; resize:none; overflow-y:hidden;"';
-        // Style Justifié (Lecture, Texte, etc.) - Nouveau
         let styleJustified = 'style="font-size:14px; resize:none; overflow-y:hidden; text-align:justify;"';
         
-        // --- CHANT (COLLÉ) ---
+        // --- CHANT ---
         if (block.type === 'CHANT') {
              let titleRow = '<div class="w-100" style="padding-right: 70px;">';
-             // m-0 pour coller les titres
-             titleRow += `<input type="text" class="form-control doc-borderless input-mg p-0 m-0" style="width: 100%;" value="${block.label_mg}" placeholder="TITRE MG" onchange="updateBlockField(${index}, 'label_mg', this.value)">`;
-             titleRow += `<input type="text" class="form-control doc-borderless input-fr p-0 m-0" style="width: 100%;" value="${block.label_fr}" placeholder="Titre FR" onchange="updateBlockField(${index}, 'label_fr', this.value)">`;
+             titleRow += `<input type="text" class="form-control doc-borderless input-mg p-0 m-0" style="width: 100%;" value="${block.label_mg}" placeholder="TITRE MG" oninput="updateBlockField(${index}, 'label_mg', this.value)">`;
+             titleRow += `<input type="text" class="form-control doc-borderless input-fr p-0 m-0" style="width: 100%;" value="${block.label_fr}" placeholder="Titre FR" oninput="updateBlockField(${index}, 'label_fr', this.value)">`;
              titleRow += '</div>';
              
              let content = "";
@@ -271,14 +268,14 @@ function renderSharedBlocks(containerId, blocks, context) {
                  }
                  
                  content = songInfo;
-                 content += `<div class="row g-2 mt-1 border-start ps-2 ms-1"><div class="col-12 col-md-6"><textarea class="form-control doc-borderless ${bgClass}" rows="2" ${contentStyle} ${readonlyAttr} placeholder="Paroles MG..." oninput="autoResize(this)" onchange="updateBlockDataField(${index}, 'paroles_fixe', this.value)">${block.data?.paroles_fixe || ''}</textarea></div><div class="col-12 col-md-6"><textarea class="form-control doc-borderless text-secondary ${bgClass}" rows="2" ${contentStyle} ${readonlyAttr} placeholder="Traduction..." oninput="autoResize(this)" onchange="updateBlockDataField(${index}, 'paroles_fr_fixe', this.value)">${block.data?.paroles_fr_fixe || ''}</textarea></div></div>`;
+                 content += `<div class="row g-2 mt-1 border-start ps-2 ms-1"><div class="col-12 col-md-6"><textarea class="form-control doc-borderless ${bgClass}" rows="2" ${contentStyle} ${readonlyAttr} placeholder="Paroles MG..." oninput="autoResize(this); updateBlockDataField(${index}, 'paroles_fixe', this.value)">${block.data?.paroles_fixe || ''}</textarea></div><div class="col-12 col-md-6"><textarea class="form-control doc-borderless text-secondary ${bgClass}" rows="2" ${contentStyle} ${readonlyAttr} placeholder="Traduction..." oninput="autoResize(this); updateBlockDataField(${index}, 'paroles_fr_fixe', this.value)">${block.data?.paroles_fr_fixe || ''}</textarea></div></div>`;
              } else {
                  content = `<div class="d-grid gap-2 d-md-flex mt-2"><button class="btn btn-sm bg-white text-dark shadow-sm d-flex align-items-center gap-2 px-3 border" onclick="openSongSelector(${index})"><i class="bi bi-search" style="color:#999;"></i> Choisir dans la liste</button><button class="btn btn-sm bg-white text-dark shadow-sm d-flex align-items-center gap-2 px-3 border" onclick="updateBlockDataField(${index}, 'mode', 'fixe')"><i class="bi bi-pencil-square" style="color:#999;"></i> Saisie libre</button></div>`;
              }
              extraFields = '<div>' + titleRow + content + '</div>';
         }
         
-        // --- FANEKENA (JUSTIFIÉ) ---
+        // --- FANEKENA ---
         else if (block.type === 'FANEKENA') {
             let isFilled = block.data && block.data.id;
             let clickAction = (context === 'TEMPLATE') ? `openFanekenaSelectorTemplate(${index})` : `openFanekenaSelector(${index})`;
@@ -287,97 +284,76 @@ function renderSharedBlocks(containerId, blocks, context) {
                 `<div class="mt-2"><button class="btn btn-sm bg-white text-dark shadow-sm d-flex align-items-center gap-2 px-3 border" onclick="${clickAction}"><i class="bi bi-search" style="color:#999;"></i> Choisir FANEKEM-PINOANA</button></div>` :
                 `<div class="d-flex justify-content-between align-items-center mb-2 pt-1"><span class="fw-bold text-dark" style="font-size:13px; text-transform:uppercase; letter-spacing:0.5px;">${block.data.titre}</span><button class="btn btn-sm bg-white border text-secondary shadow-sm py-0 px-2" style="font-size:11px;" onclick="${clickAction}">Changer</button></div>`;
             
-            // Texte justifié
-            let txtMG = `<textarea class="form-control doc-borderless" rows="2" ${styleJustified} placeholder="Texte MG..." oninput="autoResize(this)" onchange="updateBlockDataField(${index}, 'contenu_mg', this.value)">${block.data?.contenu_mg || ''}</textarea>`;
-            let txtFR = `<textarea class="form-control doc-borderless text-secondary" rows="2" ${styleJustified} placeholder="Texte FR..." oninput="autoResize(this)" onchange="updateBlockDataField(${index}, 'contenu_fr', this.value)">${block.data?.contenu_fr || ''}</textarea>`;
+            let txtMG = `<textarea class="form-control doc-borderless" rows="2" ${styleJustified} placeholder="Texte MG..." oninput="autoResize(this); updateBlockDataField(${index}, 'contenu_mg', this.value)">${block.data?.contenu_mg || ''}</textarea>`;
+            let txtFR = `<textarea class="form-control doc-borderless text-secondary" rows="2" ${styleJustified} placeholder="Texte FR..." oninput="autoResize(this); updateBlockDataField(${index}, 'contenu_fr', this.value)">${block.data?.contenu_fr || ''}</textarea>`;
             
             extraFields = `<div class="mt-1 ps-3 border-start border-2 border-primary border-opacity-25">${selectorHtml}<div class="row g-2"><div class="col-12 col-md-6">${txtMG}</div><div class="col-12 col-md-6">${txtFR}</div></div></div>`;
         }
         
-        // --- LECTURE (TITRES COLLÉS + TEXTE JUSTIFIÉ) ---
+        // --- LECTURE ---
         else if (block.type === 'LECTURE') {
             extraFields = '<div class="row g-3 mt-1 border-start ps-2 ms-1">';
-            // COLONNE MG : m-0 sur titre, styleJustified sur texte
             extraFields += `<div class="col-12 col-md-6">
-                <input type="text" class="form-control doc-borderless fw-bold m-0" ${contentStyle} placeholder="Toko sy andininy" value="${block.data?.ref_mg || ''}" onchange="updateBlockDataField(${index}, 'ref_mg', this.value)">
-                <textarea class="form-control doc-borderless" rows="3" ${styleJustified} placeholder="Texte Biblique MG..." oninput="autoResize(this)" onchange="updateBlockDataField(${index}, 'texte_mg', this.value)">${block.data?.texte_mg || ''}</textarea>
+                <input type="text" class="form-control doc-borderless fw-bold m-0" ${contentStyle} placeholder="Toko sy andininy" value="${block.data?.ref_mg || ''}" oninput="updateBlockDataField(${index}, 'ref_mg', this.value)">
+                <textarea class="form-control doc-borderless" rows="3" ${styleJustified} placeholder="Texte Biblique MG..." oninput="autoResize(this); updateBlockDataField(${index}, 'texte_mg', this.value)">${block.data?.texte_mg || ''}</textarea>
             </div>`;
-            // COLONNE FR : m-0 sur titre, styleJustified sur texte
             extraFields += `<div class="col-12 col-md-6">
-                <input type="text" class="form-control doc-borderless fw-bold text-secondary m-0" ${contentStyle} placeholder="Référence biblique" value="${block.data?.ref_fr || ''}" onchange="updateBlockDataField(${index}, 'ref_fr', this.value)">
-                <textarea class="form-control doc-borderless text-secondary" rows="3" ${styleJustified} placeholder="Texte Biblique FR..." oninput="autoResize(this)" onchange="updateBlockDataField(${index}, 'texte_fr', this.value)">${block.data?.texte_fr || ''}</textarea>
+                <input type="text" class="form-control doc-borderless fw-bold text-secondary m-0" ${contentStyle} placeholder="Référence biblique" value="${block.data?.ref_fr || ''}" oninput="updateBlockDataField(${index}, 'ref_fr', this.value)">
+                <textarea class="form-control doc-borderless text-secondary" rows="3" ${styleJustified} placeholder="Texte Biblique FR..." oninput="autoResize(this); updateBlockDataField(${index}, 'texte_fr', this.value)">${block.data?.texte_fr || ''}</textarea>
             </div>`;
             extraFields += '</div>';
         }
         
-        // --- AUTRES BLOCS (LITURGIE, PRIERE, TEXTE LIBRE...) (JUSTIFIÉS) ---
+        // --- AUTRES BLOCS ---
         else if (['LITURGIE', 'LIBRE', 'PRIERE', 'TEXTE_LIBRE'].includes(block.type)) {
-            let versetInput = (block.type === 'LITURGIE') ? `<input type="text" class="form-control doc-borderless fw-bold text-primary mb-1" ${contentStyle} placeholder="Verset..." value="${block.data?.verset || ''}" onchange="updateBlockDataField(${index}, 'verset', this.value)">` : '';
+            let versetInput = (block.type === 'LITURGIE') ? `<input type="text" class="form-control doc-borderless fw-bold text-primary mb-1" ${contentStyle} placeholder="Verset..." value="${block.data?.verset || ''}" oninput="updateBlockDataField(${index}, 'verset', this.value)">` : '';
             
-            // Texte justifié
-            let txtMG = `<textarea class="form-control doc-borderless" rows="2" ${styleJustified} placeholder="Texte MG..." oninput="autoResize(this)" onchange="updateBlockDataField(${index}, 'texte_mg', this.value)">${block.data?.texte_mg || ''}</textarea>`;
-            let txtFR = `<textarea class="form-control doc-borderless text-secondary" rows="2" ${styleJustified} placeholder="Texte FR..." oninput="autoResize(this)" onchange="updateBlockDataField(${index}, 'texte_fr', this.value)">${block.data?.texte_fr || ''}</textarea>`;
+            let txtMG = `<textarea class="form-control doc-borderless" rows="2" ${styleJustified} placeholder="Texte MG..." oninput="autoResize(this); updateBlockDataField(${index}, 'texte_mg', this.value)">${block.data?.texte_mg || ''}</textarea>`;
+            let txtFR = `<textarea class="form-control doc-borderless text-secondary" rows="2" ${styleJustified} placeholder="Texte FR..." oninput="autoResize(this); updateBlockDataField(${index}, 'texte_fr', this.value)">${block.data?.texte_fr || ''}</textarea>`;
             
             if(block.type === 'TEXTE_LIBRE') {
-                // Espace ajusté pour ne pas chevaucher les boutons (30px)
                 extraFields = `<div class="row g-2" style="padding-top: 30px;"><div class="col-12 col-md-6">${txtMG}</div><div class="col-12 col-md-6">${txtFR}</div></div>`;
             } else {
-                // Ajout Champ Commentaire pour LITURGIE
                 let commentInput = "";
                 if (block.type === 'LITURGIE') {
-                    commentInput = `<input type="text" class="form-control doc-borderless text-muted fst-italic mt-1" style="font-size:13px;" placeholder="Commentaire (facultatif)..." value="${block.data?.comment || ''}" onchange="updateBlockDataField(${index}, 'comment', this.value)">`;
+                    commentInput = `<input type="text" class="form-control doc-borderless text-muted fst-italic mt-1" style="font-size:13px;" placeholder="Commentaire (facultatif)..." value="${block.data?.comment || ''}" oninput="updateBlockDataField(${index}, 'comment', this.value)">`;
                 }
                 extraFields = `<div class="mt-1 ps-3 border-start border-2 border-light">${versetInput}<div class="row g-2"><div class="col-12 col-md-6">${txtMG}</div><div class="col-12 col-md-6">${txtFR}</div></div>${commentInput}</div>`;
             }
         }
-        else if (block.type === 'TITRE') extraFields = `<input type="text" class="form-control doc-borderless text-muted fst-italic mt-0" style="font-size:14px;" placeholder="Commentaire (facultatif)..." value="${block.data?.comment || ''}" onchange="updateBlockDataField(${index}, 'comment', this.value)">`; 
-         else if (block.type === 'PREDICATION') {
+        else if (block.type === 'TITRE') extraFields = `<input type="text" class="form-control doc-borderless text-muted fst-italic mt-0" style="font-size:14px;" placeholder="Commentaire (facultatif)..." value="${block.data?.comment || ''}" oninput="updateBlockDataField(${index}, 'comment', this.value)">`; 
+        else if (block.type === 'PREDICATION') {
             if (context === 'PROGRAMME') {
-                // Récupération des valeurs actuelles de l'en-tête (si disponibles)
                 let tMG = document.getElementById('docThemeMG') ? document.getElementById('docThemeMG').value : "";
                 let tFR = document.getElementById('docThemeFR') ? document.getElementById('docThemeFR').value : "";
-                
-                // Fallbacks visuels
                 if(!tMG) tMG = "(Thème MG non défini)";
                 if(!tFR) tFR = "(Thème FR non défini)";
-
-                // Structure avec classes miroirs pour mise à jour JS live
-                extraFields = `<div class="mt-2 ps-3 border-start border-4 border-danger border-opacity-25">
-                    <div class="fw-bold text-dark mirror-theme-mg" style="font-size:14px;">${tMG}</div>
-                    <div class="text-secondary fst-italic mirror-theme-fr" style="font-size:13px;">${tFR}</div>
-                </div>`;
+                extraFields = `<div class="mt-2 ps-3 border-start border-4 border-danger border-opacity-25"><div class="fw-bold text-dark mirror-theme-mg" style="font-size:14px;">${tMG}</div><div class="text-secondary fst-italic mirror-theme-fr" style="font-size:13px;">${tFR}</div></div>`;
             } else {
-                // Mode Template (Pas de données live)
                 extraFields = '<div class="mt-1 d-flex gap-2 text-muted small"><span class="badge bg-light text-secondary border fw-normal">Le thème du culte s\'affichera ici</span></div>'; 
             }
         }
         else if (block.type === 'ANNONCE') extraFields = '<div class="mt-1 text-muted small fst-italic ms-1" style="font-size:12px;"><i class="bi bi-link-45deg me-1"></i>Lien automatique Module Nouvelles</div>'; 
 
-        // 3. Contenu Principal (Inputs Titre GÉNÉRIQUES COLLÉS)
-        // m-0 ajouté ici aussi pour tous les blocs génériques
+        // 3. Contenu Principal
         const mainContent = (block.type === 'CHANT' || block.type === 'TEXTE_LIBRE') 
             ? extraFields 
-            : `<input type="text" class="form-control doc-borderless input-mg p-0 m-0" value="${block.label_mg}" placeholder="TITRE MG" onchange="updateBlockField(${index}, 'label_mg', this.value)">
-               <input type="text" class="form-control doc-borderless input-fr p-0 m-0" value="${block.label_fr}" placeholder="Titre FR" onchange="updateBlockField(${index}, 'label_fr', this.value)">`;
+            : `<input type="text" class="form-control doc-borderless input-mg p-0 m-0" value="${block.label_mg}" placeholder="TITRE MG" oninput="updateBlockField(${index}, 'label_mg', this.value)">
+               <input type="text" class="form-control doc-borderless input-fr p-0 m-0" value="${block.label_fr}" placeholder="Titre FR" oninput="updateBlockField(${index}, 'label_fr', this.value)">`;
 
         const bottomContent = (block.type !== 'CHANT' && block.type !== 'TEXTE_LIBRE') ? `<div class="ps-1">${extraFields}</div>` : '';
         
-        // Bouton Reset pour le chant
         let resetBtn = (block.type === 'CHANT' && (block.data?.id || block.data?.mode === 'fixe')) ? `<i class="bi bi-arrow-counterclockwise text-secondary opacity-50 hover-opacity-100 cursor-pointer small ms-2" onclick="resetSongBlock(${index})" title="Réinitialiser le chant"></i>` : "";
 
-        // 4. ASSEMBLAGE FINAL DE LA CARTE HTML
-        // Note: pour TEXTE_LIBRE, on retire le padding-right du conteneur principal pour qu'il prenne toute la largeur
+        // 4. ASSEMBLAGE FINAL
         container.innerHTML += `
         <div class="item-wrapper group-bloc position-relative hover-bg" data-index="${index}" style="display: block !important; margin-bottom: 13px !important; border-bottom: none !important;">
-            
-            <!-- ACTION ABSOLUE TOP RIGHT -->
             <div class="position-absolute top-0 end-0 mt-2 me-2 d-flex align-items-center" style="z-index: 5;">
                 ${roleHTML}
                 <span class="badge rounded-1 fw-normal border ${badgeClass}" style="font-size:9px; padding: 2px 4px;">${block.type}</span>
                 ${resetBtn}
                 <i class="bi bi-trash3 text-secondary opacity-25 cursor-pointer small ms-2 no-print btn-action-danger" onclick="removeBlock(${index})" title="Supprimer"></i>
             </div>
-
             <div class="d-flex align-items-start gap-2 ps-0 pe-2 w-100 py-1">
               <div class="drag-handle pt-1 no-print" style="width: 30px; cursor: grab;" title="Déplacer"><i class="bi bi-grip-vertical"></i></div>
               <div class="flex-grow-1" style="min-width: 0;">

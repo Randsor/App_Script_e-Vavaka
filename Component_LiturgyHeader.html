@@ -1,15 +1,17 @@
 <div id="sharedHeaderRoot" class="mb-5 mx-auto" style="max-width: 1000px;">
     
     <div class="mb-4">
-        <!-- AJOUT: oninput="setDirty(true)" -->
-        <input type="text" id="commonTitleInput" class="form-control border-0 p-0 shadow-none text-dark fw-bold mb-2" 
-               style="font-size: 2.5rem; letter-spacing: -1px;" placeholder="Grand Titre" 
-               oninput="setDirty(true)">
+        <!-- MODIF: Input remplacé par Textarea auto-extensible -->
+        <textarea id="commonTitleInput" class="form-control border-0 p-0 shadow-none text-dark fw-bold mb-2" 
+               style="font-size: 2.5rem; letter-spacing: -1px; resize: none; overflow: hidden; height: auto;" 
+               placeholder="Grand Titre" rows="1"
+               oninput="autoResize(this); setDirty(true)"></textarea>
                
-        <!-- AJOUT: oninput="setDirty(true)" -->
-        <input type="text" id="commonSubtitleInput" class="form-control border-0 p-0 shadow-none text-secondary fw-normal mb-4" 
-               style="font-size: 1.25rem;" placeholder="Sous-titre (ex: ALAHADY MANOKANA)" 
-               oninput="setDirty(true)">
+        <!-- MODIF: Input remplacé par Textarea auto-extensible -->
+        <textarea id="commonSubtitleInput" class="form-control border-0 p-0 shadow-none text-secondary fw-normal mb-4" 
+               style="font-size: 1.25rem; resize: none; overflow: hidden; height: auto;" 
+               placeholder="Sous-titre (ex: ALAHADY MANOKANA)" rows="1"
+               oninput="autoResize(this); setDirty(true)"></textarea>
     </div>
 
     <div id="templateInfoBlock" class="ps-3 border-start border-4 border-light mb-5 d-none">
@@ -31,10 +33,16 @@
         <div class="d-flex align-items-start text-muted small">
             <span style="width: 80px; padding-top:4px;" class="fw-bold text-secondary"><i class="bi bi-translate me-2"></i>Thème</span>
             <div class="flex-grow-1 d-flex flex-column gap-1">
-                <input type="text" id="docThemeMG" class="form-control form-control-sm border-0 bg-light fw-medium text-dark px-2" 
-                       placeholder="Thème en Malgache..." oninput="setDirty(true); updateThemeMirrors();">
-                <input type="text" id="docThemeFR" class="form-control form-control-sm border-0 bg-white fst-italic text-secondary px-2" 
-                       placeholder="Thème en Français..." oninput="setDirty(true); updateThemeMirrors();">
+                <!-- MODIF: Inputs Thèmes remplacés par Textarea -->
+                <textarea id="docThemeMG" class="form-control form-control-sm border-0 bg-light fw-medium text-dark px-2" 
+                       style="resize: none; overflow: hidden; height: auto;" rows="1"
+                       placeholder="Thème en Malgache..." 
+                       oninput="autoResize(this); setDirty(true); updateThemeMirrors();"></textarea>
+                       
+                <textarea id="docThemeFR" class="form-control form-control-sm border-0 bg-white fst-italic text-secondary px-2" 
+                       style="resize: none; overflow: hidden; height: auto;" rows="1"
+                       placeholder="Thème en Français..." 
+                       oninput="autoResize(this); setDirty(true); updateThemeMirrors();"></textarea>
             </div>
         </div>
     </div>
@@ -73,6 +81,7 @@ function toggleTeamAccordion(e) {
     if (e.target.closest('#headerTimeSwitcherContainer') || 
         e.target.closest('#containerMasterSwitch') ||
         e.target.tagName === 'INPUT' || 
+        e.target.tagName === 'TEXTAREA' || 
         e.target.tagName === 'BUTTON') { 
         return; 
     }
@@ -87,7 +96,14 @@ function resetSharedHeader() {
     const ids = ['commonTitleInput', 'commonSubtitleInput', 'docThemeMG', 'docThemeFR', 'headerDateDisplay'];
     ids.forEach(id => {
         const el = document.getElementById(id);
-        if(el) { if(el.tagName === 'INPUT') el.value = ""; else el.innerText = ""; }
+        if(el) { 
+            if(el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
+                el.value = ""; 
+                el.style.height = 'auto'; // Reset hauteur
+            } else {
+                el.innerText = ""; 
+            }
+        }
     });
     if(document.getElementById('masterRoleSwitch')) document.getElementById('masterRoleSwitch').checked = false;
     
@@ -169,7 +185,6 @@ function renderSharedRoles(mode, rolesConfig, selectedRoles = [], assignments = 
             <div class="d-flex align-items-center mb-1 p-1 ps-2 border rounded role-item bg-white" 
                  style="opacity:${rowOpacity}; transition:0.2s; border-color: ${isChecked ? '#cbd5e1' : '#f1f5f9'} !important;">
                 <div class="form-check form-switch m-0 me-2" style="min-height:auto;">
-                    <!-- AJOUT: setDirty(true) sur le changement -->
                     <input class="form-check-input role-check" type="checkbox" role="switch" 
                            value="${roleName}" id="${safeId}" ${isChecked ? 'checked' : ''} 
                            onchange="toggleRoleStyle(this); setDirty(true)">

@@ -321,6 +321,12 @@
       safeSetValue('docThemeMG', currentProgData.theme_mg); 
       safeSetValue('docThemeFR', currentProgData.theme_fr); 
       
+      // AJOUT : Ajustement automatique de la hauteur des champs pour les textes longs
+      ['commonTitleInput', 'commonSubtitleInput', 'docThemeMG', 'docThemeFR'].forEach(id => {
+          const el = document.getElementById(id);
+          if(el && typeof autoResize === 'function') autoResize(el);
+      });
+      
       const times = Object.keys(currentMultiEquipes).sort(); 
       if(!currentSelectedTime || !times.includes(currentSelectedTime)) { 
           currentSelectedTime = times.length > 0 ? times[0] : ""; 
