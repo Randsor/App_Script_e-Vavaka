@@ -148,7 +148,7 @@ function getDashboardData() {
           theme_mg: themeMg,
           theme_fr: themeFr,
           songAlerts: songAlerts,
-          pdfLink: pdfLink 
+          pdfLink: pdfLink
       };
     }
   }

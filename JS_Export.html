@@ -1,15 +1,18 @@
 <script>
 /**
- * MODULE EXPORT PDF (Frontend)
- * Gestion des états et de l'interface d'export
+ * MODULE EXPORT SÉPARÉ (PDF vs DOCS)
+ * Le PDF reste le standard de l'application. Le Docs est réservé aux Pasteurs.
  */
 
+// ========================================================
+// 1. LOGIQUE PDF (Restaurée exactement comme à l'origine)
+// ========================================================
 let EXPORT_CONTEXT = {
     progId: null,
     pdfLink: null,
     downloadUrl: null,
     isGenerating: false,
-    isConfirmingRegen: false // Nouvel état pour la confirmation
+    isConfirmingRegen: false
 };
 
 function openExportModal() {
@@ -23,14 +26,11 @@ function openExportModal() {
     
     renderExportModalState();
     
-    // Ouverture de la modale via le système global
     if(typeof openCustomModal === 'function') {
         openCustomModal('exportPdfModal', 'progCreatorOverlay');
     } else {
-        const m = document.getElementById('exportPdfModal');
-        const o = document.getElementById('progCreatorOverlay');
-        if(m) { m.style.display = 'flex'; if(m.parentElement !== document.body) document.body.appendChild(m); }
-        if(o) { o.style.display = 'block'; if(o.parentElement !== document.body) document.body.appendChild(o); }
+        document.getElementById('exportPdfModal').style.display = 'flex';
+        document.getElementById('progCreatorOverlay').style.display = 'block';
     }
 }
 
@@ -49,7 +49,7 @@ function renderExportModalState() {
         </div>`;
     } 
     
-    // ÉTAT 2 : CONFIRMATION RÉGÉNÉRATION (Le remplacement du popup moche)
+    // ÉTAT 2 : CONFIRMATION RÉGÉNÉRATION
     else if (EXPORT_CONTEXT.isConfirmingRegen) {
         html += `
         <div class="text-center mb-4">
@@ -62,7 +62,6 @@ function renderExportModalState() {
                 Voulez-vous l'écraser et générer un nouveau PDF ?
             </p>
         </div>
-        
         <div class="d-grid gap-2">
             <button class="btn btn-dark" onclick="resetToInitialState()">Oui, régénérer</button>
             <button class="btn btn-light border text-secondary" onclick="cancelRegenerate()">Annuler</button>
@@ -137,8 +136,6 @@ function renderExportModalState() {
     container.innerHTML = html;
 }
 
-// --- LOGIQUE METIER ---
-
 function askConfirmationRegen() {
     EXPORT_CONTEXT.pdfLink = null;
     EXPORT_CONTEXT.isConfirmingRegen = false;
@@ -146,7 +143,6 @@ function askConfirmationRegen() {
     renderExportModalState();
 }
 
-// Fonction utilitaire pour tout remettre à zéro (Optionnel, pour le bouton Réessayer)
 function resetToInitialState() {
     EXPORT_CONTEXT.pdfLink = null;
     EXPORT_CONTEXT.isConfirmingRegen = false;
@@ -160,9 +156,6 @@ function cancelRegenerate() {
 }
 
 function triggerGeneration() {
-    // Si on est dans l'écran de confirmation, le checkbox n'existe plus dans le DOM
-    // On assume par défaut TRUE si on régénère, ou on stocke la valeur avant.
-    // Ici simple : on relance avec TRUE (standard)
     const chk = document.getElementById('chkIncludeTrans');
     const includeTrans = chk ? chk.checked : true;
     
@@ -173,46 +166,24 @@ function triggerGeneration() {
     google.script.run
         .withSuccessHandler(res => {
             EXPORT_CONTEXT.isGenerating = false;
-            
             if (res.success) {
                 EXPORT_CONTEXT.pdfLink = res.url;
                 EXPORT_CONTEXT.downloadUrl = res.downloadUrl;
-                // Mise à jour locale pour le bouton Dashboard
                 if(currentProgData) currentProgData.pdfLink = res.url;
-                // Si on est dans le dashboard, on essaie de rafraîchir l'icône si possible
                 const btnDash = document.querySelector('.btn-pdf-hero');
                 if(btnDash) btnDash.classList.remove('disabled');
                 
                 renderExportModalState();
                 showNotionToast("PDF généré avec succès !", "success");
             } else {
-                showErrorState(res.error);
+                showErrorState(res.error, 'PDF');
             }
         })
         .withFailureHandler(err => {
             EXPORT_CONTEXT.isGenerating = false;
-            showErrorState(err.message);
+            showErrorState(err.message, 'PDF');
         })
         .generateProgrammePDF(EXPORT_CONTEXT.progId, includeTrans);
-}
-
-function showErrorState(msg) {
-    const container = document.getElementById('exportModalContent');
-    container.innerHTML = `
-        <div class="text-center py-3">
-            <div class="bg-danger bg-opacity-10 rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width:50px; height:50px;">
-                <i class="bi bi-x-lg text-danger fs-4"></i>
-            </div>
-            <h6 class="fw-bold text-danger">Erreur de génération</h6>
-            <p class="small text-muted mb-4 px-3">${msg}</p>
-            <button class="btn btn-outline-dark btn-sm" onclick="resetError()">Réessayer</button>
-        </div>
-    `;
-}
-
-function resetError() {
-    EXPORT_CONTEXT.isGenerating = false;
-    renderExportModalState();
 }
 
 function copyPdfLink() {
@@ -226,5 +197,205 @@ function copyPdfLink() {
 function downloadPdfDirectly() {
     if(EXPORT_CONTEXT.downloadUrl) window.open(EXPORT_CONTEXT.downloadUrl, '_blank');
     else if (EXPORT_CONTEXT.pdfLink) window.open(EXPORT_CONTEXT.pdfLink, '_blank');
+}
+
+
+// ========================================================
+// 2. LOGIQUE DOCS (Nouvelle modale sécurisée Pasteur)
+// ========================================================
+let DOCS_CONTEXT = {
+    docLink: null,
+    isGenerating: false,
+    isConfirmingRegen: false,
+    isUnlocked: false
+};
+
+function openDocsModal() {
+    if (!currentProgData) return;
+    
+    // Le lien Docs est maintenant chargé nativement depuis la BDD (Colonne K)
+    DOCS_CONTEXT.docLink = currentProgData.docLink || null;
+    DOCS_CONTEXT.isGenerating = false;
+    DOCS_CONTEXT.isConfirmingRegen = false;
+    DOCS_CONTEXT.isUnlocked = false; // Toujours verrouillé à l'ouverture par sécurité
+    
+    renderDocsModalState();
+    
+    if(typeof openCustomModal === 'function') {
+        openCustomModal('exportDocsModal', 'progCreatorOverlay');
+    } else {
+        document.getElementById('exportDocsModal').style.display = 'flex';
+        document.getElementById('progCreatorOverlay').style.display = 'block';
+    }
+}
+
+function renderDocsModalState() {
+    const container = document.getElementById('docsModalContent');
+    const hasDoc = !!DOCS_CONTEXT.docLink;
+    let html = "";
+    
+    // Header permanent de la modale Docs
+    html += `
+    <div class="text-center mb-4">
+        <div class="bg-primary bg-opacity-10 text-primary rounded-circle d-inline-flex align-items-center justify-content-center mb-2" style="width:50px; height:50px;">
+            <i class="bi bi-file-earmark-word-fill fs-3"></i>
+        </div>
+        <h5 class="fw-bold m-0 text-dark">Google Docs</h5>
+        <p class="small text-muted mt-1 mb-0">Génération d'un format G.Docs modifiable</p>
+    </div>`;
+
+    // ÉTAT 0 : VERROUILLÉ
+    if (!DOCS_CONTEXT.isUnlocked) {
+        html += `
+        <div class="bg-light border rounded p-4 text-center">
+            <i class="bi bi-shield-lock text-muted fs-2 mb-2 d-block"></i>
+            <p class="small text-muted mb-3">L'accès au fichier source est protégé par mot de passe.</p>
+            <div class="mb-3">
+                <input type="password" id="pastorCodeInput" class="form-control text-center fw-bold pass-mask" placeholder="Code secret..." style="letter-spacing: 2px;" onkeydown="if(event.key === 'Enter') unlockDocsLink(this)">
+            </div>
+            <button class="btn btn-primary w-100 fw-bold" onclick="unlockDocsLink(this)">Déverrouiller</button>
+        </div>`;
+    }
+    // ÉTAT 1 : GÉNÉRATION EN COURS
+    else if (DOCS_CONTEXT.isGenerating) {
+        html += `
+        <div class="text-center py-4 bg-light border rounded">
+            <div class="spinner-border text-primary mb-3" role="status"></div>
+            <h6 class="fw-bold text-primary">Création du document...</h6>
+            <p class="text-muted small px-3">Ne fermez pas cette fenêtre.</p>
+        </div>`;
+    }
+    // ÉTAT 2 : AVERTISSEMENT DE RÉGÉNÉRATION (DESTRUCTIF)
+    else if (DOCS_CONTEXT.isConfirmingRegen) {
+        html += `
+        <div class="bg-danger bg-opacity-10 border border-danger border-opacity-25 rounded p-3 text-center animation-fade-in">
+            <i class="bi bi-exclamation-triangle-fill text-danger fs-1 mb-2 d-block"></i>
+            <h6 class="text-danger fw-bold mb-2">Remplacement définitif</h6>
+            <p class="small text-dark mb-4 lh-sm">Si vous avez fait des modifications manuelles dans le document Google Docs actuel, <strong>elles seront perdues</strong>.</p>
+            <div class="d-flex gap-2">
+                <button class="btn btn-sm btn-light border flex-grow-1" onclick="cancelDocRegen()">Annuler</button>
+                <button class="btn btn-sm btn-danger flex-grow-1 fw-bold" onclick="triggerDocGeneration()">Oui, Écraser</button>
+            </div>
+        </div>`;
+    }
+    // ÉTAT 3 : DOCUMENT EXISTANT
+    else if (hasDoc) {
+        html += `
+        <div class="bg-primary bg-opacity-10 border border-primary border-opacity-25 rounded p-4 text-center">
+            <p class="small text-primary fw-medium mb-3 lh-sm"><i class="bi bi-info-circle-fill me-1"></i>Ce document n'est pas synchronisé avec e-Vavaka | Toute modification de l'un ne modifiera pas l'autre</p>
+            <button class="btn btn-primary w-100 py-2 fw-bold shadow-sm mb-3" onclick="window.open('${DOCS_CONTEXT.docLink}', '_blank')">
+                <i class="bi bi-pencil-square me-2"></i> Éditer le Document
+            </button>
+            <hr class="opacity-25 my-3">
+            <button class="btn btn-link text-danger text-decoration-none btn-sm p-0 w-100" onclick="askConfirmDocRegen()">
+                <i class="bi bi-arrow-clockwise me-1"></i> Régénérer le document G.Docs
+            </button>
+        </div>`;
+    }
+    // ÉTAT 4 : CRÉATION INITIALE
+    else {
+        html += `
+        <div class="bg-light border rounded p-3 mb-3">
+            <label class="form-check d-flex align-items-center gap-3 cursor-pointer m-0">
+                <input class="form-check-input mt-0" type="checkbox" id="chkIncludeTransDocs" checked>
+                <div>
+                    <div class="fw-bold text-dark" style="font-size:13px;">Inclure les traductions</div>
+                </div>
+            </label>
+        </div>
+        <button class="btn btn-primary w-100 py-2 shadow-sm fw-bold" onclick="triggerDocGeneration()">
+            Générer le document éditable
+        </button>
+        `;
+    }
+
+    container.innerHTML = html;
+}
+
+function unlockDocsLink(btnElement) {
+    const input = document.getElementById('pastorCodeInput');
+    const code = input.value;
+    
+    if (!code) { 
+        input.classList.add('shake-error'); 
+        setTimeout(() => input.classList.remove('shake-error'), 500); 
+        return; 
+    }
+    
+    const originalText = btnElement.innerText;
+    btnElement.innerText = "..."; 
+    btnElement.disabled = true;
+    
+    google.script.run.withSuccessHandler(isValid => {
+        if(isValid) {
+            DOCS_CONTEXT.isUnlocked = true;
+            renderDocsModalState();
+        } else {
+            btnElement.innerText = originalText; 
+            btnElement.disabled = false;
+            input.value = ""; 
+            input.classList.add('shake-error');
+            setTimeout(() => input.classList.remove('shake-error'), 500);
+        }
+    }).verifyPastorOrAdminCode(code);
+}
+
+function triggerDocGeneration() {
+    const chk = document.getElementById('chkIncludeTransDocs');
+    const includeTrans = chk ? chk.checked : true;
+    
+    DOCS_CONTEXT.isGenerating = true;
+    DOCS_CONTEXT.isConfirmingRegen = false; 
+    renderDocsModalState();
+    
+    google.script.run.withSuccessHandler(res => {
+        DOCS_CONTEXT.isGenerating = false;
+        if (res.success) {
+            DOCS_CONTEXT.docLink = res.docUrl;
+            if(currentProgData) currentProgData.docLink = res.docUrl;
+            renderDocsModalState();
+            showNotionToast("Document Word/Docs généré !", "success");
+        } else {
+            showErrorState(res.error, 'DOCS');
+        }
+    }).withFailureHandler(err => { 
+        DOCS_CONTEXT.isGenerating = false; 
+        showErrorState(err.message, 'DOCS'); 
+    }).generateProgrammeDocs(currentProgData.id, includeTrans);
+}
+
+function askConfirmDocRegen() { 
+    DOCS_CONTEXT.isConfirmingRegen = true; 
+    renderDocsModalState(); 
+}
+
+function cancelDocRegen() { 
+    DOCS_CONTEXT.isConfirmingRegen = false; 
+    renderDocsModalState(); 
+}
+
+// ========================================================
+// 3. UTILITAIRE GLOBAL D'ERREURS
+// ========================================================
+function showErrorState(msg, targetContext) {
+    const containerId = targetContext === 'DOCS' ? 'docsModalContent' : 'exportModalContent';
+    const container = document.getElementById(containerId);
+    if(container) {
+        container.innerHTML = `
+            <div class="text-center py-4">
+                <div class="bg-danger bg-opacity-10 rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width:64px; height:64px;">
+                    <i class="bi bi-x-lg text-danger fs-3"></i>
+                </div>
+                <h6 class="fw-bold text-danger mb-2">Erreur de génération</h6>
+                <p class="small text-muted mb-4 px-3" style="line-height:1.4;">${msg}</p>
+                <button class="btn btn-outline-dark px-4 btn-sm" onclick="${targetContext === 'DOCS' ? 'renderDocsModalState()' : 'resetError()'}">Retour</button>
+            </div>
+        `;
+    }
+}
+
+function resetError() {
+    EXPORT_CONTEXT.isGenerating = false;
+    renderExportModalState();
 }
 </script>

@@ -140,3 +140,24 @@ function saveConfigNamesBackend(nomsList) {
     }
     return "OK";
 }
+
+// --- VERIFICATION DOCS (Pasteurs / Admins) ---
+function verifyPastorOrAdminCode(inputCode) {
+  var cleanInput = String(inputCode).trim();
+  if (!cleanInput) return false;
+  
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(SHEET_NAME_CONFIG);
+  
+  var adminCode = String(sheet.getRange("H1").getValue()).trim();
+  if (cleanInput === adminCode) return true;
+  
+  var lastRow = sheet.getLastRow();
+  if (lastRow > 1) {
+      var data = sheet.getRange(2, 10, lastRow - 1, 1).getValues();
+      for (var i = 0; i < data.length; i++) {
+          if (String(data[i][0]).trim() === cleanInput) return true;
+      }
+  }
+  return false;
+}

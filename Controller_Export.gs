@@ -15,6 +15,14 @@ var COLOR_LIGHT = "#D1D5DB";
 var INDENT_STD = 20; 
 
 function generateProgrammePDF(progId, includeTrans) {
+    return generateDocumentBackend(progId, includeTrans, 'PDF');
+}
+
+function generateProgrammeDocs(progId, includeTrans) {
+    return generateDocumentBackend(progId, includeTrans, 'DOCS');
+}
+
+function generateDocumentBackend(progId, includeTrans, targetType) {
   try {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var config = getConfigData();
@@ -28,7 +36,9 @@ function generateProgrammePDF(progId, includeTrans) {
     
     var dateParts = progData.date.split('/'); 
     var isoDate = (dateParts.length === 3) ? dateParts[2] + "-" + dateParts[1] + "-" + dateParts[0] : progData.date.replace(/\//g,'-');
+    
     var tempDocName = isoDate + " - " + (progData.titre || "Culte");
+    if (targetType === 'DOCS') tempDocName += " (Édition Pasteur)";
     
     var tempFile = templateFile.makeCopy(tempDocName, folder);
     var tempDoc = DocumentApp.openById(tempFile.getId());
@@ -64,22 +74,54 @@ function generateProgrammePDF(progId, includeTrans) {
     try { blocks = JSON.parse(progData.contenu); } catch(e) {}
     
     blocks.forEach(function(block) {
-       // MODIFICATION : On passe progData pour avoir accès aux thèmes
        var newIndex = renderBlockToDoc(body, insertionIndex, block, includeTrans, progData);
        if (insertionIndex !== null && newIndex !== null) insertionIndex = newIndex;
     });
     
     tempDoc.saveAndClose();
     
-    var pdfBlob = tempFile.getAs(MimeType.PDF).setName(tempDocName + ".pdf");
-    var pdfFile = folder.createFile(pdfBlob);
-    pdfFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-    tempFile.setTrashed(true);
-    
     var sheet = ss.getSheetByName("DB_PROGRAMMES");
-    if(sheet && progData.rowIndex) sheet.getRange(progData.rowIndex, 10).setValue(pdfFile.getUrl());
-    
-    return { success: true, url: pdfFile.getUrl(), downloadUrl: "https://drive.google.com/uc?export=download&id=" + pdfFile.getId() };
+
+    if (targetType === 'PDF') {
+        var pdfBlob = tempFile.getAs(MimeType.PDF).setName(tempDocName + ".pdf");
+        var pdfFile = folder.createFile(pdfBlob);
+        pdfFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+        
+        tempFile.setTrashed(true); // Toujours jeter le doc temporaire de transition PDF
+        
+        if (sheet && progData.rowIndex) {
+            // NETTOYAGE ANCIEN PDF SI EXISTANT
+            var oldPdfLink = sheet.getRange(progData.rowIndex, 10).getValue();
+            if (oldPdfLink && String(oldPdfLink).indexOf("id=") > -1) {
+                try {
+                    var oldPdfId = String(oldPdfLink).split("id=")[1].split("&")[0];
+                    DriveApp.getFileById(oldPdfId).setTrashed(true);
+                } catch(err) { /* Fichier déjà supprimé manuellement, on ignore */ }
+            }
+            // SAUVEGARDE NOUVEAU LIEN
+            sheet.getRange(progData.rowIndex, 10).setValue(pdfFile.getUrl());
+        }
+        return { success: true, url: pdfFile.getUrl(), downloadUrl: "https://drive.google.com/uc?export=download&id=" + pdfFile.getId() };
+        
+    } else {
+        // --- LOGIQUE DOCS ---
+        tempFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.EDIT);
+        
+        if (sheet && progData.rowIndex) {
+            // NETTOYAGE ANCIEN DOCS SI EXISTANT
+            var oldDocLink = sheet.getRange(progData.rowIndex, 11).getValue();
+            if (oldDocLink && String(oldDocLink).indexOf("/d/") > -1) {
+                try {
+                    // Les liens Docs ressemblent à "https://docs.google.com/document/d/ID_DU_FICHIER/edit"
+                    var oldDocId = String(oldDocLink).split("/d/")[1].split("/")[0];
+                    DriveApp.getFileById(oldDocId).setTrashed(true);
+                } catch(err) { /* Fichier déjà supprimé manuellement, on ignore */ }
+            }
+            // SAUVEGARDE NOUVEAU LIEN
+            sheet.getRange(progData.rowIndex, 11).setValue(tempFile.getUrl());
+        }
+        return { success: true, docUrl: tempFile.getUrl() };
+    }
     
   } catch (e) {
     return { success: false, error: e.toString() };

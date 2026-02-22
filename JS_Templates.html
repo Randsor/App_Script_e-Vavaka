@@ -32,6 +32,8 @@
           
           el._sortable = new Sortable(el, {
               animation: 300, 
+              delay: 150, // <-- FIX ANTI-DRAG ACCIDENTEL
+              delayOnTouchOnly: true, // <-- FIX ANTI-DRAG ACCIDENTEL
               draggable: '.item-wrapper', 
               handle: '.drag-handle', 
               ghostClass: 'sortable-ghost', 

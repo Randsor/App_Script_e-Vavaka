@@ -55,6 +55,8 @@
           
           el._sortable = new Sortable(el, {
               animation: 300, // Animation fluide (0.3s)
+              delay: 150, // <-- FIX: Délai de pression pour éviter le drag accidentel
+              delayOnTouchOnly: true, // <-- FIX: S'applique uniquement sur tactile (laisse la souris réactive)
               draggable: '.item-wrapper', // Cible uniquement les items
               handle: '.drag-handle', // La poignée
               ghostClass: 'sortable-ghost', // Style du trou
@@ -421,7 +423,7 @@
 
   function closeAllModals() { 
       // Ajout de 'exportPdfModal' à la liste des modales gérées
-      ['creationModal', 'securityModal', 'deleteModal', 'progCreatorOverlay', 'songSelectorModal', 'fanekenaSelectorModal', 'exportPdfModal'].forEach(id => { 
+      ['creationModal', 'securityModal', 'deleteModal', 'progCreatorOverlay', 'songSelectorModal', 'fanekenaSelectorModal', 'exportPdfModal','exportDocsModal'].forEach(id => { 
           const el = document.getElementById(id); 
           if(el) el.style.display = 'none'; 
       }); 

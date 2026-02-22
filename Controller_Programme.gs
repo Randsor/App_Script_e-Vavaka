@@ -54,12 +54,12 @@ function getProgrammeDetails(id) {
                   paroles_mg: dataC[c][5], 
                   paroles_fr: dataC[c][6], 
                   structure: dataC[c][7],
-                  // Calcul à la volée du statut
+                  // Calcul à la volée du statut (Version Stricte)
                   transStatus: (function(mg, fr){ 
-                      var nMg=(mg||"").split(" /// ").length; 
-                      var nFr=(fr||"").split(" /// ").length; 
-                      if(nMg>1 && nFr<=1) return 'none'; 
-                      if(nMg>nFr) return 'partial'; 
+                      var nMg = (mg||"").split(" /// ").filter(function(t){return t.trim().length > 0;}).length; 
+                      var nFr = (fr||"").split(" /// ").filter(function(t){return t.trim().length > 0;}).length; 
+                      if(nMg > 0 && nFr === 0) return 'none'; 
+                      if(nMg > nFr) return 'partial'; 
                       return 'ok'; 
                   })(dataC[c][5], dataC[c][6])
               };
@@ -156,6 +156,7 @@ function getProgrammeDetails(id) {
 
       var hydratedContent = JSON.stringify(blocks);
       var pdfLink = (dataP[i].length > 9) ? dataP[i][9] : "";
+      var docLink = (dataP[i].length > 10) ? dataP[i][10] : "";
 
       prog = {
         id: dataP[i][0], 
@@ -168,6 +169,7 @@ function getProgrammeDetails(id) {
         status: dataP[i][7] || "draft", 
         validatedBy: dataP[i][8] || "", 
         pdfLink: pdfLink,
+        docLink: docLink,
         rowIndex: i + 1
       };
       break;

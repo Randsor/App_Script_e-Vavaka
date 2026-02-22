@@ -268,9 +268,7 @@ function animateValue(id, start, end, duration) {
 }
 
 function openDashboardPdf(id, link, titre) {
-    // Simulation du contexte Programme pour le module Export
     currentProgData = { id: id, titre: titre, pdfLink: link };
-    
     if(typeof openExportModal === 'function') openExportModal();
     else alert("Module d'export non chargé.");
 }

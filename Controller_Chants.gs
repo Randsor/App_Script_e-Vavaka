@@ -140,18 +140,21 @@ function searchChantsBackend(query, recueilFilter, historyIds) {
 }
 
 /**
- * Formateur léger pour les listes (évite d'envoyer tout le texte des paroles)
+ * Formateur léger pour les listes (Version Strictement Sécurisée)
  */
 function formatChantLight(row) {
-  // Calcul rapide du statut de traduction pour les badges
   var mg = String(row[5]||"");
   var fr = String(row[6]||"");
-  var hasMg = mg.length > 0;
-  var hasFr = fr.length > 0;
+  
+  // Comptage strict : on sépare, on nettoie les espaces, on compte ceux qui ont du texte
+  var nMg = mg.split(" /// ").filter(function(t){return t.trim().length > 0;}).length;
+  var nFr = fr.split(" /// ").filter(function(t){return t.trim().length > 0;}).length;
   
   var status = "ok";
-  if (hasMg && !hasFr) status = "none";
-  else if (hasMg && hasFr && mg.length > fr.length * 2) status = "partial"; // Estimation grossière
+  if (nMg > 0) {
+    if (nFr === 0) status = "none";
+    else if (nMg > nFr) status = "partial";
+  }
 
   return {
     id: row[0],
