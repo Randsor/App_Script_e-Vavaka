@@ -161,3 +161,31 @@ function verifyPastorOrAdminCode(inputCode) {
   }
   return false;
 }
+
+// --- VERIFICATION UNIVERSELLE (CHANTS) ---
+function verifyUniversalCode(inputCode) {
+  var cleanInput = String(inputCode).trim();
+  if (!cleanInput) return false;
+  
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(SHEET_NAME_CONFIG);
+  
+  // 1. Check Admin (H1)
+  var adminCode = String(sheet.getRange("H1").getValue()).trim();
+  if (cleanInput === adminCode) return true;
+  
+  // 2. Check Equipe (H2 ou G2)
+  var codeTeam = String(sheet.getRange("H2").getValue()).trim();
+  var codeResp = String(sheet.getRange("G2").getValue()).trim();
+  if (cleanInput === codeTeam || cleanInput === codeResp) return true;
+  
+  // 3. Check Valideurs/Pasteurs (Col J)
+  var lastRow = sheet.getLastRow();
+  if (lastRow > 1) {
+      var data = sheet.getRange(2, 10, lastRow - 1, 1).getValues();
+      for (var i = 0; i < data.length; i++) {
+          if (String(data[i][0]).trim() === cleanInput) return true;
+      }
+  }
+  return false;
+}

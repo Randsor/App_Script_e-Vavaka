@@ -172,6 +172,14 @@
     .title-input-wrapper { padding: 16px; }
     .metadata-section { padding: 0 16px 16px 16px; }
 }
+
+.chant-readonly input, .chant-readonly textarea, .chant-readonly select { 
+    pointer-events: none; border-color: transparent !important; background: transparent !important; 
+}
+.chant-readonly .floating-actions { display: none !important; }
+.chant-readonly .stanza-header button { display: none !important; } /* Cache poubelle */
+.chant-readonly .stanza-drag-handle { display: none !important; }
+
 </style>
 
 <!-- TOAST -->
@@ -182,8 +190,24 @@
 </div>
 
 <div class="d-flex justify-content-between align-items-center mb-4">
-<div><h2 class="mb-1 fw-bold text-dark">Chants</h2><div class="text-secondary small">Répertoire de l'église</div></div>
-<button class="btn btn-saas-primary" onclick="openChantModal()"><i class="bi bi-plus-lg me-2"></i>Nouveau chant</button>
+    <div>
+        <h2 class="mb-1 fw-bold text-dark">Chants</h2>
+        <div class="text-secondary small d-flex align-items-center gap-2">
+            Répertoire de l'église 
+            <span id="chantLockStatus" class="badge bg-light text-secondary border fw-normal"><i class="bi bi-lock-fill me-1"></i>Lecture Seule</span>
+        </div>
+    </div>
+    <div class="d-flex gap-2">
+        <button id="btnChantUnlock" class="btn btn-sm btn-outline-dark bg-white shadow-sm" onclick="askChantAuth()">
+            <i class="bi bi-shield-lock-fill me-2"></i>Mode Édition
+        </button>
+        <button id="btnChantLock" class="btn btn-sm btn-light border text-secondary hidden" onclick="toggleChantMode(false)">
+            <i class="bi bi-unlock-fill me-2"></i>Verrouiller
+        </button>
+        <button id="btnNewChant" class="btn btn-saas-primary hidden" onclick="openChantModal()">
+            <i class="bi bi-plus-lg me-2"></i>Nouveau chant
+        </button>
+    </div>
 </div>
 
 <!-- KPI CARDS -->
@@ -371,4 +395,25 @@
 <button class="btn btn-sm btn-danger text-white" onclick="confirmDiscard()">Quitter sans sauver</button>
 </div>
 </div>
-<div id="confirmOverlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.4); z-index:10065;" onclick="cancelDiscard()"></div>
+
+<!-- AUTH MODAL CHANT -->
+<div id="chantAuthModal" class="notion-dialog" style="display:none; width: 320px; padding: 30px;">
+    <div class="text-center mb-4">
+        <div class="bg-primary bg-opacity-10 text-primary rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width:60px; height:60px;">
+            <i class="bi bi-pencil-square fs-3"></i>
+        </div>
+        <h5 class="fw-bold m-0 text-dark">Mode Édition</h5>
+        <p class="small text-muted mt-2 mb-0">Saisissez un code (Équipe, Pasteur ou Admin) pour modifier la base.</p>
+    </div>
+    <div class="mb-4">
+        <!-- Hack readonly pour l'autofill Chrome -->
+        <input type="password" id="chantCodeInput" class="form-control text-center fw-bold letter-spacing-2 shadow-sm border-2" placeholder="••••" autocomplete="off" readonly onfocus="this.removeAttribute('readonly');" onkeydown="if(event.key === 'Enter') submitChantAuth()">
+    </div>
+    <div class="d-grid gap-2">
+        <button class="btn btn-primary fw-bold" onclick="submitChantAuth()">Déverrouiller</button>
+        <button class="btn btn-link text-secondary" onclick="closeChantAuthModal()">Annuler</button>
+    </div>
+</div>
+
+<!-- SINGLE OVERLAY (Géré par Global_CSS via son ID) -->
+<div id="confirmOverlay" style="display:none;" onclick="cancelDiscard()"></div>

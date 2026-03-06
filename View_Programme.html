@@ -40,9 +40,16 @@
   .dot-red { background-color: #EB5757; } .dot-orange { background-color: #F2994A; } .dot-green { background-color: #27AE60; }
 
   /* MODE LECTURE SEULE */
-  .read-only-mode input, .read-only-mode textarea { pointer-events: none; border-color: transparent !important; background: transparent !important; }
+  .read-only-mode input, .read-only-mode textarea { border-color: transparent !important; background: transparent !important; outline: none !important; }
   .read-only-mode .btn-add, .read-only-mode .delete-btn, .read-only-mode .drag-handle, .read-only-mode .add-zone-line, .read-only-mode .add-zone-final { display: none !important; }
   .read-only-mode .role-check { display: none; } 
+  
+  /* Sécurité supplémentaire : Empêcher les clics sur les rôles et les boutons internes en mode lecture */
+  .read-only-mode .role-item label { pointer-events: none; }
+  .read-only-mode .group-bloc button { display: none !important; }
+  .read-only-mode .group-bloc .bi-arrow-counterclockwise { display: none !important; }
+  .read-only-mode .group-bloc .btn-action-danger { display: none !important; }
+  .read-only-mode .group-bloc .cursor-pointer { pointer-events: none; }
 
   /* BOUTONS TIME SWITCHER */
   .time-switch-btn { border: 1px solid #e1e1e1; background: #fff; padding: 2px 8px; border-radius: 4px; color: #787774; font-size: 11px; font-weight: 500; cursor: pointer; transition: all 0.2s; }

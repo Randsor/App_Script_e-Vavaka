@@ -8,6 +8,7 @@ let currentRecueilFilter = "ALL";
 let IGNORE_DIRTY_FLAG = false;
 let modalInstance = null;
 let FORCE_CLOSE_FLAG = false;
+let IS_CHANT_EDITABLE = false;
 
 // VARIABLES DE MÉMORISATION DES FILTRES DE MAINTENANCE
 let CURRENT_SPECIAL_FILTER = null; 
@@ -17,19 +18,23 @@ function initChantsView() {
     document.getElementById('chantSearchInput').value = "";
     loadChantsData();
     moveModalsToBody();
+    toggleChantMode(false); // Force le verrouillage au démarrage
 }
 
 function moveModalsToBody() {
     const modalEl = document.getElementById('modalEditChant');
     const confirmEl = document.getElementById('confirmDiscardModal');
+    const authEl = document.getElementById('chantAuthModal'); // <-- AJOUT
     const overlayEl = document.getElementById('confirmOverlay');
 
-    if (modalEl && modalEl.parentElement !== document.body) {
-        document.body.appendChild(modalEl);
-        document.body.appendChild(confirmEl);
-        document.body.appendChild(overlayEl);
+    // On déplace tout ce petit monde à la racine du Body pour sortir du Stacking Context
+    if (modalEl && modalEl.parentElement !== document.body) document.body.appendChild(modalEl);
+    if (confirmEl && confirmEl.parentElement !== document.body) document.body.appendChild(confirmEl);
+    if (authEl && authEl.parentElement !== document.body) document.body.appendChild(authEl); // <-- AJOUT
+    if (overlayEl && overlayEl.parentElement !== document.body) document.body.appendChild(overlayEl);
 
-        // GESTION DE LA FERMETURE (CROIX OU ECHAP)
+    // GESTION DE LA FERMETURE (CROIX OU ECHAP) pour la modale d'édition principale
+    if (modalEl) {
         modalEl.addEventListener('hide.bs.modal', function (e) {
             // Si c'est sale ET que ce n'est pas une fermeture forcée par nous
             if (APP_IS_DIRTY && !FORCE_CLOSE_FLAG) {
@@ -86,20 +91,21 @@ function loadRecueilOptions() {
 // --- RECHERCHE INTELLIGENTE ---
 
 function handleSearchInput() {
-    const q = document.getElementById('chantSearchInput').value;
+    const q = document.getElementById('chantSearchInput').value.trim();
 
-    // CAS 1 : Recherche locale (courte)
-    if (q.length < 3) {
+    // Si le champ est vidé, on remet immédiatement le cache de départ
+    if (q === "") {
         displayList = [...allChantsCache];
         filterAndRender();
         return;
     }
 
-    // CAS 2 : Recherche serveur (longue)
+    // Sinon, on interroge le serveur SYSTEMATIQUEMENT (Débouncé)
     if (searchTimeout) clearTimeout(searchTimeout);
-    showLoader(true);
 
     searchTimeout = setTimeout(() => {
+        showLoader(true); // On affiche le loader seulement quand la recherche part
+
         if (currentRecueilFilter !== 'ALL') {
             document.querySelectorAll('#recueilPillsWrapper .nav-pill').forEach(el => el.classList.remove('active'));
             const allBtn = document.querySelector('#recueilPillsWrapper .nav-pill');
@@ -112,7 +118,7 @@ function handleSearchInput() {
             filterAndRender();
             showLoader(false);
         }).searchChantsBackend(q, "", []);
-    }, 400);
+    }, 300); // Délai de 300ms : assez long pour épargner le serveur, assez rapide pour l'UX
 }
 
 function filterAndRender() {
@@ -283,10 +289,22 @@ function filterLocalRecueil(recueilName, btnElement) {
     btnElement.classList.add('active');
     currentRecueilFilter = recueilName;
 
-    if (displayList.length < 55) {
+    const q = document.getElementById('chantSearchInput').value.trim();
+
+    // Si on veut "Tout" et qu'il n'y a pas de recherche texte, on met le cache rapide
+    if (recueilName === 'ALL' && q === "") {
         displayList = [...allChantsCache];
+        filterAndRender();
+        return;
     }
-    filterAndRender();
+
+    // Sinon, on va chercher la vraie liste sur le serveur
+    showLoader(true);
+    google.script.run.withSuccessHandler(results => {
+        displayList = results;
+        filterAndRender();
+        showLoader(false);
+    }).searchChantsBackend(q, recueilName === 'ALL' ? "" : recueilName, []);
 }
 
 // --- MODALE & CRUD (DIRTY CHECK CONNECTÉ) ---
@@ -318,6 +336,7 @@ function confirmDiscard() {
 
 function cancelDiscard() {
     document.getElementById('confirmDiscardModal').style.display = 'none';
+    document.getElementById('chantAuthModal').style.display = 'none';
     document.getElementById('confirmOverlay').style.display = 'none';
 }
 
@@ -366,6 +385,17 @@ function openChantModal(id = null) {
     document.getElementById('editTonalite').value = "";
     document.getElementById('editorStrophesContainer').innerHTML = "";
     document.getElementById('emptyStropheMsg').classList.remove('hidden');
+
+    // Gestion Mode Lecture Seule
+    const formContainer = document.getElementById('formChantEditor');
+    if (!IS_CHANT_EDITABLE) {
+        formContainer.classList.add('chant-readonly');
+        document.getElementById('modalTitle').innerText = "Détails du chant (Lecture seule)";
+        document.querySelector('.action-group-save').classList.add('d-none'); // Cache le footer complet
+    } else {
+        formContainer.classList.remove('chant-readonly');
+        document.querySelector('.action-group-save').classList.remove('d-none');
+    }
 
     modalInstance.show();
     
@@ -539,4 +569,71 @@ function submitChantSave() {
         }
     }).saveChantBackend(formData);
 }
+
+// --- SÉCURITÉ ---
+
+function toggleChantMode(editable) {
+    IS_CHANT_EDITABLE = editable;
+    
+    // UI Header
+    const statusBadge = document.getElementById('chantLockStatus');
+    const btnUnlock = document.getElementById('btnChantUnlock');
+    const btnLock = document.getElementById('btnChantLock');
+    const btnNew = document.getElementById('btnNewChant');
+    
+    if (editable) {
+        statusBadge.className = "badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 fw-bold";
+        statusBadge.innerHTML = '<i class="bi bi-unlock-fill me-1"></i>ÉDITION ACTIVÉE';
+        btnUnlock.classList.add('hidden');
+        btnLock.classList.remove('hidden');
+        btnNew.classList.remove('hidden');
+        showNotionToast("Mode Édition déverrouillé", "success");
+    } else {
+        statusBadge.className = "badge bg-light text-secondary border fw-normal";
+        statusBadge.innerHTML = '<i class="bi bi-lock-fill me-1"></i>Lecture Seule';
+        btnUnlock.classList.remove('hidden');
+        btnLock.classList.add('hidden');
+        btnNew.classList.add('hidden');
+        // AJOUT TOAST VERROUILLAGE
+        showNotionToast("Mode Édition verrouillé", "success");
+    }
+}
+
+function askChantAuth() {
+    const m = document.getElementById('chantAuthModal');
+    const o = document.getElementById('confirmOverlay'); // On réutilise l'overlay existant
+    if(m) m.style.display = 'block';
+    if(o) o.style.display = 'block';
+    const inp = document.getElementById('chantCodeInput');
+    if(inp) { inp.value = ""; setTimeout(() => inp.focus(), 100); }
+}
+
+function closeChantAuthModal() {
+    document.getElementById('chantAuthModal').style.display = 'none';
+    document.getElementById('confirmOverlay').style.display = 'none';
+}
+
+function submitChantAuth() {
+    const inp = document.getElementById('chantCodeInput');
+    const val = inp.value;
+    
+    if(!val) { inp.classList.add('shake-error'); setTimeout(()=>inp.classList.remove('shake-error'), 500); return; }
+    
+    const btn = document.querySelector('#chantAuthModal .btn-primary');
+    const oldTxt = btn.innerText;
+    btn.innerText = "..."; btn.disabled = true;
+    
+    google.script.run.withSuccessHandler(isValid => {
+        btn.innerText = oldTxt; btn.disabled = false;
+        if(isValid) {
+            closeChantAuthModal();
+            toggleChantMode(true);
+        } else {
+            inp.classList.add('shake-error');
+            inp.value = ""; inp.focus();
+            setTimeout(()=>inp.classList.remove('shake-error'), 500);
+        }
+    }).verifyUniversalCode(val);
+}
+
 </script>
