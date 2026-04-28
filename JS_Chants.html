@@ -600,18 +600,38 @@ function toggleChantMode(editable) {
 }
 
 function askChantAuth() {
-    const m = document.getElementById('chantAuthModal');
-    const o = document.getElementById('confirmOverlay'); // On réutilise l'overlay existant
-    if(m) m.style.display = 'block';
-    if(o) o.style.display = 'block';
-    const inp = document.getElementById('chantCodeInput');
-    if(inp) { inp.value = ""; setTimeout(() => inp.focus(), 100); }
-}
+        // 1. On force le déplacement des éléments hors de la div animée
+        const m = document.getElementById('chantAuthModal');
+        const o = document.getElementById('confirmOverlay');
+        
+        if (m && m.parentElement !== document.body) document.body.appendChild(m);
+        if (o && o.parentElement !== document.body) document.body.appendChild(o);
+        
+        if(m && o) {
+            o.style.display = 'block';
+            m.style.display = 'block';
+            
+            // 2. Correction forcée du positionnement (Fixed au centre de la fenêtre)
+            m.style.position = 'fixed';
+            m.style.top = '50%';
+            m.style.left = '50%';
+            m.style.transform = 'translate(-50%, -50%)';
+            m.style.zIndex = '10080'; // Sécurité supplémentaire
+            
+            const inp = document.getElementById('chantCodeInput');
+            if(inp) { 
+                inp.value = ""; 
+                setTimeout(() => inp.focus(), 150); 
+            }
+        }
+    }
 
 function closeChantAuthModal() {
-    document.getElementById('chantAuthModal').style.display = 'none';
-    document.getElementById('confirmOverlay').style.display = 'none';
-}
+        const m = document.getElementById('chantAuthModal');
+        const o = document.getElementById('confirmOverlay');
+        if(m) m.style.display = 'none';
+        if(o) o.style.display = 'none';
+    }
 
 function submitChantAuth() {
     const inp = document.getElementById('chantCodeInput');

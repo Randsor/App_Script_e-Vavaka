@@ -1,9 +1,11 @@
 function doGet() {
+  // Commande fantôme pour forcer le lien DriveApp au démarrage
+  try { DriveApp.getRootFolder(); } catch(e) {} 
+  
   return HtmlService.createTemplateFromFile('Index')
       .evaluate()
       .setTitle('Cultes FPMA Toulouse')
       .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
-      // MODIFICATION ICI : user-scalable=yes permet le zoom
       .addMetaTag('viewport', 'width=device-width, initial-scale=1, user-scalable=yes');
 }
 

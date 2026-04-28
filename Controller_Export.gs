@@ -83,40 +83,67 @@ function generateDocumentBackend(progId, includeTrans, targetType) {
     var sheet = ss.getSheetByName("DB_PROGRAMMES");
 
     if (targetType === 'PDF') {
+        // 1. Conversion en Blob
         var pdfBlob = tempFile.getAs(MimeType.PDF).setName(tempDocName + ".pdf");
+        
+        // 2. Création du fichier PDF
         var pdfFile = folder.createFile(pdfBlob);
-        pdfFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
         
-        tempFile.setTrashed(true); // Toujours jeter le doc temporaire de transition PDF
+        // 3. Partage (on entoure de try/catch au cas où l'organisation bloque le partage externe)
+        try {
+            pdfFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+        } catch(e) {
+            console.warn("Impossible de modifier les droits de partage : " + e);
+        }
         
+        // 4. Nettoyage du fichier temporaire (L'étape qui pose souvent problème)
+        try {
+            try { Drive.Files.remove(tempFile.getId()); } // Tentative API Avancée
+            catch(e2) { tempFile.setTrashed(true); }      // Repli API Standard
+        } catch(e) { 
+            console.warn("Nettoyage tempFile échoué : " + e); 
+        }
+        
+        // 5. Nettoyage de l'ancien PDF et Mise à jour de la feuille
         if (sheet && progData.rowIndex) {
-            // NETTOYAGE ANCIEN PDF SI EXISTANT
-            var oldPdfLink = sheet.getRange(progData.rowIndex, 10).getValue();
-            if (oldPdfLink && String(oldPdfLink).indexOf("id=") > -1) {
-                try {
-                    var oldPdfId = String(oldPdfLink).split("id=")[1].split("&")[0];
-                    DriveApp.getFileById(oldPdfId).setTrashed(true);
-                } catch(err) { /* Fichier déjà supprimé manuellement, on ignore */ }
-            }
-            // SAUVEGARDE NOUVEAU LIEN
+            try {
+                var oldPdfLink = sheet.getRange(progData.rowIndex, 10).getValue();
+                if (oldPdfLink) {
+                    var oldPdfId = extractIdFromUrl(String(oldPdfLink));
+                    if (oldPdfId) {
+                        try { Drive.Files.remove(oldPdfId); } catch(e3) { DriveApp.getFileById(oldPdfId).setTrashed(true); }
+                    }
+                }
+            } catch(err) { console.warn("Nettoyage ancien PDF échoué"); }
+            
             sheet.getRange(progData.rowIndex, 10).setValue(pdfFile.getUrl());
         }
-        return { success: true, url: pdfFile.getUrl(), downloadUrl: "https://drive.google.com/uc?export=download&id=" + pdfFile.getId() };
+        
+        return { 
+          success: true, 
+          url: pdfFile.getUrl(), 
+          downloadUrl: "https://drive.google.com/uc?export=download&id=" + pdfFile.getId() 
+        };
         
     } else {
+        
         // --- LOGIQUE DOCS ---
-        tempFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.EDIT);
+        try {
+            tempFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.EDIT);
+        } catch(e) { console.warn("Erreur partage docs : " + e); }
         
         if (sheet && progData.rowIndex) {
             // NETTOYAGE ANCIEN DOCS SI EXISTANT
-            var oldDocLink = sheet.getRange(progData.rowIndex, 11).getValue();
-            if (oldDocLink && String(oldDocLink).indexOf("/d/") > -1) {
-                try {
-                    // Les liens Docs ressemblent à "https://docs.google.com/document/d/ID_DU_FICHIER/edit"
-                    var oldDocId = String(oldDocLink).split("/d/")[1].split("/")[0];
-                    DriveApp.getFileById(oldDocId).setTrashed(true);
-                } catch(err) { /* Fichier déjà supprimé manuellement, on ignore */ }
-            }
+            try {
+                var oldDocLink = sheet.getRange(progData.rowIndex, 11).getValue();
+                if (oldDocLink) {
+                    var oldDocId = extractIdFromUrl(String(oldDocLink));
+                    if (oldDocId) {
+                        try { Drive.Files.remove(oldDocId); } catch(e3) { DriveApp.getFileById(oldDocId).setTrashed(true); }
+                    }
+                }
+            } catch(err) { console.warn("Nettoyage ancien DOCS échoué"); }
+            
             // SAUVEGARDE NOUVEAU LIEN
             sheet.getRange(progData.rowIndex, 11).setValue(tempFile.getUrl());
         }
@@ -126,6 +153,15 @@ function generateDocumentBackend(progId, includeTrans, targetType) {
   } catch (e) {
     return { success: false, error: e.toString() };
   }
+}
+
+/**
+ * Fonction utilitaire robuste pour extraire l'ID d'un fichier depuis une URL Drive/Docs
+ */
+function extractIdFromUrl(url) {
+    if (!url) return null;
+    var match = url.match(/[-\w]{25,}/);
+    return match ? match[0] : null;
 }
 
 function safeTxt(val) { 

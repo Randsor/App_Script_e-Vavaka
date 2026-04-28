@@ -112,13 +112,22 @@
       animation: popupFadeIn 0.1s ease-out;
   }
   
-  /* Alertes Système (Priorité Max) */
-  #sysNavOverlay, #confirmOverlay, #fnkOverlay { 
+  /* Alertes Système (Priorité Max - Navigation) */
+  #sysNavOverlay, #fnkOverlay { 
       z-index: var(--z-alert-overlay) !important; 
       position: fixed; inset: 0;
       background: rgba(255,255,255,0.85) !important;
       backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
   } 
+
+  /* Overlay des Chants (Niveau Modale 10070) */
+  #confirmOverlay {
+      z-index: var(--z-overlay-custom) !important;
+      position: fixed; inset: 0;
+      background: rgba(255,255,255,0.85) !important;
+      backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+  }
+   
   #sysNavModal, #confirmDiscardModal, #discardChangesModal { 
       z-index: var(--z-alert-dialog) !important; 
   }
