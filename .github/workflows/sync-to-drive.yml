@@ -3,7 +3,7 @@ name: Sync Codebase to Google Drive
 on:
   push:
     branches:
-      - main # Ou 'master' selon ta branche principale
+      - main
   workflow_dispatch:
 
 jobs:
@@ -20,13 +20,12 @@ jobs:
       - name: Configure rclone
         run: |
           mkdir -p /home/runner/.config/rclone
-          echo '${{ secrets.GDRIVE_CREDENTIALS }}' > /home/runner/.config/rclone/sa.json
           
+          # On génère la config UNIQUEMENT avec ton Token et l'ID du dossier
           cat <<EOF > /home/runner/.config/rclone/rclone.conf
           [gdrive]
           type = drive
-          scope = drive
-          service_account_file = /home/runner/.config/rclone/sa.json
+          token = ${{ secrets.GDRIVE_TOKEN }}
           root_folder_id = ${{ secrets.GDRIVE_FOLDER_ID }}
           EOF
 
