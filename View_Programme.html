@@ -32,6 +32,19 @@
   .ev-time { font-size: 11px; color: #787774; font-weight: 500; }
   .ev-title { font-size: 12px; font-weight: 600; color: #37352F; line-height: 1.3; }
   
+  /* NOTIFICATIONS ALERTES CHANTS (CALENDRIER) */
+  .cal-alerts-row {
+      display: flex; gap: 4px; margin-top: 4px; flex-wrap: wrap;
+  }
+  .cal-alert-badge {
+      font-size: 9px; padding: 2px 4px; border-radius: 4px; font-weight: 700;
+      display: inline-flex; align-items: center; gap: 3px; cursor: pointer;
+      border: 1px solid transparent; transition: all 0.2s;
+  }
+  .cal-alert-badge:hover { transform: translateY(-1px); box-shadow: 0 2px 4px rgba(0,0,0,0.1); z-index: 10; }
+  .cal-alert-tone { background: #FFFBEB; color: #B45309; border-color: #FDE68A; }
+  .cal-alert-trans { background: #FEF2F2; color: #B91C1C; border-color: #FECACA; }
+
   /* STATUS INDICATORS */
   .bg-missing { background-color: #fff9f9 !important; border-left: 3px solid #EB5757; }
   .bg-draft { background-color: #fffcf5 !important; border-left: 3px solid #F2994A; }
@@ -287,6 +300,24 @@
         <i class="bi bi-x-lg text-secondary"></i>
     </div>
     <div id="exportModalContent"></div>
+  </div>
+
+  <!-- NOUVELLE MODALE : BLOCAGE DATE ORPHELINE -->
+  <div id="orphanAlertModal" class="notion-dialog" style="display:none; width: 350px; padding: 25px; text-align: center; flex-direction: column;">
+      <div class="mb-3">
+          <div class="bg-warning bg-opacity-10 rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width:64px; height:64px;">
+              <i class="bi bi-calendar-x text-warning fs-2"></i>
+          </div>
+          <h5 class="fw-bold text-dark">Date non planifiée</h5>
+          <p class="small text-muted mt-2 mb-0 px-2" style="line-height: 1.5;">
+              Aucun événement n'est prévu le <strong id="orphanAlertDate" class="text-dark">...</strong>.<br><br>
+              Vous devez d'abord créer cet événement et assigner une équipe dans le module <b>Planning</b>.
+          </p>
+      </div>
+      <div class="d-grid gap-2 mt-2">
+          <button class="btn btn-dark" onclick="goToPlanningFromOrphan()">Aller au Planning</button>
+          <button class="btn btn-light border text-secondary" onclick="closeAllModals()">Compris</button>
+      </div>
   </div>
 
   <!-- NOUVELLE MODALE DOCS -->

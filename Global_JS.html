@@ -115,6 +115,16 @@ document.addEventListener("DOMContentLoaded", function() {
     document.querySelectorAll('textarea').forEach(el => autoResize(el));
 });
 
+// --- FIX : RECALCUL DES HAUTEURS AU CHANGEMENT D'ORIENTATION ---
+let resizeTimerId;
+window.addEventListener('resize', function() {
+    clearTimeout(resizeTimerId);
+    // On attend 150ms que Bootstrap finisse de bouger ses colonnes avant de recalculer
+    resizeTimerId = setTimeout(() => {
+        document.querySelectorAll('textarea').forEach(el => autoResize(el));
+    }, 150);
+});
+
 // --- MASTER ESCAPE KEY HANDLER (GLOBAL) ---
 // Gère la fermeture propre de tous les overlays de l'application, peu importe le module actif.
 document.addEventListener('keydown', function(e) {

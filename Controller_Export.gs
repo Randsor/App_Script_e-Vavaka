@@ -10,7 +10,8 @@ var COLOR_DARK = "#111827";
 var COLOR_TEXT = "#374151";   
 var COLOR_META = "#6B7280";   
 var COLOR_BLUE = "#2563EB";   
-var COLOR_LIGHT = "#D1D5DB"; 
+var COLOR_LIGHT = "#D1D5DB";
+var COLOR_RED = "#DC2626"; 
 
 var INDENT_STD = 20; 
 
@@ -286,7 +287,12 @@ function renderBlockToDoc(body, startIdx, block, includeTrans, progData) {
   if (block.type !== 'CHANT' && block.type !== 'TEXTE_LIBRE' && block.type !== 'TITRE') {
       var label = safeTxt(block.label_mg || block.type);
       if (block.role) label += " (" + block.role + ")";
-      addP(label.toUpperCase(), sTitle, 'LEFT', 0, 0); 
+      var pLabel = addP(label.toUpperCase(), sTitle, 'LEFT', 0, 0); 
+      
+      // On passe les titres en BLEU
+      if (pLabel && ['LITURGIE', 'PRIERE', 'FANEKENA', 'PREDICATION'].includes(block.type)) {
+          pLabel.setForegroundColor(COLOR_BLUE);
+      }
       
       if (includeTrans && block.label_fr) {
           addP(block.label_fr, sMeta, 'LEFT', 6, 0); 
@@ -294,17 +300,21 @@ function renderBlockToDoc(body, startIdx, block, includeTrans, progData) {
   }
 
   if (block.type === 'TITRE') {
-      addP(block.label_mg.toUpperCase(), sTitle, 'CENTER', includeTrans ? 0 : 6);
+      var pTitre = addP(block.label_mg.toUpperCase(), sTitle, 'CENTER', includeTrans ? 0 : 6);
+      if (pTitre) pTitre.setForegroundColor(COLOR_BLUE); // On passe le Titre en BLEU
+      
       if(includeTrans && block.label_fr) addP(block.label_fr, sMeta, 'CENTER', 6);
       if(block.data && block.data.comment) addP(block.data.comment, sMeta, 'LEFT', 6);
   }
   
   else if (block.type === 'CHANT') {
-      // 1. Titre Générique
-      addP(safeTxt(block.label_mg || "HIRA").toUpperCase(), sTitle, 'LEFT', 0, 0);
+      // 1. Titre Générique (En ROUGE)
+      var pChantTitle = addP(safeTxt(block.label_mg || "HIRA").toUpperCase(), sTitle, 'LEFT', 0, 0);
+      if (pChantTitle) pChantTitle.setForegroundColor(COLOR_RED);
+      
       if (includeTrans && block.label_fr) addP(block.label_fr, sMeta, 'LEFT', 6, 0);
 
-      // 2. Ligne Info Chant
+      // 2. Ligne Info Chant (Toute la ligne en ROUGE)
       if (block.data.id) {
           var pInfo;
           try {
@@ -321,23 +331,38 @@ function renderBlockToDoc(body, startIdx, block, includeTrans, progData) {
               
               var t1 = pInfo.appendText(badgeText);
               t1.setAttributes(sRef); 
+              t1.setForegroundColor(COLOR_RED); // ROUGE
               
               if (block.data.sequenceSummary && block.data.sequenceSummary.toLowerCase() !== 'tout') {
                   var tStanza = pInfo.appendText(" : " + block.data.sequenceSummary);
                   tStanza.setAttributes(sRef);
+                  tStanza.setForegroundColor(COLOR_RED); // ROUGE
               }
 
               var t2 = pInfo.appendText(" | ");
-              t2.setForegroundColor(COLOR_LIGHT).setBold(false).setItalic(false);
+              t2.setForegroundColor(COLOR_RED).setBold(false).setItalic(false); // ROUGE
 
               var songTitle = safeTxt(block.data.titre);
-              if (block.data.tonalite) songTitle += " (" + block.data.tonalite + ")";
+              if (block.data.tonalite) songTitle += " • " + block.data.tonalite;
               var t3 = pInfo.appendText(songTitle);
-              t3.setForegroundColor(COLOR_DARK).setBold(true).setItalic(false).setFontFamily(DOC_FONT_FAMILY).setFontSize(DOC_FONT_SIZE_TITLE);
+              t3.setForegroundColor(COLOR_RED).setBold(true).setItalic(false).setFontFamily(DOC_FONT_FAMILY).setFontSize(DOC_FONT_SIZE_TITLE); // ROUGE
               
               pInfo.setSpacingAfter(6);
               pInfo.setIndentStart(INDENT_STD).setIndentFirstLine(INDENT_STD);
 
+          } catch(e) {}
+      } else if (block.data.titre) {
+          // CAS SAISIE LIBRE : On imprime juste le titre saisi à la main
+          var pInfoLibre;
+          try {
+              if (currentIdx !== null) { pInfoLibre = body.insertParagraph(currentIdx, ""); currentIdx++; } 
+              else { pInfoLibre = body.appendParagraph(""); }
+              
+              var tLibre = pInfoLibre.appendText(safeTxt(block.data.titre));
+              tLibre.setForegroundColor(COLOR_RED).setBold(true).setItalic(false).setFontFamily(DOC_FONT_FAMILY).setFontSize(DOC_FONT_SIZE_TITLE); // ROUGE
+              
+              pInfoLibre.setSpacingAfter(6);
+              pInfoLibre.setIndentStart(INDENT_STD).setIndentFirstLine(INDENT_STD);
           } catch(e) {}
       }
 
@@ -346,6 +371,66 @@ function renderBlockToDoc(body, startIdx, block, includeTrans, progData) {
           var cleanFR = includeTrans && block.data.paroles_fr_fixe ? block.data.paroles_fr_fixe.replace(/\n{3,}/g, '\n\n').trim() : "";
           addDualCol(cleanMG, cleanFR);
       }
+  }
+
+  else if (block.type === 'INTERLUDE') {
+      // 1. Création d'un tableau à 1 cellule (Le Cartouche)
+      var table;
+      try {
+          if (currentIdx !== null) { table = body.insertTable(currentIdx); currentIdx++; }
+          else { table = body.appendTable(); }
+      } catch(e) { table = body.appendTable(); currentIdx = null; }
+      
+      var row = table.appendTableRow();
+      var cell = row.appendTableCell();
+      
+      // 2. Style du Cartouche
+      table.setBorderWidth(1);
+      table.setBorderColor("#E5E7EB");
+      cell.setBackgroundColor("#F9FAFB");
+      cell.setPaddingTop(12).setPaddingBottom(12).setPaddingLeft(INDENT_STD).setPaddingRight(INDENT_STD);
+      
+      // 3. Sécurisation extrême des textes (Empêche le crash Google Docs)
+      var labelMg = safeTxt(block.label_mg);
+      if (labelMg === "") labelMg = "FEONJAVAMANENO";
+      
+      // On utilise le paragraphe vide créé par défaut dans la cellule Google Docs
+      var pLabel = cell.getChild(0).asParagraph();
+      pLabel.setText(labelMg.toUpperCase());
+      pLabel.setAttributes(sTitle).setAlignment(DocumentApp.HorizontalAlignment.CENTER);
+      
+      var labelFr = safeTxt(block.label_fr);
+      if (includeTrans && labelFr !== "") {
+          var pFr = cell.appendParagraph(labelFr);
+          pFr.setAttributes(sMeta).setAlignment(DocumentApp.HorizontalAlignment.CENTER).setSpacingAfter(8);
+      } else {
+          pLabel.setSpacingAfter(8);
+      }
+
+      var morceau = safeTxt(block.data.titre);
+      var tonalite = safeTxt(block.data.tonalite);
+      if (tonalite !== "") {
+          if (morceau !== "") morceau += " • " + tonalite;
+          else morceau = tonalite;
+      }
+
+      var comment = safeTxt(block.data.comment);
+
+      // On n'ajoute la ligne que si elle contient du texte
+      if (morceau !== "") {
+          var pMorceau = cell.appendParagraph(morceau);
+          pMorceau.setAttributes(sTxt).setBold(true).setAlignment(DocumentApp.HorizontalAlignment.CENTER);
+          pMorceau.setSpacingAfter(comment !== "" ? 4 : 0);
+      }
+
+      // On n'ajoute le commentaire que s'il existe
+      if (comment !== "") {
+          var pComment = cell.appendParagraph(comment);
+          pComment.setAttributes(sMeta).setAlignment(DocumentApp.HorizontalAlignment.CENTER).setSpacingAfter(0);
+      }
+      
+      // 4. Espacement de fin
+      addP(" ", sTxt, 'LEFT', 6, 0, true);
   }
   
   else if (block.type === 'LECTURE') {

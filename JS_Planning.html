@@ -2103,9 +2103,22 @@ function renderMobileNameList(list, selectedVal) {
     if(!container) return;
     
     let html = "";
+    const hasSelection = (selectedVal && selectedVal !== "");
+    
+    const deleteBtnHtml = `
+        <div class="p-3 border-bottom bg-danger bg-opacity-10 text-danger fw-bold d-flex align-items-center gap-2 cursor-pointer mb-2" 
+             onclick="selectNameWithFeedback(this, '')">
+            <i class="bi bi-trash3"></i> Retirer l'assignation
+        </div>`;
+
+    // 1. Si déjà quelqu'un : Bouton "Retirer" en haut (sur fond rouge léger pour l'alerte visuelle)
+    if (hasSelection) {
+        html += deleteBtnHtml;
+    }
+
+    // 2. La liste des noms
     list.sort().forEach(n => {
         const isSel = (n === selectedVal);
-        // On passe 'this' pour pouvoir animer l'élément cliqué
         html += `
         <div class="p-3 border-bottom bg-white d-flex justify-content-between align-items-center cursor-pointer transition-colors" 
              onclick="selectNameWithFeedback(this, '${n.replace(/'/g, "\\'")}')">
@@ -2114,12 +2127,10 @@ function renderMobileNameList(list, selectedVal) {
         </div>`;
     });
     
-    // Option Suppression
-    html += `
-    <div class="p-3 border-bottom bg-white text-danger fw-bold d-flex align-items-center gap-2 cursor-pointer" 
-         onclick="selectNameWithFeedback(this, '')">
-        <i class="bi bi-trash3"></i> Retirer l'assignation
-    </div>`;
+    // 3. Si personne : On le laisse en bas par défaut
+    if (!hasSelection) {
+        html += deleteBtnHtml;
+    }
     
     container.innerHTML = html;
 }

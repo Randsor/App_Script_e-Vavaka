@@ -1,3 +1,20 @@
+<style>
+/* Style spécifique pour détacher l'Interlude du reste */
+.interlude-box {
+    background-color: #F8FAFC !important;
+    border: 2px dashed #CBD5E1 !important;
+    border-radius: 8px;
+}
+/* Styles globaux pour le Dropdown de Tonalité (si pas déjà dispo) */
+.custom-select-wrapper { position: relative; user-select: none; }
+.custom-select-trigger { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: white; border: 1px solid #E5E7EB; border-radius: 6px; font-size: 13px; cursor: pointer; height: 36px; }
+.custom-select-panel { position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: white; border: 1px solid #E5E7EB; border-radius: 8px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); z-index: 1050; max-height: 200px; overflow-y: auto; display: none; padding: 4px; }
+.custom-select-panel.show { display: block; }
+.custom-select-option { padding: 8px 12px; font-size: 13px; font-weight: 500; color: #111827; border-radius: 4px; cursor: pointer; display: flex; justify-content: space-between; }
+.custom-select-option:hover { background: #F3F4F6; }
+.custom-select-option.selected { background: #EFF6FF; color: #2563EB; font-weight: 600; }
+</style>
+
 <script>
 /**
  * MOTEUR DE RENDU UNIFIÉ - BLOCS PROGRAMME & TEMPLATES
@@ -83,6 +100,7 @@ function insertBlock(type) {
     
     if(type === 'TITRE') { newBlock.label_mg = "LOHATENIM-PIZARANA"; newBlock.label_fr = "Titre de section"; }
     if(type === 'CHANT') { newBlock.label_mg = "HIRA"; newBlock.label_fr = "Chant"; newBlock.data.mode = 'recherche'; }
+     if(type === 'INTERLUDE') { newBlock.label_mg = "FEONJAVAMANENO"; newBlock.label_fr = "Interlude"; } // <--- NOUVEAU
     if(type === 'FANEKENA') { newBlock.label_mg = "FANEKEM-PINOANA"; newBlock.label_fr = "Confession de foi"; }
     if(type === 'LECTURE') { newBlock.label_mg = "VAKITENY"; newBlock.label_fr = "Lecture Biblique"; }
     if(type === 'LITURGIE') { newBlock.label_mg = "FIZARANA LITORJIKA"; newBlock.label_fr = "Rubrique liturgique"; }
@@ -230,6 +248,7 @@ function renderSharedBlocks(containerId, blocks, context) {
         if (block.type === 'LITURGIE') badgeClass = "bg-warning-subtle text-warning-emphasis";
         if (block.type === 'PRIERE') badgeClass = "bg-info-subtle text-info-emphasis";
         if (block.type === 'ANNONCE') badgeClass = "bg-dark-subtle text-dark";
+        if (block.type === 'INTERLUDE') badgeClass = "bg-secondary text-white"; // <--- NOUVEAU
         if (block.type === 'TITRE') badgeClass = "bg-light text-secondary border";
 
         let roleHTML = "";
@@ -249,7 +268,7 @@ function renderSharedBlocks(containerId, blocks, context) {
         
         if (block.type === 'CHANT') {
             let titleRow = '<div class="w-100" style="padding-right: 70px;">';
-            titleRow += `<input type="text" class="form-control doc-borderless input-mg p-0 m-0" style="width: 100%;" value="${escapeHTML(block.label_mg)}" placeholder="TITRE MG" oninput="updateBlockField(${index}, 'label_mg', this.value)">`;
+            titleRow += `<input type="text" class="form-control doc-borderless input-mg p-0 m-0 text-danger" style="width: 100%;" value="${escapeHTML(block.label_mg)}" placeholder="TITRE MG" oninput="updateBlockField(${index}, 'label_mg', this.value)">`;
             titleRow += `<input type="text" class="form-control doc-borderless input-fr p-0 m-0" style="width: 100%;" value="${escapeHTML(block.label_fr)}" placeholder="Titre FR" oninput="updateBlockField(${index}, 'label_fr', this.value)">`;
             titleRow += '</div>';
             
@@ -266,9 +285,14 @@ function renderSharedBlocks(containerId, blocks, context) {
                     let numStr = block.data.numero;
                     let formattedNum = (block.data.recueil === 'Fihirana') ? String(numStr).padStart(3, '0') : escapeHTML(block.data.recueil.substring(0,2).toUpperCase()) + ' ' + escapeHTML(numStr);
                     let tonaliteHtml = block.data.tonalite ? `<span class="ms-2 border border-secondary text-secondary rounded fw-bold px-2" style="font-size:11px !important; padding:1px 4px; background-color:#fff;">${escapeHTML(block.data.tonalite)}</span>` : '';
-                    let stanzaDisplay = (block.data.sequenceSummary && block.data.sequenceSummary !== 'Tout') ? `<span class="text-secondary ms-1" style="font-size:13px; font-weight:400;">: ${escapeHTML(block.data.sequenceSummary)}</span>` : '';
+                    let stanzaDisplay = (block.data.sequenceSummary && block.data.sequenceSummary !== 'Tout') ? `<span class="text-danger ms-1" style="font-size:13px; font-weight:400;">: ${escapeHTML(block.data.sequenceSummary)}</span>` : '';
 
-                    songInfo = `<div class="mt-1 mb-1 d-flex align-items-center justify-content-between"><div class="d-flex align-items-center gap-2 flex-wrap"><span class="fw-bold text-primary" style="font-size:15px;">${formattedNum}</span>${stanzaDisplay}<div class="vr mx-1 opacity-25"></div><div class="small fw-bold text-dark text-truncate" style="max-width:250px;">${escapeHTML(block.data.titre)}</div>${tonaliteHtml}</div><button class="btn btn-sm bg-white border text-secondary shadow-sm py-0 px-2" style="font-size:11px;" onclick="openSongSelector(${index})">Changer</button></div>`;
+                    songInfo = `<div class="mt-1 mb-1 d-flex align-items-center justify-content-between"><div class="d-flex align-items-center gap-2 flex-wrap"><span class="fw-bold text-danger" style="font-size:15px;">${formattedNum}</span>${stanzaDisplay}<div class="vr mx-1 text-danger opacity-50"></div><div class="small fw-bold text-danger text-truncate" style="max-width:250px;">${escapeHTML(block.data.titre)}</div>${tonaliteHtml}</div><button class="btn btn-sm bg-white border text-secondary shadow-sm py-0 px-2" style="font-size:11px;" onclick="openSongSelector(${index})">Changer</button></div>`;
+                } else {
+                    // SAISIE LIBRE : On ajoute le champ de titre en rouge
+                    songInfo = `<div class="mt-1 mb-2">
+                        <input type="text" class="form-control doc-borderless text-danger fw-bold px-1" style="font-size:15px;" placeholder="Titre du chant libre..." value="${escapeHTML(block.data?.titre)}" oninput="updateBlockDataField(${index}, 'titre', this.value)">
+                    </div>`;
                 }
                 
                 content = songInfo;
@@ -304,6 +328,27 @@ function renderSharedBlocks(containerId, blocks, context) {
                 <textarea class="form-control doc-borderless text-secondary" rows="3" ${styleJustified} placeholder="Texte Biblique FR..." oninput="autoResize(this); updateBlockDataField(${index}, 'texte_fr', this.value)">${escapeHTML(block.data?.texte_fr)}</textarea>
             </div>`;
             extraFields += '</div>';
+        }
+        
+        else if (block.type === 'INTERLUDE') {
+            let toneHtml = buildDynamicToneSelector(index, block.data?.tonalite);
+            
+            extraFields = `<div class="mt-2 p-3 bg-white border rounded shadow-sm">
+                <div class="row g-2 mb-2">
+                    <div class="col-12 col-md-7">
+                        <label class="small fw-bold text-muted mb-1" style="font-size:10px;">TITRE DU MORCEAU</label>
+                        <input type="text" class="form-control fw-bold text-dark border-secondary border-opacity-25" placeholder="Titre (Optionnel)..." value="${escapeHTML(block.data?.titre)}" oninput="updateBlockDataField(${index}, 'titre', this.value)">
+                    </div>
+                    <div class="col-12 col-md-5">
+                        <label class="small fw-bold text-muted mb-1" style="font-size:10px;">TONALITÉ</label>
+                        ${toneHtml}
+                    </div>
+                </div>
+                <div>
+                    <label class="small fw-bold text-muted mb-1" style="font-size:10px;">COMMENTAIRE</label>
+                    <input type="text" class="form-control text-secondary fst-italic border-secondary border-opacity-25" style="font-size:13px;" placeholder="Ex: Piano seul, Pendant la quête..." value="${escapeHTML(block.data?.comment)}" oninput="updateBlockDataField(${index}, 'comment', this.value)">
+                </div>
+            </div>`;
         }
         
         else if (['LITURGIE', 'LIBRE', 'PRIERE', 'TEXTE_LIBRE'].includes(block.type)) {
@@ -343,17 +388,25 @@ function renderSharedBlocks(containerId, blocks, context) {
             extraFields = '<div class="mt-1 text-muted small fst-italic ms-1" style="font-size:12px;"><i class="bi bi-link-45deg me-1"></i>Lien automatique Module Nouvelles</div>'; 
         }
 
+        let labelColorClass = "";
+        if (['LITURGIE', 'PRIERE', 'TITRE', 'FANEKENA', 'PREDICATION'].includes(block.type)) {
+            labelColorClass = "text-primary";
+        }
+
         const mainContent = (block.type === 'CHANT' || block.type === 'TEXTE_LIBRE') 
             ? extraFields 
-            : `<input type="text" class="form-control doc-borderless input-mg p-0 m-0" value="${escapeHTML(block.label_mg)}" placeholder="TITRE MG" oninput="updateBlockField(${index}, 'label_mg', this.value)">
+            : `<input type="text" class="form-control doc-borderless input-mg p-0 m-0 ${labelColorClass}" value="${escapeHTML(block.label_mg)}" placeholder="TITRE MG" oninput="updateBlockField(${index}, 'label_mg', this.value)">
                <input type="text" class="form-control doc-borderless input-fr p-0 m-0" value="${escapeHTML(block.label_fr)}" placeholder="Titre FR" oninput="updateBlockField(${index}, 'label_fr', this.value)">`;
 
         const bottomContent = (block.type !== 'CHANT' && block.type !== 'TEXTE_LIBRE') ? `<div class="ps-1">${extraFields}</div>` : '';
         
         let resetBtn = (block.type === 'CHANT' && (block.data?.id || block.data?.mode === 'fixe')) ? `<i class="bi bi-arrow-counterclockwise text-secondary opacity-50 hover-opacity-100 cursor-pointer small ms-2" onclick="resetSongBlock(${index})" title="Réinitialiser le chant"></i>` : "";
 
+        let wrapperExtraClass = (block.type === 'INTERLUDE') ? "interlude-box p-3" : "";
+        let borderFix = (block.type === 'INTERLUDE') ? "" : "border-bottom: none !important;";
+
         container.innerHTML += `
-        <div class="item-wrapper group-bloc position-relative hover-bg" data-index="${index}" style="display: block !important; margin-bottom: 13px !important; border-bottom: none !important;">
+        <div class="item-wrapper group-bloc position-relative hover-bg ${wrapperExtraClass}" data-index="${index}" style="display: block !important; margin-bottom: 13px !important; ${borderFix}">
             <div class="position-absolute top-0 end-0 mt-2 me-2 d-flex align-items-center" style="z-index: 5;">
                 ${roleHTML}
                 <span class="badge rounded-1 fw-normal border ${badgeClass}" style="font-size:9px; padding: 2px 4px;">${block.type}</span>
@@ -383,4 +436,66 @@ function closeAllMenus() {
         if (el) el.style.display = 'none'; 
     });
 }
+
+// --- MOTEUR DE TONALITÉ DYNAMIQUE POUR L'ÉDITEUR ---
+
+function buildDynamicToneSelector(index, tonaliteValue) {
+    const notes = ["(Vide)", "C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"];
+    const versions = ["(Aucune)", "1", "2", "3"];
+
+    let note = "(Vide)", ver = "(Aucune)";
+    if(tonaliteValue) {
+        const m = String(tonaliteValue).trim().match(/^([A-Za-z#b]+)(?:\s*\(([123])\))?$/);
+        if(m) { 
+            if(notes.includes(m[1])) note = m[1]; 
+            if(m[2]) ver = m[2]; 
+        } else { if(notes.includes(tonaliteValue)) note = tonaliteValue; }
+    }
+
+    let noteOpts = notes.map(n => `<div class="custom-select-option ${n===note?'selected':''}" onclick="applyDynamicTone(${index}, '${n}', '${ver}', event)"><span>${n}</span></div>`).join('');
+    let verOpts = versions.map(v => `<div class="custom-select-option ${v===ver?'selected':''}" onclick="applyDynamicTone(${index}, '${note}', '${v}', event)"><span>${v==='(Aucune)'?'-':'v'+v}</span></div>`).join('');
+
+    return `
+    <div class="d-flex gap-2">
+        <div class="custom-select-wrapper flex-grow-1">
+            <div class="custom-select-trigger border-secondary border-opacity-25" onclick="toggleMenuDynamic('panelDynNote_${index}', event)">
+                <span class="fw-bold text-dark">${note}</span><i class="bi bi-chevron-down text-muted" style="font-size:10px;"></i>
+            </div>
+            <div class="custom-select-panel custom-scrollbar" id="panelDynNote_${index}">${noteOpts}</div>
+        </div>
+        <div class="custom-select-wrapper" style="width:85px;">
+            <div class="custom-select-trigger border-secondary border-opacity-25" onclick="toggleMenuDynamic('panelDynVer_${index}', event)">
+                <span class="fw-bold text-dark">${ver==='(Aucune)'?'-':'v'+ver}</span><i class="bi bi-chevron-down text-muted" style="font-size:10px;"></i>
+            </div>
+            <div class="custom-select-panel custom-scrollbar" id="panelDynVer_${index}">${verOpts}</div>
+        </div>
+    </div>`;
+}
+
+function toggleMenuDynamic(panelId, event) {
+    event.stopPropagation();
+    document.querySelectorAll('.custom-select-panel').forEach(p => {
+        if(p.id !== panelId) p.classList.remove('show');
+    });
+    document.getElementById(panelId).classList.toggle('show');
+}
+
+function applyDynamicTone(index, note, version, event) {
+    event.stopPropagation();
+    document.querySelectorAll('.custom-select-panel').forEach(p => p.classList.remove('show'));
+    let finalVal = "";
+    if (note !== "(Vide)") {
+        finalVal = (version !== "(Aucune)") ? `${note} (${version})` : note;
+    }
+    updateBlockDataField(index, 'tonalite', finalVal);
+    refreshActiveView(); // Redessine pour mettre à jour les labels
+}
+
+// Fermeture globale
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('.custom-select-wrapper')) {
+        document.querySelectorAll('.custom-select-panel').forEach(p => p.classList.remove('show'));
+    }
+});
+
 </script>

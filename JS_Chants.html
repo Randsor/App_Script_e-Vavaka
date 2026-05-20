@@ -416,7 +416,9 @@ function openChantModal(id = null) {
             document.getElementById('editNumero').value = chant.numero;
             document.getElementById('editTitre').value = chant.titre; // Titre principal
             document.getElementById('editTags').value = chant.tags || "";
-            document.getElementById('editTonalite').value = chant.tonalite || "";
+            
+            // --- NOUVEAU DROPDOWN TONALITÉ ---
+            initToneDropdowns(chant.tonalite || "");
 
             const mgParts = chant.paroles_mg ? chant.paroles_mg.split(" /// ") : [];
             const frParts = chant.paroles_fr ? chant.paroles_fr.split(" /// ") : [];
@@ -437,6 +439,10 @@ function openChantModal(id = null) {
         }).getChantDetails(id);
     } else {
         document.getElementById('modalTitle').innerText = "Nouveau chant";
+        
+        // --- INITIALISATION TONALITÉ VIDE ---
+        initToneDropdowns("");
+        
         document.getElementById('modalLoader').classList.add('hidden');
         setTimeout(() => { IGNORE_DIRTY_FLAG = false; }, 500);
     }
@@ -654,6 +660,138 @@ function submitChantAuth() {
             setTimeout(()=>inp.classList.remove('shake-error'), 500);
         }
     }).verifyUniversalCode(val);
+}
+
+// =========================================================
+// GESTION DU CUSTOM DROPDOWN TONALITÉ & VERSION
+// =========================================================
+
+const TONE_NOTES = ["(Vide)", "C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"];
+const TONE_VERSIONS = ["(Aucune)", "1", "2", "3"];
+
+let currentSelectedNote = "(Vide)";
+let currentSelectedVersion = "(Aucune)";
+
+function toggleCustomToneSelect(panelId, event) {
+    if(!IS_CHANT_EDITABLE) return; 
+    event.stopPropagation();
+    
+    const panel = document.getElementById(panelId);
+    const trigger = panel.previousElementSibling;
+    
+    document.querySelectorAll('.custom-select-panel').forEach(p => {
+        if(p.id !== panelId) { p.classList.remove('show'); p.previousElementSibling.classList.remove('active'); }
+    });
+
+    panel.classList.toggle('show');
+    trigger.classList.toggle('active');
+}
+
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('.custom-select-wrapper')) {
+        document.querySelectorAll('.custom-select-panel').forEach(p => p.classList.remove('show'));
+        document.querySelectorAll('.custom-select-trigger').forEach(t => t.classList.remove('active'));
+    }
+});
+
+function initToneDropdowns(dbValue) {
+    const panelNote = document.getElementById('panelToneNote');
+    const panelVersion = document.getElementById('panelToneVersion');
+    
+    currentSelectedNote = "(Vide)";
+    currentSelectedVersion = "(Aucune)";
+    
+    if (dbValue && dbValue.trim() !== "") {
+        let val = dbValue.trim();
+        
+        // Regex pour capter "E (2)" ou juste "E"
+        const match = val.match(/^([A-Za-z#b]+)(?:\s*\(([123])\))?$/);
+        
+        if (match) {
+            let parsedNote = match[1];
+            let parsedVersion = match[2];
+            
+            // Rétrocompatibilité : si l'ancien chant était "Em" ou "F#m", on retire le "m"
+            if (parsedNote.endsWith('m')) parsedNote = parsedNote.slice(0, -1);
+            
+            // On vérifie que la note existe bien dans notre nouvelle liste stricte
+            if (TONE_NOTES.includes(parsedNote)) currentSelectedNote = parsedNote;
+            
+            if (parsedVersion && ["1", "2", "3"].includes(parsedVersion)) {
+                currentSelectedVersion = parsedVersion;
+            }
+        } else {
+            // Fallback ultime de nettoyage si format très ancien
+            let cleanVal = val.replace(/[^A-Za-z#b]/g, '');
+            if (cleanVal.endsWith('m')) cleanVal = cleanVal.slice(0, -1);
+            if (TONE_NOTES.includes(cleanVal)) currentSelectedNote = cleanVal;
+        }
+    }
+
+    updateToneUI();
+    
+    // Rendu Options NOTE
+    panelNote.innerHTML = "";
+    TONE_NOTES.forEach(note => {
+        const opt = document.createElement('div');
+        opt.className = `custom-select-option ${note === currentSelectedNote ? 'selected' : ''}`;
+        opt.innerHTML = `<span>${note}</span> ${note === currentSelectedNote ? '<i class="bi bi-check2"></i>' : ''}`;
+        opt.onclick = (e) => {
+            currentSelectedNote = note;
+            updateToneUI();
+            toggleCustomToneSelect('panelToneNote', e);
+            markChantDirty();
+        };
+        panelNote.appendChild(opt);
+    });
+
+    // Rendu Options VERSION
+    panelVersion.innerHTML = "";
+    TONE_VERSIONS.forEach(ver => {
+        const opt = document.createElement('div');
+        opt.className = `custom-select-option ${ver === currentSelectedVersion ? 'selected' : ''}`;
+        let displayLabel = ver === "(Aucune)" ? "-" : "v" + ver;
+        opt.innerHTML = `<span>${displayLabel}</span> ${ver === currentSelectedVersion ? '<i class="bi bi-check2"></i>' : ''}`;
+        opt.onclick = (e) => {
+            currentSelectedVersion = ver;
+            updateToneUI();
+            toggleCustomToneSelect('panelToneVersion', e);
+            markChantDirty();
+        };
+        panelVersion.appendChild(opt);
+    });
+}
+
+function updateToneUI() {
+    // 1. Mise à jour visuelle des boutons
+    document.getElementById('labelToneNote').innerText = currentSelectedNote === "(Vide)" ? "..." : currentSelectedNote;
+    document.getElementById('labelToneVersion').innerText = currentSelectedVersion === "(Aucune)" ? "-" : "v" + currentSelectedVersion;
+
+    // 2. Mise à jour des coches dans les listes déroulantes
+    document.querySelectorAll('#panelToneNote .custom-select-option').forEach(el => {
+        const isSel = el.querySelector('span').innerText === currentSelectedNote;
+        el.className = `custom-select-option ${isSel ? 'selected' : ''}`;
+        el.innerHTML = `<span>${el.querySelector('span').innerText}</span> ${isSel ? '<i class="bi bi-check2"></i>' : ''}`;
+    });
+    
+    document.querySelectorAll('#panelToneVersion .custom-select-option').forEach(el => {
+        const spanText = el.querySelector('span').innerText;
+        const isSel = (currentSelectedVersion === "(Aucune)" && spanText === "-") || (spanText === "v" + currentSelectedVersion);
+        el.className = `custom-select-option ${isSel ? 'selected' : ''}`;
+        el.innerHTML = `<span>${spanText}</span> ${isSel ? '<i class="bi bi-check2"></i>' : ''}`;
+    });
+
+    // 3. FORMATAGE FINAL POUR LE BACKEND (ex: "E (2)")
+    const hiddenInput = document.getElementById('editTonalite');
+    if (currentSelectedNote === "(Vide)") {
+        hiddenInput.value = "";
+    } else {
+        if (currentSelectedVersion !== "(Aucune)") {
+            hiddenInput.value = `${currentSelectedNote} (${currentSelectedVersion})`;
+        } else {
+            hiddenInput.value = currentSelectedNote;
+        }
+    }
 }
 
 </script>

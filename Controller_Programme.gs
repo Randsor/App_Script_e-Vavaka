@@ -5,7 +5,112 @@ var SHEET_NAME_PLANNING = "DB_PLANNING";
 var SHEET_NAME_TEMPLATES = "DB_TEMPLATES";
 var SHEET_NAME_FANEKENA = "DB_FANEKENA"; 
 
-function getMonthOverview(month, year) { try { var ss = SpreadsheetApp.getActiveSpreadsheet(); var sheetPlan = ss.getSheetByName(SHEET_NAME_PLANNING); var sheetProg = ss.getSheetByName(SHEET_NAME_PROGRAMMES); var mapByDate = {}; if (sheetPlan && sheetPlan.getLastRow() > 1) { var dataP = sheetPlan.getDataRange().getValues(); for (var i = 1; i < dataP.length; i++) { var row = dataP[i]; if (!row[0]) continue; var d = parseDate_Prog(row[0]); if (d && d.getMonth() === month && d.getFullYear() === year) { var dateStr = formatDate_Prog(d); var heureStr = formatTime_Prog(row[1]); var titrePlan = row[2] || "Culte"; if (!mapByDate[dateStr]) { mapByDate[dateStr] = { date: dateStr, dateObj: d.getTime(), horaires: [], titre: titrePlan, progId: null, status: 'missing' }; } if (mapByDate[dateStr].horaires.indexOf(heureStr) === -1) { mapByDate[dateStr].horaires.push(heureStr); } if (row[2]) mapByDate[dateStr].titre = row[2]; } } } if (sheetProg && sheetProg.getLastRow() > 1) { var dataPr = sheetProg.getDataRange().getValues(); for (var j = 1; j < dataPr.length; j++) { if(!dataPr[j][1]) continue; var dProg = parseDate_Prog(dataPr[j][1]); if (dProg && dProg.getMonth() === month && dProg.getFullYear() === year) { var dateStrP = formatDate_Prog(dProg); if (!mapByDate[dateStrP]) { mapByDate[dateStrP] = { date: dateStrP, dateObj: dProg.getTime(), horaires: ["--:--"], titre: dataPr[j][2], progId: null, status: 'missing' }; } mapByDate[dateStrP].progId = dataPr[j][0]; mapByDate[dateStrP].status = dataPr[j][7] || "draft"; } } } var result = []; for (var key in mapByDate) { var item = mapByDate[key]; item.horaires.sort(); result.push({ date: item.date, dateObj: item.dateObj, horaires: item.horaires, titre: item.titre, progId: item.progId, status: item.status }); } result.sort(function(a,b) { return a.dateObj - b.dateObj; }); return result; } catch (e) { return [{ error: true, msg: e.toString() }]; } }
+function getMonthOverview(month, year) { 
+    try { 
+        var ss = SpreadsheetApp.getActiveSpreadsheet(); 
+        var sheetPlan = ss.getSheetByName("DB_PLANNING"); 
+        var sheetProg = ss.getSheetByName("DB_PROGRAMMES"); 
+        var sheetChants = ss.getSheetByName("DB_CHANTS"); // NOUVEAU : On appelle la source de vérité
+        
+        var mapByDate = {}; 
+        
+        // --- 0. PRE-CHARGEMENT DB_CHANTS (La source de vérité live) ---
+        var songMap = {};
+        if (sheetChants && sheetChants.getLastRow() > 1) {
+            // On récupère id, tonalite, mg, fr
+            var dataC = sheetChants.getRange(2, 1, sheetChants.getLastRow() - 1, 7).getValues();
+            for (var c = 0; c < dataC.length; c++) {
+                var cId = String(dataC[c][0]).trim();
+                var tonalite = dataC[c][4] ? String(dataC[c][4]).trim() : "";
+                var mg = dataC[c][5] ? String(dataC[c][5]) : "";
+                var fr = dataC[c][6] ? String(dataC[c][6]) : "";
+                
+                // Calcul strict du statut
+                var nbMg = mg.split(" /// ").filter(function(t){return t.trim().length>0}).length;
+                var nbFr = fr.split(" /// ").filter(function(t){return t.trim().length>0}).length;
+                var isTransOk = !(nbMg > 0 && (nbFr === 0 || nbMg > nbFr));
+                
+                songMap[cId] = { hasTone: (tonalite !== ""), isTransOk: isTransOk };
+            }
+        }
+
+        // 1. SCAN DU PLANNING
+        if (sheetPlan && sheetPlan.getLastRow() > 1) { 
+            var dataP = sheetPlan.getDataRange().getValues(); 
+            for (var i = 1; i < dataP.length; i++) { 
+                var row = dataP[i]; 
+                if (!row[0]) continue; 
+                var d = parseDate_Prog(row[0]); 
+                if (d && d.getMonth() === month && d.getFullYear() === year) { 
+                    var dateStr = formatDate_Prog(d); 
+                    var heureStr = formatTime_Prog(row[1]); 
+                    var titrePlan = row[2] || "Culte"; 
+                    if (!mapByDate[dateStr]) { 
+                        mapByDate[dateStr] = { date: dateStr, dateObj: d.getTime(), horaires: [], titre: titrePlan, progId: null, status: 'missing', alerts: { toneIds: [], transIds: [] } }; 
+                    } 
+                    if (mapByDate[dateStr].horaires.indexOf(heureStr) === -1) { 
+                        mapByDate[dateStr].horaires.push(heureStr); 
+                    } 
+                    if (row[2]) mapByDate[dateStr].titre = row[2]; 
+                } 
+            } 
+        } 
+        
+        // 2. SCAN DES PROGRAMMES
+        if (sheetProg && sheetProg.getLastRow() > 1) { 
+            var dataPr = sheetProg.getDataRange().getValues(); 
+            for (var j = 1; j < dataPr.length; j++) { 
+                if(!dataPr[j][1]) continue; 
+                var dProg = parseDate_Prog(dataPr[j][1]); 
+                if (dProg && dProg.getMonth() === month && dProg.getFullYear() === year) { 
+                    var dateStrP = formatDate_Prog(dProg); 
+                    if (!mapByDate[dateStrP]) { 
+                        mapByDate[dateStrP] = { date: dateStrP, dateObj: dProg.getTime(), horaires: ["--:--"], titre: dataPr[j][2], progId: null, status: 'missing', alerts: { toneIds: [], transIds: [] } }; 
+                    } 
+                    
+                    mapByDate[dateStrP].progId = dataPr[j][0]; 
+                    mapByDate[dateStrP].status = dataPr[j][7] || "draft"; 
+                    
+                    // --- ANALYSE VIA LA DB EN DIRECT (Comme le Dashboard) ---
+                    var jsonStr = String(dataPr[j][5] || "");
+                    if (jsonStr !== "") {
+                        try {
+                            var blocks = JSON.parse(jsonStr);
+                            var tIds = [];
+                            var trIds = [];
+                            for(var k=0; k < blocks.length; k++) {
+                                var b = blocks[k];
+                                if (b.type === 'CHANT' && b.data && b.data.id) {
+                                    var sId = String(b.data.id).trim();
+                                    var sInfo = songMap[sId];
+                                    
+                                    // On vérifie contre la base de données LIVE
+                                    if (sInfo) {
+                                        if (!sInfo.hasTone && tIds.indexOf(sId) === -1) tIds.push(sId);
+                                        if (!sInfo.isTransOk && trIds.indexOf(sId) === -1) trIds.push(sId);
+                                    }
+                                }
+                            }
+                            mapByDate[dateStrP].alerts.toneIds = tIds;
+                            mapByDate[dateStrP].alerts.transIds = trIds;
+                        } catch(e) {}
+                    }
+                } 
+            } 
+        } 
+        
+        var result = []; 
+        for (var key in mapByDate) { 
+            var item = mapByDate[key]; 
+            item.horaires.sort(); 
+            result.push(item); 
+        } 
+        result.sort(function(a,b) { return a.dateObj - b.dateObj; }); 
+        return result; 
+    } catch (e) { 
+        return [{ error: true, msg: e.toString() }]; 
+    } 
+}
 function getNextComingCulte() { try { var ss = SpreadsheetApp.getActiveSpreadsheet(); var sheetPlan = ss.getSheetByName(SHEET_NAME_PLANNING); var sheetProg = ss.getSheetByName(SHEET_NAME_PROGRAMMES); var now = new Date(); now.setHours(0,0,0,0); if (!sheetPlan || sheetPlan.getLastRow() < 2) return { found: false, reason: "Planning vide" }; var dataP = sheetPlan.getDataRange().getValues(); var candidates = []; for(var i=1; i<dataP.length; i++) { var d = parseDate_Prog(dataP[i][0]); if(d && d >= now) { candidates.push({ dateObj: d, date: formatDate_Prog(d), heure: formatTime_Prog(dataP[i][1]), titre: dataP[i][2] || "Culte" }); } } if(candidates.length === 0) return { found: false }; candidates.sort(function(a,b) { return a.dateObj - b.dateObj; }); var first = candidates[0]; var sameDay = candidates.filter(function(c) { return c.date === first.date; }); var allHeures = sameDay.map(function(c) { return c.heure; }); var uniqueHeures = allHeures.filter(function(item, pos) { return allHeures.indexOf(item) == pos; }).sort(); var status = "missing"; var progId = null; var themeMG = ""; var themeFR = ""; var titreDef = first.titre; if(sheetProg && sheetProg.getLastRow() > 1) { var dataPr = sheetProg.getDataRange().getValues(); for(var j=1; j<dataPr.length; j++) { if(dataPr[j][1] && formatDate_Prog(parseDate_Prog(dataPr[j][1])) === first.date) { progId = dataPr[j][0]; themeMG = dataPr[j][3]; themeFR = dataPr[j][4]; status = dataPr[j][7] || "draft"; break; } } } return { found: true, date: first.date, titre: titreDef, theme_mg: themeMG, theme_fr: themeFR, horaires: uniqueHeures, status: status, progId: progId }; } catch(e) { return { found: false, error: e.toString() }; } }
 
 // =========================================================

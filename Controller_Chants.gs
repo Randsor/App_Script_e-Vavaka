@@ -329,3 +329,49 @@ function getChantsByIssue(issueType, idsList) {
 function getChantsByRecueil(recueilName) {
   return searchChantsBackend("", recueilName, []);
 }
+
+// =============================================================================
+// 5. HISTORIQUE D'UTILISATION (PERF OPTIMISÉE)
+// =============================================================================
+
+function getSongHistoryBackend(songId) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName("DB_PROGRAMMES"); // On pointe vers la DB des programmes
+  if (!sheet) return { count: 0, lastDate: null, history: [] };
+
+  var data = sheet.getDataRange().getValues();
+  
+  // Date limite : Aujourd'hui moins 6 mois
+  var now = new Date();
+  var sixMonthsAgo = new Date();
+  sixMonthsAgo.setMonth(now.getMonth() - 6);
+  
+  var occurrences = [];
+  var searchString = '"id":"' + String(songId).trim() + '"'; // Clé JSON exacte pour éviter les faux positifs
+
+  for (var i = 1; i < data.length; i++) {
+    var progDateObj = parseDateRobust(formatDateRobust(data[i][1]));
+    
+    // On ne regarde que les programmes des 6 derniers mois
+    if (progDateObj && progDateObj >= sixMonthsAgo && progDateObj <= now) {
+      var jsonStr = String(data[i][5]); // Colonne F (Contenu JSON)
+      
+      // Si la chaîne JSON contient l'ID du chant
+      if (jsonStr.indexOf(searchString) > -1) {
+        occurrences.push({
+          dateObj: progDateObj.getTime(),
+          dateStr: formatDateRobust(data[i][1])
+        });
+      }
+    }
+  }
+
+  // Tri par date (le plus récent en premier)
+  occurrences.sort(function(a, b) { return b.dateObj - a.dateObj; });
+
+  return {
+    count: occurrences.length,
+    lastDate: occurrences.length > 0 ? occurrences[0].dateStr : null,
+    history: occurrences.map(function(o) { return o.dateStr; })
+  };
+}

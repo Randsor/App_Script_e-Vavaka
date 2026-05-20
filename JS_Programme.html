@@ -273,17 +273,45 @@
           if(dObj.setHours(0,0,0,0) === now.getTime()) wrapperClass += " today"; 
           if(dObj < now) wrapperClass += " is-past"; 
           
-          let clickAction = 'openCreationModal(\'' + year + '-' + ('0' + (month+1)).slice(-2) + '-' + ('0' + d).slice(-2) + '\')'; 
+          let dateIso = year + '-' + ('0' + (month+1)).slice(-2) + '-' + ('0' + d).slice(-2);
+          
+          // NOUVEAU COMPORTEMENT : Par défaut (date vide) = Alerte Orphelin
+          let clickAction = 'openOrphanAlert(\'' + dateIso + '\')'; 
           let content = ""; 
           
           if(entry) { 
-              clickAction = entry.progId ? 'openEditor(\'' + entry.progId + '\')' : clickAction; 
+              let h = (entry.horaires && entry.horaires.length > 0) ? entry.horaires[0] : "09:30";
+              // S'il y a un événement : Soit on édite le programme existant, soit on permet sa création (avec l'heure par défaut)
+              clickAction = entry.progId ? 'openEditor(\'' + entry.progId + '\')' : 'openCreationModal(\'' + dateIso + '\', \'' + h + '\')'; 
+              
               if(entry.status === 'draft') wrapperClass += " bg-draft"; 
               else if(entry.status === 'final') wrapperClass += " bg-final"; 
               else if(entry.status === 'missing') wrapperClass += " bg-missing"; 
               
+              // NOUVEAU : Calcul des pastilles d'alerte avec ciblage précis
+              let alertsHtml = "";
+              if (entry.alerts && ((entry.alerts.toneIds?.length || 0) > 0 || (entry.alerts.transIds?.length || 0) > 0)) {
+                  alertsHtml += `<div class="cal-alerts-row">`;
+                  
+                  if (entry.alerts.toneIds.length > 0) {
+                      let toneArr = JSON.stringify(entry.alerts.toneIds);
+                      alertsHtml += `<div class="cal-alert-badge cal-alert-tone" onclick='event.stopPropagation(); navTo("chants", {filter: "specific_ids", ids: ${toneArr}})' title="${entry.alerts.toneIds.length} chant(s) sans tonalité"><i class="bi bi-music-note-beamed"></i> ${entry.alerts.toneIds.length}</div>`;
+                  }
+                  
+                  if (entry.alerts.transIds.length > 0) {
+                      let transArr = JSON.stringify(entry.alerts.transIds);
+                      alertsHtml += `<div class="cal-alert-badge cal-alert-trans" onclick='event.stopPropagation(); navTo("chants", {filter: "specific_ids", ids: ${transArr}})' title="${entry.alerts.transIds.length} chant(s) à traduire"><i class="bi bi-translate"></i> ${entry.alerts.transIds.length}</div>`;
+                  }
+                  
+                  alertsHtml += `</div>`;
+              }
+              
               let uniqueH = [...new Set(entry.horaires)]; 
-              content = '<div class="cal-content"><span class="ev-time">' + uniqueH.join(' / ') + '</span><span class="ev-title">' + entry.titre + '</span></div>'; 
+              content = `<div class="cal-content">
+                            <span class="ev-time">${uniqueH.join(' / ')}</span>
+                            <span class="ev-title">${entry.titre}</span>
+                            ${alertsHtml}
+                         </div>`; 
           } 
           
           grid.innerHTML += '<div class="' + wrapperClass + '" onclick="' + clickAction + '"><div class="d-flex flex-column d-md-block align-items-center justify-content-center me-3 me-md-0"><div class="cal-day-num">' + d + '</div></div><div class="w-100">' + content + '</div></div>'; 
@@ -434,9 +462,22 @@
       document.body.classList.remove('modal-open');
   }
 
+  // --- NOUVELLES FONCTIONS GESTION ORPHELIN ---
+  function openOrphanAlert(dateIso) {
+      const parts = dateIso.split('-');
+      const niceDate = parts[2] + '/' + parts[1] + '/' + parts[0];
+      document.getElementById('orphanAlertDate').innerText = niceDate;
+      openCustomModal('orphanAlertModal', 'progCreatorOverlay');
+  }
+
+  function goToPlanningFromOrphan() {
+      closeAllModals();
+      navTo('planning'); // Utilise la fonction de navigation native
+  }
+
   function closeAllModals() { 
-      // Ajout de 'exportPdfModal' à la liste des modales gérées
-      ['creationModal', 'securityModal', 'deleteModal', 'progCreatorOverlay', 'songSelectorModal', 'fanekenaSelectorModal', 'exportPdfModal','exportDocsModal'].forEach(id => { 
+      // Ajout des nouvelles modales à la liste gérée
+      ['creationModal', 'securityModal', 'deleteModal', 'progCreatorOverlay', 'songSelectorModal', 'fanekenaSelectorModal', 'exportPdfModal','exportDocsModal', 'orphanAlertModal'].forEach(id => { 
           const el = document.getElementById(id); 
           if(el) el.style.display = 'none'; 
       }); 
@@ -905,6 +946,39 @@
       document.getElementById('ssMobileTitle').innerText = songStub.titre;
       document.getElementById('ssDetailTonalite').innerText = songStub.tonalite ? `Tonalité : ${songStub.tonalite}` : "";
       
+      // --- APPEL ASYNCHRONE DE L'HISTORIQUE (LAZY LOADING) ---
+      const histContainer = document.getElementById('ssDetailHistory');
+      histContainer.innerHTML = `<span class="spinner-border spinner-border-sm text-secondary" style="width: 10px; height: 10px;"></span> <span class="text-muted fst-italic">Vérification de l'historique...</span>`;
+      
+      google.script.run.withSuccessHandler(historyData => {
+          if (historyData.count === 0) {
+              histContainer.innerHTML = `<span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-2 py-1"><i class="bi bi-calendar-check me-1"></i>Inédit ces 6 derniers mois</span>`;
+          } else {
+              // Vérification : A-t-il été chanté récemment (ex: moins de 15 jours) ?
+              let isRecent = false;
+              if (historyData.lastDate) {
+                  const parts = historyData.lastDate.split('/');
+                  const lastDObj = new Date(parts[2], parts[1]-1, parts[0]);
+                  const daysDiff = (new Date() - lastDObj) / (1000 * 60 * 60 * 24);
+                  if (daysDiff <= 15) isRecent = true; // Chanté il y a moins de 15 jours
+              }
+              
+              const datesList = historyData.history.join(" | ");
+              const badgeClass = isRecent 
+                  ? "bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25" 
+                  : "bg-warning bg-opacity-10 text-warning-emphasis border border-warning border-opacity-25";
+              const icon = isRecent ? "bi-exclamation-triangle-fill" : "bi-clock-history";
+              
+              histContainer.innerHTML = `
+                  <span class="badge ${badgeClass} px-2 py-1 cursor-pointer" title="Dates : ${datesList}">
+                      <i class="bi ${icon} me-1"></i>Chanté ${historyData.count} fois ces 6 derniers mois
+                  </span>
+                  <span class="text-muted fst-italic ms-1">Dernière fois le ${historyData.lastDate}</span>
+              `;
+          }
+      }).getSongHistoryBackend(songStub.id);
+      // -------------------------------------------------------
+
       google.script.run.withSuccessHandler(fullSong => {
           SS_STATE.song = fullSong;
           document.getElementById('ssSkeletonDetails').classList.add('hidden');
