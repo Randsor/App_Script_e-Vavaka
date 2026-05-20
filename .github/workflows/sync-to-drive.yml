@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - main # Ou 'master' selon ta branche principale
-  workflow_dispatch: # Permet de lancer la synchro manuellement via l'onglet Actions
+  workflow_dispatch:
 
 jobs:
   deploy:
@@ -20,15 +20,13 @@ jobs:
       - name: Configure rclone
         run: |
           mkdir -p /home/runner/.config/rclone
-          # On écrit la clé JSON dans un chemin absolu en dur
           echo '${{ secrets.GDRIVE_CREDENTIALS }}' > /home/runner/.config/rclone/sa.json
           
-          # On génère le fichier de configuration avec le bon chemin absolu
           cat <<EOF > /home/runner/.config/rclone/rclone.conf
           [gdrive]
           type = drive
           scope = drive
-          service_account_credentials = /home/runner/.config/rclone/sa.json
+          service_account_file = /home/runner/.config/rclone/sa.json
           root_folder_id = ${{ secrets.GDRIVE_FOLDER_ID }}
           EOF
 
