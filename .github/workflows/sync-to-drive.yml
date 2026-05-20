@@ -17,12 +17,18 @@ jobs:
       - name: Install rclone
         run: sudo apt-get install -y rclone
 
+      - name: Configure rclone
+        run: |
+          mkdir -p /home/runner/.config/rclone
+          
+          # On génère la config UNIQUEMENT avec ton Token et l'ID du dossier
+          cat <<EOF > /home/runner/.config/rclone/rclone.conf
+          [gdrive]
+          type = drive
+          token = ${{ secrets.GDRIVE_TOKEN }}
+          root_folder_id = ${{ secrets.GDRIVE_FOLDER_ID }}
+          EOF
       - name: Mirror Repository to Google Drive
-        env:
-          # rclone détecte automatiquement ces variables pour configurer le remote "gdrive"
-          RCLONE_CONFIG_GDRIVE_TYPE: drive
-          RCLONE_CONFIG_GDRIVE_TOKEN: ${{ secrets.GDRIVE_TOKEN }}
-          RCLONE_CONFIG_GDRIVE_ROOT_FOLDER_ID: ${{ secrets.GDRIVE_FOLDER_ID }}
         run: |
           rclone sync . gdrive: \
             --exclude ".git/**" \
