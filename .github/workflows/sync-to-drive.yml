@@ -17,21 +17,35 @@ jobs:
       - name: Install rclone
         run: sudo apt-get install -y rclone
 
-      - name: Configure rclone
+      - name: Bundle Codebase into a Single Markdown File
         run: |
-          mkdir -p /home/runner/.config/rclone
+          # Initialisation du fichier unique
+          echo "# Codebase Complète" > codebase_total.md
+          echo "Dernière synchronisation : $(date +'%Y-%m-%d %H:%M:%S')" >> codebase_total.md
+          echo "" >> codebase_total.md
           
-          # On génère la config UNIQUEMENT avec ton Token et l'ID du dossier
-          cat <<EOF > /home/runner/.config/rclone/rclone.conf
-          [gdrive]
-          type = drive
-          token = ${{ secrets.GDRIVE_TOKEN }}
-          root_folder_id = ${{ secrets.GDRIVE_FOLDER_ID }}
-          EOF
+          # Parcours des fichiers de dev en excluant les dossiers cachés (.git, .github)
+          find . -type f \( -name "*.gs" -o -name "*.html" -o -name "appsscript.json" \) ! -path "*/.*" | while read -r file; do
+            echo "## ========================================" >> codebase_total.md
+            echo "### FICHIER : $file" >> codebase_total.md
+            echo "## ========================================" >> codebase_total.md
+            
+            # Détection de l'extension pour adapter la coloration dans le Markdown
+            ext="${file##*.}"
+            if [ "$ext" = "gs" ]; then ext="javascript"; fi
+            
+            echo '```'$ext >> codebase_total.md
+            cat "$file" >> codebase_total.md
+            echo "" >> codebase_total.md
+            echo '```' >> codebase_total.md
+            echo "" >> codebase_total.md
+          done
+
       - name: Mirror Repository to Google Drive
+        env:
+          RCLONE_CONFIG_GDRIVE_TYPE: drive
+          RCLONE_CONFIG_GDRIVE_TOKEN: ${{ secrets.GDRIVE_TOKEN }}
+          RCLONE_CONFIG_GDRIVE_ROOT_FOLDER_ID: ${{ secrets.GDRIVE_FOLDER_ID }}
         run: |
-          rclone sync . gdrive: \
-            --exclude ".git/**" \
-            --exclude ".github/**" \
-            --drive-use-trash=false \
-            -v
+          # On utilise 'copy' pour envoyer uniquement le fichier bundle généré
+          rclone copy codebase_total.md gdrive: -v
