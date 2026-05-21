@@ -18,19 +18,18 @@ jobs:
         run: sudo apt-get install -y rclone
 
       - name: Bundle Codebase into a Single Markdown File
+        env:
+          TZ: Europe/Paris # Force l'horloge de la machine GitHub sur l'heure de Paris
         run: |
-          # Initialisation du fichier unique
           echo "# Codebase Complète" > codebase_total.md
           echo "Dernière synchronisation : $(date +'%Y-%m-%d %H:%M:%S')" >> codebase_total.md
           echo "" >> codebase_total.md
           
-          # Parcours des fichiers de dev en excluant les dossiers cachés (.git, .github)
           find . -type f \( -name "*.gs" -o -name "*.html" -o -name "appsscript.json" \) ! -path "*/.*" | while read -r file; do
             echo "## ========================================" >> codebase_total.md
             echo "### FICHIER : $file" >> codebase_total.md
             echo "## ========================================" >> codebase_total.md
             
-            # Détection de l'extension pour adapter la coloration dans le Markdown
             ext="${file##*.}"
             if [ "$ext" = "gs" ]; then ext="javascript"; fi
             
@@ -47,5 +46,7 @@ jobs:
           RCLONE_CONFIG_GDRIVE_TOKEN: ${{ secrets.GDRIVE_TOKEN }}
           RCLONE_CONFIG_GDRIVE_ROOT_FOLDER_ID: ${{ secrets.GDRIVE_FOLDER_ID }}
         run: |
-          # On utilise 'copy' pour envoyer uniquement le fichier bundle généré
-          rclone copy codebase_total.md gdrive: -v
+          # rclone copy va maintenant écraser l'unique fichier text/markdown présent
+          rclone copy codebase_total.md gdrive: \
+            --drive-allow-import-name-change \
+            -v
