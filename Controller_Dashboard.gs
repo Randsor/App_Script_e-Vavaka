@@ -120,7 +120,8 @@ function getDashboardData() {
                  var pdfLink = (dataPr[p].length > 9) ? dataPr[p][9] : "";
 
                  try {
-                     var blocks = JSON.parse(dataPr[p][5]);
+                     var jsonStr = decompressString(dataPr[p][5]);
+                     var blocks = JSON.parse(jsonStr);
                      blocks.forEach(function(b) {
                          if (b.type === 'CHANT' && b.data && b.data.id) {
                              songAlerts.totalSongs++;

@@ -350,14 +350,14 @@ function getSongHistoryBackend(songId) {
   var searchString = '"id":"' + String(songId).trim() + '"'; // Clé JSON exacte pour éviter les faux positifs
 
   for (var i = 1; i < data.length; i++) {
-    var progDateObj = parseDateRobust(formatDateRobust(data[i][1]));
-    
-    // On ne regarde que les programmes des 6 derniers mois
-    if (progDateObj && progDateObj >= sixMonthsAgo && progDateObj <= now) {
-      var jsonStr = String(data[i][5]); // Colonne F (Contenu JSON)
+      var progDateObj = parseDateRobust(formatDateRobust(data[i][1]));
       
-      // Si la chaîne JSON contient l'ID du chant
-      if (jsonStr.indexOf(searchString) > -1) {
+      // On ne regarde que les programmes des 6 derniers mois
+      if (progDateObj && progDateObj >= sixMonthsAgo && progDateObj <= now) {
+        var jsonStr = decompressString(String(data[i][5])); // Colonne F décompressée
+        
+        // Si la chaîne JSON contient l'ID du chant
+        if (jsonStr.indexOf(searchString) > -1) {
         occurrences.push({
           dateObj: progDateObj.getTime(),
           dateStr: formatDateRobust(data[i][1])
