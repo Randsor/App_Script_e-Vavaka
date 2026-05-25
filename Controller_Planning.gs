@@ -13,7 +13,8 @@ function getPlanningMatrixData(minDays, maxDays) {
     if (typeof getConfigData === 'function') {
       var config = getConfigData();
       response.roles = config.roles || [];
-      response.noms = config.noms || [];
+      // On extrait uniquement le texte en clair pour ne pas casser le Drag & Drop du Planning
+      response.noms = (config.noms || []).map(function(n) { return n.nom || n; });
     }
   } catch (e) {
     console.warn("Erreur lecture Config: " + e);
@@ -63,12 +64,16 @@ function getPlanningMatrixData(minDays, maxDays) {
       }
 
       var roleRaw = row[4];
-      var nom = row[5];
+      var nomRaw = row[5];
       
       if (roleRaw) {
         var roleClean = String(roleRaw).trim();
         if (roleClean !== "" && roleClean !== "_INIT_" && roleClean !== "System") {
-           eventsMap[uniqueKey].assignments[roleClean] = nom;
+           // TRADUCTION DE L'ID EN TEXTE CLAIR POUR LE FRONTEND
+           var roleTexteClair = getTextFromId("roles", roleClean);
+           var nomTexteClair = getTextFromId("noms", nomRaw);
+           
+           eventsMap[uniqueKey].assignments[roleTexteClair] = nomTexteClair;
         }
       }
     } catch (e) {
@@ -160,17 +165,21 @@ function updatePlanningCell(dateStr, heureStr, role, nom) {
        if(data[i][2]) existingTitle = data[i][2];
     }
 
-    if (rDate === dateStr && rHeure === heureStr && String(rRole).trim() === role) {
+    var targetRoleId = getIdFromText("roles", role); // On traduit le 'role' texte en ID
+    if (rDate === dateStr && rHeure === heureStr && String(rRole).trim() === targetRoleId) {
       rowToUpdate = i + 1;
       break;
     }
   }
 
+  var nomId = getIdFromText("noms", nom);
+  var roleId = getIdFromText("roles", role);
+
   if (rowToUpdate > 0) {
-    sheet.getRange(rowToUpdate, 6).setValue(nom);
+    sheet.getRange(rowToUpdate, 6).setValue(nomId); // Écriture de l'ID Nom
   } else {
     var dateObj = parseDateFR(dateStr);
-    sheet.appendRow([dateObj, heureStr, existingTitle, "", role, nom]);
+    sheet.appendRow([dateObj, heureStr, existingTitle, "", roleId, nomId]); // Écriture des IDs
   }
   return "OK";
 }
@@ -181,13 +190,16 @@ function updatePlanningBatch(updates) {
   var data = sheet.getDataRange().getValues();
   
   updates.forEach(function(u) {
+     var targetRoleId = getIdFromText("roles", u.role); // Traduction du rôle en ID
+     var targetNomId = getIdFromText("noms", u.nom);    // Traduction du nom en ID
+     
      var found = false;
      for(var i=1; i<data.length; i++) {
         var rDate = formatDateRobust(data[i][0]);
         var rHeure = formatTimeRobust(data[i][1]);
         var rRole = String(data[i][4]).trim();
-        if(rDate === u.date && rHeure === u.heure && rRole === u.role) {
-            sheet.getRange(i+1, 6).setValue(u.nom);
+        if(rDate === u.date && rHeure === u.heure && rRole === targetRoleId) {
+            sheet.getRange(i+1, 6).setValue(targetNomId); // Écriture de l'ID
             found = true; 
             break;
         }
@@ -199,7 +211,7 @@ function updatePlanningBatch(updates) {
                  title = data[k][2]; break;
              }
          }
-         sheet.appendRow([parseDateFR(u.date), u.heure, title, "", u.role, u.nom]);
+         sheet.appendRow([parseDateFR(u.date), u.heure, title, "", targetRoleId, targetNomId]);
      }
   });
   return "OK";
@@ -410,33 +422,32 @@ function addNameFromPlanning(newName, password) {
   }
 
   var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheetConfig = ss.getSheetByName("CONFIG");
+  var sheetNoms = ss.getSheetByName("CFG_NOMS");
   
-  // 2. AJOUT DANS CONFIG
-  var lastRow = sheetConfig.getLastRow();
-  // Colonne D (Index 4) pour les noms
-  var existingRange = sheetConfig.getRange(2, 4, lastRow - 1, 1);
+  // 2. AJOUT DANS CFG_NOMS
+  var lastRow = sheetNoms.getLastRow();
+  var existingRange = sheetNoms.getRange(2, 2, Math.max(1, lastRow - 1), 1); // Col B (Noms)
   var existingValues = existingRange.getValues().flat();
   var cleanNew = String(newName).trim();
   
-  // Check doublons (insensible à la casse)
+  // Check doublons
   for(var i=0; i<existingValues.length; i++) {
       if(String(existingValues[i]).toLowerCase() === cleanNew.toLowerCase()) {
           return { success: true, name: existingValues[i] }; 
       }
   }
   
-  // Ajout à la première ligne vide trouvée ou à la fin
+  var newId = "PRT_" + lastRow; // Auto-génération de l'ID PRT_
   var targetRow = lastRow + 1;
-  // On cherche un trou vide pour éviter les trous
-  for(var j=0; j<existingValues.length; j++) {
-      if(existingValues[j] === "") {
-          targetRow = j + 2; // +2 car index 0 = ligne 2
-          break;
-      }
-  }
   
-  sheetConfig.getRange(targetRow, 4).setValue(cleanNew);
+  sheetNoms.getRange(targetRow, 1).setValue(newId);    // Col A : ID
+  sheetNoms.getRange(targetRow, 2).setValue(cleanNew); // Col B : Nom
+
+  // Force le rechargement du dictionnaire en cache
+  if (typeof getDictionaries === 'function') {
+      DICT_CACHE = null;
+      getDictionaries();
+  }
   
   return { success: true, name: cleanNew };
 }

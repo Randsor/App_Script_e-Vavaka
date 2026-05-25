@@ -1,191 +1,308 @@
-var SHEET_NAME_CONFIG = "CONFIG";
+// ==========================================
+// CONFIGURATION DES CONSTANTES DE TABLE
+// ==========================================
+var SHEET_CFG_RECUEILS   = "CFG_RECUEILS";
+var SHEET_CFG_ROLES      = "CFG_ROLES";
+var SHEET_CFG_NOMS       = "CFG_NOMS";
+var SHEET_CFG_VALIDEURS  = "CFG_VALIDEURS";
+var SHEET_CFG_PARAMS     = "CFG_PARAMS";
 
-// --- LECTURE ---
+/**
+ * 1. CHARGEMENT DE LA CONFIGURATION
+ */
 function getConfigData() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheetByName(SHEET_NAME_CONFIG);
   
-  var result = { roles: [], noms: [], valideurs: [], respCode: "", pdfFolderId: "", pdfTemplateId: "" };
-  if (!sheet) return result;
+  var recueils = [];
+  var roles = [];
+  var noms = [];
+  var valideurs = [];
+  var paramsMap = {};
 
-  var lastRow = Math.max(sheet.getLastRow(), 100);
-  var range = sheet.getRange(1, 1, lastRow, 10); 
-  var values = range.getValues();
-  var headers = values[0]; 
-
-  var idxRoles = headers.indexOf("Liste_Roles");
-  var idxType  = headers.indexOf("Type_Role");
-  var idxNoms  = headers.indexOf("Liste_Noms");
-  var idxValNom = headers.indexOf("Liste_Valideurs");
-  var idxValCode = headers.indexOf("Code_Valideurs");
-  
-  // Lecture Paramètres
-  if (values.length > 1) result.respCode = String(values[1][7] || "");
-  if (values.length > 2) {
-      result.pdfFolderId = String(values[2][6] || "").trim();
-      result.pdfTemplateId = String(values[2][7] || "").trim();
-  }
-
-  // Lecture Listes
-  for (var i = 1; i < values.length; i++) {
-    var row = values[i];
-    if (idxRoles > -1 && row[idxRoles]) result.roles.push({ name: String(row[idxRoles]), type: (idxType > -1 ? String(row[idxType]) : "") });
-    if (idxNoms > -1 && row[idxNoms]) result.noms.push(String(row[idxNoms]));
-    if (idxValNom > -1 && row[idxValNom]) {
-        result.valideurs.push({ nom: String(row[idxValNom]), code: (idxValCode > -1 ? String(row[idxValCode]) : "") });
+  // --- Lecture CFG_RECUEILS (Col A: ID, Col B: Nom) ---
+  var sheetRec = ss.getSheetByName(SHEET_CFG_RECUEILS);
+  if (sheetRec) {
+    var lastRow = sheetRec.getLastRow();
+    if (lastRow > 1) {
+      recueils = sheetRec.getRange(2, 2, lastRow - 1, 1).getValues()
+        .map(function(r) { return String(r[0] || "").trim(); })
+        .filter(Boolean);
     }
   }
-  return result;
+
+  // --- Lecture CFG_ROLES (Col A: ID, Col B: Nom, Col C: Type) ---
+  var sheetRol = ss.getSheetByName(SHEET_CFG_ROLES);
+  if (sheetRol) {
+    var lastRow = sheetRol.getLastRow();
+    if (lastRow > 1) {
+      roles = sheetRol.getRange(2, 1, lastRow - 1, 3).getValues()
+        .map(function(r) {
+          var valId = String(r[0] || "").trim();
+          var valName = String(r[1] || "").trim();
+          var valType = String(r[2] || "").trim();
+          return { 
+            id: valId,
+            role: valName, nom: valName, name: valName, Nom_Role: valName, titre: valName,
+            type: valType, Type_Role: valType, categorie: valType
+          };
+        })
+        .filter(function(r) { return r.role !== ""; });
+    }
+  }
+
+  // --- Lecture CFG_NOMS (Col A: ID, Col B: Nom) ---
+  var sheetNom = ss.getSheetByName(SHEET_CFG_NOMS);
+  if (sheetNom) {
+    var lastRow = sheetNom.getLastRow();
+    if (lastRow > 1) {
+      noms = sheetNom.getRange(2, 1, lastRow - 1, 2).getValues() // On lit les colonnes A et B
+        .map(function(r) { 
+            return { 
+                id: String(r[0] || "").trim(), 
+                nom: String(r[1] || "").trim() 
+            }; 
+        })
+        .filter(function(r) { return r.nom !== ""; });
+    }
+  }
+
+  // --- Lecture CFG_VALIDEURS (Col A: ID, Col B: Nom, Col C: Code) ---
+  var sheetVal = ss.getSheetByName(SHEET_CFG_VALIDEURS);
+  if (sheetVal) {
+    var lastRow = sheetVal.getLastRow();
+    if (lastRow > 1) {
+      valideurs = sheetVal.getRange(2, 1, lastRow - 1, 3).getValues()
+        .map(function(r) {
+          var valId = String(r[0] || "").trim();
+          var valName = String(r[1] || "").trim();
+          var valCode = String(r[2] || "").trim();
+          return { 
+            id: valId,
+            nom: valName, name: valName, Nom_Valideur: valName, valideur: valName,
+            code: valCode, Code_Valideur: valCode
+          };
+        })
+        .filter(function(r) { return r.nom !== ""; });
+    }
+  }
+
+  // --- Lecture CFG_PARAMS (Col A: Clé, Col B: Valeur) ---
+  var sheetPar = ss.getSheetByName(SHEET_CFG_PARAMS);
+  if (sheetPar) {
+    var lastRow = sheetPar.getLastRow();
+    if (lastRow > 1) {
+      var paramsData = sheetPar.getRange(2, 1, lastRow - 1, 2).getValues();
+      paramsData.forEach(function(r) {
+        if (r[0]) {
+          paramsMap[String(r[0]).trim()] = String(r[1] || "").trim();
+        }
+      });
+    }
+  }
+
+  return {
+    recueils: recueils,
+    roles: roles,
+    noms: noms,
+    valideurs: valideurs, 
+    respCode: paramsMap["responsable_code"] || "",
+    pdfFolderId: paramsMap["pdf_folder_id"] || "",
+    pdfTemplateId: paramsMap["pdf_template_id"] || ""
+  };
 }
 
-// --- VERIFICATION (Utilisées par Controller_Programme) ---
+/**
+ * 2. SAUVEGARDE DE LA CONFIGURATION (AVEC GESTION AUTO DES IDs)
+ */
+function saveConfigFull(adminCode, data) {
+  if (!checkAdminCode(adminCode)) {
+    return { success: false, msg: "Action non autorisée : Code administrateur incorrect." };
+  }
+
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  try {
+    // A. Récupération des IDs existants pour ne pas les écraser
+    var dicts = getDictionaries(); // Utilisation de notre helper !
+
+    // --- 2.1 Écriture CFG_RECUEILS ---
+    var sheetRec = ss.getSheetByName(SHEET_CFG_RECUEILS);
+    if (sheetRec && data.recueils && data.recueils.length > 0) {
+      clearSheetData(sheetRec, 1);
+      var rows = data.recueils.map(function(r) { 
+        var nom = String(r).trim();
+        var id = dicts.recueils.textToId[nom.toLowerCase()] || "REC_" + Utilities.getUuid().substring(0,6).toUpperCase();
+        return [id, nom]; 
+      });
+      sheetRec.getRange(2, 1, rows.length, 2).setValues(rows);
+    }
+
+    // --- 2.2 Écriture CFG_ROLES ---
+    var sheetRol = ss.getSheetByName(SHEET_CFG_ROLES);
+    if (sheetRol && data.roles !== undefined) {
+      clearSheetData(sheetRol, 1);
+      if (data.roles.length > 0) {
+        var rows = data.roles.map(function(r) {
+          var roleName = String(r.nom || r.role || r.name || r.Nom_Role || "").trim();
+          var roleType = String(r.type || r.Type_Role || r.categorie || "").trim();
+          
+          // 1. On prend l'ID envoyé par le Front. 2. Sinon on cherche par nom. 3. Sinon on génère.
+          var id = String(r.id || "").trim();
+          if (!id) id = dicts.roles.textToId[roleName.toLowerCase()];
+          if (!id) id = "ROL_" + Utilities.getUuid().substring(0,6).toUpperCase();
+          
+          return [id, roleName, roleType];
+        }).filter(function(r) { return r[1] !== ""; });
+        
+        if (rows.length > 0) sheetRol.getRange(2, 1, rows.length, 3).setValues(rows);
+      }
+    }
+
+    // --- 2.3 Écriture CFG_NOMS ---
+    var sheetNom = ss.getSheetByName(SHEET_CFG_NOMS);
+    if (sheetNom && data.noms !== undefined) {
+      clearSheetData(sheetNom, 1);
+      if (data.noms.length > 0) {
+        var rows = data.noms.map(function(n) { 
+          var nom = String(n.nom || n).trim(); // Supporte objet {id, nom} ou string simple
+          
+          // 1. On prend l'ID envoyé par le Front. 2. Sinon on cherche par nom. 3. Sinon on génère.
+          var id = String(n.id || "").trim();
+          if (!id) id = dicts.noms.textToId[nom.toLowerCase()];
+          if (!id) id = "PRT_" + Utilities.getUuid().substring(0,6).toUpperCase();
+          
+          return [id, nom]; 
+        });
+        sheetNom.getRange(2, 1, rows.length, 2).setValues(rows);
+      }
+    }
+
+    // --- 2.4 Écriture CFG_VALIDEURS ---
+    var sheetVal = ss.getSheetByName(SHEET_CFG_VALIDEURS);
+    if (sheetVal && data.valideurs !== undefined) {
+      clearSheetData(sheetVal, 1);
+      if (data.valideurs.length > 0) {
+        var rows = data.valideurs.map(function(v) {
+          var valName = String(v.nom || v.name || v.Nom_Valideur || v.valideur || "").trim();
+          var valCode = String(v.code || v.Code_Valideur || "").trim();
+          
+          // 1. On prend l'ID envoyé par le Front. 2. Sinon on cherche par nom. 3. Sinon on génère.
+          var id = String(v.id || "").trim();
+          if (!id) id = dicts.valideurs.textToId[valName.toLowerCase()];
+          if (!id) id = "VAL_" + Utilities.getUuid().substring(0,6).toUpperCase();
+          
+          return [id, valName, valCode];
+        }).filter(function(r) { return r[1] !== ""; });
+
+        if (rows.length > 0) sheetVal.getRange(2, 1, rows.length, 3).setValues(rows);
+      }
+    }
+
+    // --- 2.5 Écriture CFG_PARAMS ---
+    var sheetPar = ss.getSheetByName(SHEET_CFG_PARAMS);
+    if (sheetPar) {
+      var currentParams = {};
+      var lastRow = sheetPar.getLastRow();
+      if (lastRow > 1) {
+        sheetPar.getRange(2, 1, lastRow - 1, 2).getValues().forEach(function(r) {
+          if (r[0]) currentParams[String(r[0]).trim()] = String(r[1] || "").trim();
+        });
+      }
+
+      var finalAdmin = (data.adminCode !== undefined) ? data.adminCode : (currentParams["admin_code"] || adminCode);
+      var finalResp  = (data.respCode !== undefined) ? data.respCode : (currentParams["responsable_code"] || "");
+      var finalFolder = (data.pdfFolderId !== undefined) ? data.pdfFolderId : (currentParams["pdf_folder_id"] || "");
+      var finalTemplate = (data.pdfTemplateId !== undefined) ? data.pdfTemplateId : (currentParams["pdf_template_id"] || "");
+
+      clearSheetData(sheetPar, 1);
+      
+      var paramsRows = [
+        ["admin_code", String(finalAdmin).trim()],
+        ["responsable_code", String(finalResp).trim()],
+        ["pdf_folder_id", String(finalFolder).trim()],
+        ["pdf_template_id", String(finalTemplate).trim()]
+      ];
+      sheetPar.getRange(2, 1, paramsRows.length, 2).setValues(paramsRows);
+    }
+
+    // On force le rechargement du dictionnaire avec les nouveaux IDs
+    DICT_CACHE = null;
+
+    return { success: true, msg: "Configuration sauvegardée avec succès." };
+
+  } catch(e) {
+    return { success: false, msg: "Erreur technique : " + e.toString() };
+  }
+}
+
+// ==========================================
+// FONCTIONS DE SÉCURITÉ
+// ==========================================
 
 function checkAdminCode(inputCode) {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheetByName(SHEET_NAME_CONFIG);
-  var realCode = String(sheet.getRange("H1").getValue());
-  return (String(inputCode) === realCode);
+  if (!inputCode) return false;
+  return String(inputCode).trim() === getParamValueByKey("admin_code");
+}
+
+function verifyResponsableCode(inputCode) {
+  if (!inputCode) return false;
+  return String(inputCode).trim() === getParamValueByKey("responsable_code");
+}
+
+function verifyUniversalCode(inputCode) {
+  if (!inputCode) return false;
+  var cleanInput = String(inputCode).trim();
+  return cleanInput === getParamValueByKey("admin_code") || cleanInput === getParamValueByKey("responsable_code");
 }
 
 function verifyValidatorCode(name, inputCode) {
+  if (!name || !inputCode) return false;
   var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheetByName(SHEET_NAME_CONFIG);
+  var sheet = ss.getSheetByName(SHEET_CFG_VALIDEURS);
+  if (!sheet) return false;
+
   var lastRow = sheet.getLastRow();
   if (lastRow < 2) return false;
-  
-  var data = sheet.getRange(2, 9, lastRow - 1, 2).getValues();
+
+  // On lit Col A(ID), B(Nom) et C(Code)
+  var data = sheet.getRange(2, 1, lastRow - 1, 3).getValues();
   var cleanName = String(name).trim().toLowerCase();
   var cleanInput = String(inputCode).trim();
 
   for (var i = 0; i < data.length; i++) {
-    var dbName = String(data[i][0]).trim().toLowerCase();
-    var dbCode = String(data[i][1]).trim();
-    if (dbName === cleanName && dbCode === cleanInput) return true;
-  }
-  return false;
-}
-
-function verifyResponsableCode(inputCode) {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheetByName(SHEET_NAME_CONFIG);
-  var codeTeam = String(sheet.getRange("H2").getValue()).trim();
-  var codeResp = String(sheet.getRange("G2").getValue()).trim();
-  var input = String(inputCode).trim();
-  return (input !== "" && (input === codeTeam || input === codeResp));
-}
-
-// --- ECRITURE ---
-
-function saveConfigFull(adminCode, data) {
-  if (!checkAdminCode(adminCode)) throw new Error("Code Administrateur incorrect !");
-
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheetByName(SHEET_NAME_CONFIG);
-  
-  // Sauvegarde Params
-  if (typeof data.respCode !== 'undefined') sheet.getRange("H2").setValue(String(data.respCode));
-  if (typeof data.pdfFolderId !== 'undefined') sheet.getRange("G3").setValue(data.pdfFolderId);
-  if (typeof data.pdfTemplateId !== 'undefined') sheet.getRange("H3").setValue(data.pdfTemplateId);
-
-  var headers = sheet.getRange(1, 1, 1, 10).getValues()[0];
-  var colRoles = headers.indexOf("Liste_Roles") + 1;
-  var colType = headers.indexOf("Type_Role") + 1;
-  var colNoms = headers.indexOf("Liste_Noms") + 1;
-  var colValNom = headers.indexOf("Liste_Valideurs") + 1;
-  var colValCode = headers.indexOf("Code_Valideurs") + 1;
-
-  // CORRECTION MAJEURE : On vide jusqu'à la fin de la feuille pour éviter les résidus
-  var maxRows = sheet.getMaxRows(); 
-  
-  function clearColumn(colIdx) {
-      if(colIdx > 0) sheet.getRange(2, colIdx, maxRows - 1, 1).clearContent();
-  }
-
-  clearColumn(colRoles);
-  clearColumn(colType);
-  clearColumn(colNoms);
-  clearColumn(colValNom);
-  clearColumn(colValCode);
-
-  // Write Lists
-  if (data.roles && data.roles.length > 0 && colRoles > 0) {
-      sheet.getRange(2, colRoles, data.roles.length, 1).setValues(data.roles.map(r => [r.name]));
-      if(colType > 0) sheet.getRange(2, colType, data.roles.length, 1).setValues(data.roles.map(r => [r.type]));
-  }
-  
-  if (data.noms && data.noms.length > 0 && colNoms > 0) {
-      sheet.getRange(2, colNoms, data.noms.length, 1).setValues(data.noms.map(n => [n]));
-  }
-  
-  if (data.valideurs && data.valideurs.length > 0 && colValNom > 0) {
-      sheet.getRange(2, colValNom, data.valideurs.length, 1).setValues(data.valideurs.map(v => [v.nom]));
-      if(colValCode > 0) sheet.getRange(2, colValCode, data.valideurs.length, 1).setValues(data.valideurs.map(v => [v.code]));
-  }
-
-  return "Configuration sauvegardée.";
-}
-
-function saveConfigNamesBackend(nomsList) {
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
-    var sheet = ss.getSheetByName(SHEET_NAME_CONFIG);
-    var headers = sheet.getRange(1, 1, 1, 10).getValues()[0];
-    var colNoms = headers.indexOf("Liste_Noms") + 1;
+    var rowId = String(data[i][0]).toLowerCase().trim();
+    var rowName = String(data[i][1]).toLowerCase().trim();
     
-    if (colNoms > 0) {
-        var maxRows = sheet.getMaxRows();
-        sheet.getRange(2, colNoms, maxRows - 1, 1).clearContent();
-        if (nomsList && nomsList.length > 0) {
-            sheet.getRange(2, colNoms, nomsList.length, 1).setValues(nomsList.map(n => [n]));
-        }
+    // Si le nom passé par le Front correspond à l'ID OU au Nom dans la base
+    if (rowName === cleanName || rowId === cleanName) {
+      return String(data[i][2] || "").trim() === cleanInput;
     }
-    return "OK";
-}
-
-// --- VERIFICATION DOCS (Pasteurs / Admins) ---
-function verifyPastorOrAdminCode(inputCode) {
-  var cleanInput = String(inputCode).trim();
-  if (!cleanInput) return false;
-  
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheetByName(SHEET_NAME_CONFIG);
-  
-  var adminCode = String(sheet.getRange("H1").getValue()).trim();
-  if (cleanInput === adminCode) return true;
-  
-  var lastRow = sheet.getLastRow();
-  if (lastRow > 1) {
-      var data = sheet.getRange(2, 10, lastRow - 1, 1).getValues();
-      for (var i = 0; i < data.length; i++) {
-          if (String(data[i][0]).trim() === cleanInput) return true;
-      }
   }
   return false;
 }
 
-// --- VERIFICATION UNIVERSELLE (CHANTS) ---
-function verifyUniversalCode(inputCode) {
-  var cleanInput = String(inputCode).trim();
-  if (!cleanInput) return false;
-  
+function getParamValueByKey(key) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheetByName(SHEET_NAME_CONFIG);
-  
-  // 1. Check Admin (H1)
-  var adminCode = String(sheet.getRange("H1").getValue()).trim();
-  if (cleanInput === adminCode) return true;
-  
-  // 2. Check Equipe (H2 ou G2)
-  var codeTeam = String(sheet.getRange("H2").getValue()).trim();
-  var codeResp = String(sheet.getRange("G2").getValue()).trim();
-  if (cleanInput === codeTeam || cleanInput === codeResp) return true;
-  
-  // 3. Check Valideurs/Pasteurs (Col J)
+  var sheet = ss.getSheetByName(SHEET_CFG_PARAMS);
+  if (!sheet) return "";
   var lastRow = sheet.getLastRow();
-  if (lastRow > 1) {
-      var data = sheet.getRange(2, 10, lastRow - 1, 1).getValues();
-      for (var i = 0; i < data.length; i++) {
-          if (String(data[i][0]).trim() === cleanInput) return true;
-      }
+  if (lastRow < 2) return "";
+
+  var data = sheet.getRange(2, 1, lastRow - 1, 2).getValues();
+  for (var i = 0; i < data.length; i++) {
+    if (String(data[i][0]).trim() === key) {
+      return String(data[i][1] || "").trim();
+    }
   }
-  return false;
+  return "";
+}
+
+function clearSheetData(sheet, startCol) {
+  if (!sheet) return;
+  var lastRow = sheet.getLastRow();
+  var maxCols = sheet.getLastColumn();
+  
+  if (lastRow > 1 && maxCols >= startCol) {
+    sheet.getRange(2, startCol, lastRow - 1, (maxCols - startCol) + 1).clearContent();
+  }
 }

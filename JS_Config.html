@@ -39,10 +39,13 @@
               cNoms.innerHTML = '<div class="text-center py-4 text-muted small">Vide</div>';
           } else {
               data.noms.forEach((n, idx) => {
+                  // On récupère le texte si c'est un objet, ou directement si c'est une string (compatibilité)
+                  let nId = n.id || "";
+                  let nName = n.nom || n; 
                   cNoms.innerHTML += `
                     <div class="cfg-item cascade-item" style="animation-delay: ${idx * 0.01}s">
-                        <div class="bg-primary bg-opacity-10 text-primary rounded-circle d-flex align-items-center justify-content-center fw-bold" style="width:28px; height:28px; font-size:10px;">${getInitials(n)}</div>
-                        <input type="text" class="cfg-input ms-2" value="${n}" placeholder="Nom Prénom" oninput="setDirty(true)">
+                        <div class="bg-primary bg-opacity-10 text-primary rounded-circle d-flex align-items-center justify-content-center fw-bold" style="width:28px; height:28px; font-size:10px;">${getInitials(nName)}</div>
+                        <input type="text" class="cfg-input ms-2 nom-input" data-id="${nId}" value="${nName}" placeholder="Nom Prénom" oninput="setDirty(true)">
                         <i class="bi bi-trash3 text-muted opacity-25 btn-action-danger ms-auto" onclick="confirmRemoveItem(this)"></i>
                     </div>`;
               });
@@ -63,7 +66,7 @@
                   cVal.innerHTML += `
                     <div class="cfg-item mb-1 border-bottom val-item">
                         <i class="bi bi-person-check-fill text-success"></i>
-                        <input type="text" class="cfg-input fw-bold ms-2 validation-name" value="${v.nom}" placeholder="Nom" oninput="setDirty(true)">
+                        <input type="text" class="cfg-input fw-bold ms-2 validation-name" data-id="${v.id || ""}" value="${v.nom}" placeholder="Nom" oninput="setDirty(true)">
                         <input type="password" class="cfg-input code-badge text-center text-danger validation-code" value="${v.code}" placeholder="Code" style="width:60px;" oninput="setDirty(true)" autocomplete="new-password">
                         <i class="bi bi-trash3 text-muted opacity-25 btn-action-danger" onclick="confirmRemoveItem(this)"></i>
                     </div>`;
@@ -117,7 +120,8 @@
           let roleItemsHtml = "";
           if(groupRoles) {
               groupRoles.forEach(r => {
-                  roleItemsHtml += buildRoleItemHtml(r.name, gName);
+                  // On passe l'ID, le Nom et le Type
+                  roleItemsHtml += buildRoleItemHtml(r.id, r.name, gName);
               });
           }
 
@@ -150,10 +154,10 @@
   }
 
   // HTML Helper pour une ligne
-  function buildRoleItemHtml(name, type) {
+  function buildRoleItemHtml(id, name, type) {
       return `
         <div class="cfg-item role-item">
-            <input type="text" class="cfg-input fw-medium" value="${name}" placeholder="Nom rôle" oninput="setDirty(true)">
+            <input type="text" class="cfg-input fw-medium role-name-input" data-id="${id || ""}" value="${name || ""}" placeholder="Nom rôle" oninput="setDirty(true)">
             <input type="hidden" class="role-type-input" value="${type}">
             <i class="bi bi-trash3 text-muted opacity-25 btn-action-danger ms-auto" onclick="confirmRemoveItem(this)"></i>
         </div>`;
@@ -199,7 +203,7 @@
           // Injection DOM
           const btnAdd = container.querySelector('.btn-add-row');
           const tempDiv = document.createElement('div');
-          tempDiv.innerHTML = buildRoleItemHtml("", type);
+          tempDiv.innerHTML = buildRoleItemHtml("", "", type); // ID vide pour un nouveau
           const newItem = tempDiv.firstElementChild;
           
           // Insert Before Button
@@ -232,7 +236,7 @@
       const container = document.getElementById('nomsContainer');
       const div = document.createElement('div'); 
       div.className = "cfg-item nom-item animation-fade-in";
-      div.innerHTML = `<div class="bg-gray-200 text-secondary rounded-circle d-flex align-items-center justify-content-center" style="width:28px; height:28px; font-size:10px;">?</div><input type="text" class="cfg-input ms-2" placeholder="Nouveau participant" oninput="setDirty(true)"><i class="bi bi-trash3 text-muted opacity-25 btn-action-danger ms-auto" onclick="confirmRemoveItem(this)"></i>`;
+      div.innerHTML = `<div class="bg-gray-200 text-secondary rounded-circle d-flex align-items-center justify-content-center" style="width:28px; height:28px; font-size:10px;">?</div><input type="text" class="cfg-input ms-2 nom-input" data-id="" placeholder="Nouveau participant" oninput="setDirty(true)"><i class="bi bi-trash3 text-muted opacity-25 btn-action-danger ms-auto" onclick="confirmRemoveItem(this)"></i>`;
       container.prepend(div);
       const inp = div.querySelector('input');
       if(inp) inp.focus();
@@ -243,7 +247,7 @@
       if (!IS_ADMIN_MODE) return;
       const container = document.getElementById('valideursContainer');
       const div = document.createElement('div'); div.className = "cfg-item val-item mb-1 border-bottom animation-fade-in";
-      div.innerHTML = `<i class="bi bi-person-check-fill text-success"></i><input type="text" class="cfg-input fw-bold ms-2 validation-name" placeholder="Nom" oninput="setDirty(true)"><input type="password" class="cfg-input code-badge text-center text-danger validation-code" placeholder="Code" style="width:60px;" oninput="setDirty(true)" autocomplete="new-password"><i class="bi bi-trash3 text-muted opacity-25 btn-action-danger" onclick="confirmRemoveItem(this)"></i>`;
+      div.innerHTML = `<i class="bi bi-person-check-fill text-success"></i><input type="text" class="cfg-input fw-bold ms-2 validation-name" data-id="" placeholder="Nom" oninput="setDirty(true)"><input type="password" class="cfg-input code-badge text-center text-danger validation-code" placeholder="Code" style="width:60px;" oninput="setDirty(true)" autocomplete="new-password"><i class="bi bi-trash3 text-muted opacity-25 btn-action-danger" onclick="confirmRemoveItem(this)"></i>`;
       container.appendChild(div);
       const inp = div.querySelector('input');
       if(inp) inp.focus();
@@ -437,10 +441,14 @@
       // 1. Roles
       const roles = [];
       document.querySelectorAll('.role-item').forEach(el => {
-          const nameInput = el.querySelector('input[type="text"]');
+          const nameInput = el.querySelector('.role-name-input');
           const typeInput = el.querySelector('.role-type-input');
           if(nameInput && nameInput.value) {
-              roles.push({name: nameInput.value, type: typeInput ? typeInput.value : "Autre"});
+              roles.push({
+                  id: nameInput.getAttribute('data-id') || "", 
+                  name: nameInput.value.trim(), 
+                  type: typeInput ? typeInput.value : "Autre"
+              });
           }
       });
 
@@ -448,8 +456,13 @@
       const noms = [];
       const nomContainer = document.getElementById('nomsContainer');
       if (nomContainer) {
-          nomContainer.querySelectorAll('input[type="text"]').forEach(inp => {
-              if(inp.value && inp.value.trim() !== "") noms.push(inp.value.trim());
+          nomContainer.querySelectorAll('.nom-input').forEach(inp => {
+              if(inp.value && inp.value.trim() !== "") {
+                  noms.push({
+                      id: inp.getAttribute('data-id') || "",
+                      nom: inp.value.trim()
+                  });
+              }
           });
       }
 
@@ -461,7 +474,11 @@
               const nameInp = el.querySelector('.validation-name');
               const codeInp = el.querySelector('.validation-code');
               if(nameInp && codeInp && nameInp.value) {
-                  valideurs.push({nom: nameInp.value, code: codeInp.value});
+                  valideurs.push({
+                      id: nameInp.getAttribute('data-id') || "",
+                      nom: nameInp.value.trim(), 
+                      code: codeInp.value
+                  });
               }
           });
       }

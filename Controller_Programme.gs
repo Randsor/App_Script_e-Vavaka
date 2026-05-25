@@ -292,10 +292,15 @@ function getProgrammeDetails(id) {
       for(var k=1; k<dataPlan.length; k++) {
           if(formatDate_Prog(dataPlan[k][0]) === prog.date) {
               var h = formatTime_Prog(dataPlan[k][1]);
-              var role = String(dataPlan[k][4]).trim();
-              var nom = String(dataPlan[k][5]).trim();
+              
+              // TRADUCTION DES IDs EN TEXTE CLAIR POUR LE PDF ET L'UI
+              var rawRole = String(dataPlan[k][4]).trim();
+              var rawNom = String(dataPlan[k][5]).trim();
+              var role = getTextFromId("roles", rawRole);
+              var nom = getTextFromId("noms", rawNom);
+              
               if(!multiEquipe[h]) multiEquipe[h] = {};
-              if(role && role !== "_INIT_") multiEquipe[h][role] = nom;
+              if(rawRole && rawRole !== "_INIT_") multiEquipe[h][role] = nom;
           }
       }
   }

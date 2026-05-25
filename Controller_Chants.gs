@@ -75,7 +75,9 @@ function searchChantsBackend(query, recueilFilter, historyIds) {
   var rFilter = (recueilFilter && recueilFilter !== "ALL") ? recueilFilter.toLowerCase().trim() : null;
 
   var results = data.filter(function(row) {
-    var rowRecueil = String(row[1] || "").toLowerCase().trim();
+    // TRADUCTION DE L'ID (REC_X) EN TEXTE CLAIR POUR QUE LES FILTRES FONCTIONNENT
+    var recueilTexteClair = getTextFromId("recueils", row[1]);
+    var rowRecueil = String(recueilTexteClair || "").toLowerCase().trim();
     
     // A. Application du Filtre Recueil (avec gestion des alias FF/Antema...)
     if (rFilter) {
@@ -91,7 +93,7 @@ function searchChantsBackend(query, recueilFilter, historyIds) {
     
     // 1. Recherche dans les Méta-données (Rapide)
     var metaIndex = (
-      String(row[1]) + " " + // Recueil
+      recueilTexteClair + " " + // Utilisation du recueil traduit pour la recherche
       String(row[2]) + " " + // Numéro
       String(row[3]) + " " + // Titre
       String(row[8] || "")   // Tags
@@ -116,8 +118,9 @@ function searchChantsBackend(query, recueilFilter, historyIds) {
 
   // Tri des résultats : Par Recueil, puis par Numéro (1, 2, 3...)
   results.sort(function(a, b) {
-      var rA = String(a[1]).toLowerCase();
-      var rB = String(b[1]).toLowerCase();
+      // Traduction pour que le tri alphabétique se fasse sur le nom, pas sur l'ID
+      var rA = getTextFromId("recueils", a[1]).toLowerCase();
+      var rB = getTextFromId("recueils", b[1]).toLowerCase();
       
       // Ordre d'affichage personnalisé
       var order = { 'fihirana': 1, 'fihirana fanampiny': 2, 'antema': 3, 'tsanta': 4 };
@@ -158,7 +161,7 @@ function formatChantLight(row) {
 
   return {
     id: row[0],
-    recueil: row[1],
+    recueil: getTextFromId("recueils", row[1]), // Traduction finale pour l'affichage (Front)
     numero: row[2],
     titre: row[3],
     tonalite: row[4],
@@ -196,8 +199,8 @@ function getChantDetails(id) {
       
       return {
         id: data[i][0], 
-        recueil: data[i][1], 
-        numero: data[i][2], 
+        recueil: getTextFromId("recueils", data[i][1]), // Traduction pour charger l'éditeur Front
+        numero: data[i][2],
         titre: data[i][3], 
         tonalite: data[i][4], 
         paroles_mg: mg, 
@@ -225,11 +228,13 @@ function saveChantBackend(form) {
   var frFull = (form.strophes_fr || []).join(" /// ");
   var structure = (form.types || []).join(",");
 
+  var targetRecueilId = getIdFromText("recueils", form.recueil); // On traduit le texte en ID (REC_X)
+
   if (form.rowIndex) {
     // --- MODIFICATION ---
     var row = parseInt(form.rowIndex);
     // Mise à jour cellule par cellule
-    sheet.getRange(row, 2).setValue(form.recueil);
+    sheet.getRange(row, 2).setValue(targetRecueilId); // Écriture de l'ID au lieu du texte
     sheet.getRange(row, 3).setValue(form.numero);
     sheet.getRange(row, 4).setValue(form.titre);
     sheet.getRange(row, 5).setValue(form.tonalite); 
@@ -247,7 +252,7 @@ function saveChantBackend(form) {
     
     sheet.appendRow([
       newId, 
-      form.recueil, 
+      targetRecueilId, // Écriture de l'ID
       form.numero, 
       form.titre, 
       form.tonalite, 

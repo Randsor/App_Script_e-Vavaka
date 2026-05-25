@@ -33,16 +33,16 @@ function getDashboardData() {
   }
 
   var roleCategoryMap = {};
-  var sheetConfig = ss.getSheetByName(SHEET_NAME_CONFIG);
-  if (sheetConfig) {
-      var lastRowCfg = sheetConfig.getLastRow();
+  var sheetConfigRol = ss.getSheetByName("CFG_ROLES"); // On pointe vers le nouvel onglet
+  if (sheetConfigRol) {
+      var lastRowCfg = sheetConfigRol.getLastRow();
       if (lastRowCfg > 1) {
-          var dataCfg = sheetConfig.getRange(2, 2, lastRowCfg - 1, 2).getValues();
+          // On lit Col A(ID), B(Nom), C(Catégorie/Type)
+          var dataCfg = sheetConfigRol.getRange(2, 1, lastRowCfg - 1, 3).getValues();
           dataCfg.forEach(function(row) {
-              if (row[0]) {
-                  var key = String(row[0]).trim().toLowerCase();
-                  roleCategoryMap[key] = row[1] ? String(row[1]).trim().toUpperCase() : "AUTRE";
-              }
+              var id = String(row[0]).trim(); // L'ID (ex: ROL_1) est désormais la clé infaillible
+              var type = row[2] ? String(row[2]).trim().toUpperCase() : "AUTRE";
+              if (id) roleCategoryMap[id] = type;
           });
       }
   }
@@ -80,10 +80,18 @@ function getDashboardData() {
          if (!equipes[ev.heure]) equipes[ev.heure] = {};
          
          if (ev.role && ev.nom && ev.role !== "_INIT_" && ev.role !== "System") {
-             var roleKey = String(ev.role).trim().toLowerCase();
-             var cat = roleCategoryMap[roleKey] || "AUTRE";
+             var rawRole = String(ev.role).trim(); // C'est un ROL_XXX
+             var rawNom = String(ev.nom).trim();   // C'est un PRT_XXX
+             
+             // 1. Recherche de la catégorie basée sur l'ID brut (Infaillible)
+             var cat = roleCategoryMap[rawRole] || "AUTRE";
+             
+             // 2. Traduction en texte clair pour l'affichage Frontend
+             var roleTexteClair = getTextFromId("roles", rawRole);
+             var nomTexteClair = getTextFromId("noms", rawNom);
+             
              if (!equipes[ev.heure][cat]) equipes[ev.heure][cat] = [];
-             equipes[ev.heure][cat].push({ role: ev.role, nom: ev.nom }); 
+             equipes[ev.heure][cat].push({ role: roleTexteClair, nom: nomTexteClair }); 
          }
       });
       uniqueHeures.sort();
