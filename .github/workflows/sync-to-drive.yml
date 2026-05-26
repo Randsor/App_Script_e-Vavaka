@@ -15,7 +15,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install rclone
-        run: sudo apt-get install -y rclone
+        run: curl https://rclone.org/install.sh | sudo bash
 
       - name: Bundle Codebase into a Single Markdown File
         run: |
