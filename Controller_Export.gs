@@ -285,7 +285,7 @@ function renderBlockToDoc(body, startIdx, block, includeTrans, progData) {
   // --- RENDU BLOCS ---
 
   // On exclut COMMENTAIRE de l'affichage des titres
-  if (block.type !== 'CHANT' && block.type !== 'TEXTE_LIBRE' && block.type !== 'TITRE' && block.type !== 'COMMENTAIRE') {
+  if (block.type !== 'CHANT' && block.type !== 'TEXTE_LIBRE' && block.type !== 'TITRE' && block.type !== 'COMMENTAIRE' && block.type !== 'INTERLUDE') {
       var label = safeTxt(block.label_mg || block.type);
       if (block.role) label += " (" + block.role + ")";
       var pLabel = addP(label.toUpperCase(), sTitle, 'LEFT', 0, 0); 
