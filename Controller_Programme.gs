@@ -163,6 +163,7 @@ function getProgrammeDetails(id) {
                   paroles_mg: dataC[c][5], 
                   paroles_fr: dataC[c][6], 
                   structure: dataC[c][7],
+                  notes: dataC[c][9] ? String(dataC[c][9]) : "", // LECTURE DE LA COLONNE J (Notes)
                   // Calcul à la volée du statut (Version Stricte)
                   transStatus: (function(mg, fr){ 
                       var nMg = (mg||"").split(" /// ").filter(function(t){return t.trim().length > 0;}).length; 
@@ -205,6 +206,7 @@ function getProgrammeDetails(id) {
               block.data.recueil = freshSong.recueil; 
               block.data.numero = freshSong.numero; 
               block.data.tonalite = freshSong.tonalite; 
+              block.data.notes = freshSong.notes; // INJECTION DE LA NOTE DANS LE JSON
               block.data.transStatus = freshSong.transStatus;
 
               // 2. Reconstruction Intégrale des Paroles

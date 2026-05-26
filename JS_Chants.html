@@ -382,6 +382,7 @@ function openChantModal(id = null) {
     document.getElementById('editNumero').value = "";
     document.getElementById('editTitre').value = ""; // Titre vide
     document.getElementById('editTags').value = "";
+    document.getElementById('editNotes').value = ""; // AJOUT RESET NOTES
     document.getElementById('editTonalite').value = "";
     document.getElementById('editorStrophesContainer').innerHTML = "";
     document.getElementById('emptyStropheMsg').classList.remove('hidden');
@@ -416,6 +417,7 @@ function openChantModal(id = null) {
             document.getElementById('editNumero').value = chant.numero;
             document.getElementById('editTitre').value = chant.titre; // Titre principal
             document.getElementById('editTags').value = chant.tags || "";
+            document.getElementById('editNotes').value = chant.notes || ""; // AJOUT CHARGEMENT NOTES
             
             // --- NOUVEAU DROPDOWN TONALITÉ ---
             initToneDropdowns(chant.tonalite || "");
@@ -549,6 +551,7 @@ function submitChantSave() {
         titre: document.getElementById('editTitre').value,
         tonalite: document.getElementById('editTonalite').value,
         tags: document.getElementById('editTags').value,
+        notes: document.getElementById('editNotes').value, // AJOUT ENVOI NOTES
         strophes_mg: strophes_mg, strophes_fr: strophes_fr, types: types
     };
   

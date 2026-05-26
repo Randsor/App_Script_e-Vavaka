@@ -284,7 +284,8 @@ function renderBlockToDoc(body, startIdx, block, includeTrans, progData) {
 
   // --- RENDU BLOCS ---
 
-  if (block.type !== 'CHANT' && block.type !== 'TEXTE_LIBRE' && block.type !== 'TITRE') {
+  // On exclut COMMENTAIRE de l'affichage des titres
+  if (block.type !== 'CHANT' && block.type !== 'TEXTE_LIBRE' && block.type !== 'TITRE' && block.type !== 'COMMENTAIRE') {
       var label = safeTxt(block.label_mg || block.type);
       if (block.role) label += " (" + block.role + ")";
       var pLabel = addP(label.toUpperCase(), sTitle, 'LEFT', 0, 0); 
@@ -363,7 +364,13 @@ function renderBlockToDoc(body, startIdx, block, includeTrans, progData) {
               
               pInfoLibre.setSpacingAfter(6);
               pInfoLibre.setIndentStart(INDENT_STD).setIndentFirstLine(INDENT_STD);
-          } catch(e) {}
+         } catch(e) {}
+      }
+
+      // --- NOUVEAU : IMPRESSION DE LA NOTE DU CHANT ---
+      if (block.data.notes && block.data.notes.trim() !== "") {
+          // Ajout du caractère i entouré
+          addP("ⓘ " + block.data.notes.trim(), sMeta, 'LEFT', 6, INDENT_STD);
       }
 
       if(block.data.paroles_fixe) {
@@ -374,7 +381,6 @@ function renderBlockToDoc(body, startIdx, block, includeTrans, progData) {
   }
 
   else if (block.type === 'INTERLUDE') {
-      // 1. Création d'un tableau à 1 cellule (Le Cartouche)
       var table;
       try {
           if (currentIdx !== null) { table = body.insertTable(currentIdx); currentIdx++; }
@@ -384,18 +390,21 @@ function renderBlockToDoc(body, startIdx, block, includeTrans, progData) {
       var row = table.appendTableRow();
       var cell = row.appendTableCell();
       
-      // 2. Style du Cartouche
       table.setBorderWidth(1);
       table.setBorderColor("#E5E7EB");
       cell.setBackgroundColor("#F9FAFB");
       cell.setPaddingTop(12).setPaddingBottom(12).setPaddingLeft(INDENT_STD).setPaddingRight(INDENT_STD);
       
-      // 3. Sécurisation extrême des textes (Empêche le crash Google Docs)
-      var labelMg = safeTxt(block.label_mg);
-      if (labelMg === "") labelMg = "FEONJAVAMANENO";
+      var labelMg = safeTxt(block.label_mg) || "FEONJAVAMANENO";
       
-      // On utilise le paragraphe vide créé par défaut dans la cellule Google Docs
-      var pLabel = cell.getChild(0).asParagraph();
+      // Sécurité : On s'assure d'avoir au moins un paragraphe
+      var pLabel;
+      if (cell.getNumChildren() > 0 && cell.getChild(0).getType() === DocumentApp.ElementType.PARAGRAPH) {
+          pLabel = cell.getChild(0).asParagraph();
+      } else {
+          pLabel = cell.appendParagraph("");
+      }
+      
       pLabel.setText(labelMg.toUpperCase());
       pLabel.setAttributes(sTitle).setAlignment(DocumentApp.HorizontalAlignment.CENTER);
       
@@ -414,23 +423,10 @@ function renderBlockToDoc(body, startIdx, block, includeTrans, progData) {
           else morceau = tonalite;
       }
 
-      var comment = safeTxt(block.data.comment);
-
-      // On n'ajoute la ligne que si elle contient du texte
       if (morceau !== "") {
           var pMorceau = cell.appendParagraph(morceau);
-          pMorceau.setAttributes(sTxt).setBold(true).setAlignment(DocumentApp.HorizontalAlignment.CENTER);
-          pMorceau.setSpacingAfter(comment !== "" ? 4 : 0);
+          pMorceau.setAttributes(sTxt).setBold(true).setAlignment(DocumentApp.HorizontalAlignment.CENTER).setSpacingAfter(0);
       }
-
-      // On n'ajoute le commentaire que s'il existe
-      if (comment !== "") {
-          var pComment = cell.appendParagraph(comment);
-          pComment.setAttributes(sMeta).setAlignment(DocumentApp.HorizontalAlignment.CENTER).setSpacingAfter(0);
-      }
-      
-      // 4. Espacement de fin
-      addP(" ", sTxt, 'LEFT', 6, 0, true);
   }
   
   else if (block.type === 'LECTURE') {
@@ -458,23 +454,65 @@ function renderBlockToDoc(body, startIdx, block, includeTrans, progData) {
   
   // MODIFICATION : CAS PREDICATION
   else if (block.type === 'PREDICATION') {
-      // Récupération des thèmes depuis progData
       var thMg = progData ? safeTxt(progData.theme_mg) : "";
       var thFr = progData ? safeTxt(progData.theme_fr) : "";
-      
-      if(thMg || thFr) {
-          addDualCol(thMg, thFr);
-      } else {
-          addP("(Thème non défini)", sMeta, 'LEFT', 6, INDENT_STD);
-      }
+      if(thMg || thFr) addDualCol(thMg, thFr);
+      else addP("(Thème non défini)", sMeta, 'LEFT', 6, INDENT_STD);
   }
   
+  // NOUVEAU : LE CALLOUT COMMENTAIRE (OU AUTRES TEXTES)
   else {
+      // On affiche le contenu s'il y en a un (Pour LECTURE, LITURGIE, LIBRE...)
       var cm = safeTxt(block.data.contenu_mg || block.data.texte_mg);
       var cf = safeTxt(block.data.contenu_fr || block.data.texte_fr);
-      addDualCol(cm, cf);
+      if (block.type !== 'COMMENTAIRE') {
+          addDualCol(cm, cf);
+      }
   }
 
+  // --- RENDU DU CALLOUT (NOTION STYLE) ---
+  // Déclenché soit par le bloc 'COMMENTAIRE', soit par l'ancien champ 'comment'
+  var hasComment = (block.type === 'COMMENTAIRE' && block.data.comment) || (block.type !== 'COMMENTAIRE' && block.data.comment);
+  
+  if (hasComment) {
+      var txtComment = safeTxt(block.data.comment);
+      
+      var tableCallout;
+      try {
+          if (currentIdx !== null) { tableCallout = body.insertTable(currentIdx); currentIdx++; }
+          else { tableCallout = body.appendTable(); }
+      } catch(e) { tableCallout = body.appendTable(); currentIdx = null; }
+      
+      var rowC = tableCallout.appendTableRow();
+      var cellC = rowC.appendTableCell();
+      
+      // Style Callout (Fond gris clair, sans bordures)
+      tableCallout.setBorderWidth(0); 
+      cellC.setBackgroundColor("#F3F4F6"); // Un gris légèrement plus soutenu pour qu'il soit bien visible à l'impression
+      cellC.setPaddingTop(6).setPaddingBottom(6).setPaddingLeft(10).setPaddingRight(10);
+      
+     var pCallout;
+      if (cellC.getNumChildren() > 0 && cellC.getChild(0).getType() === DocumentApp.ElementType.PARAGRAPH) {
+          pCallout = cellC.getChild(0).asParagraph();
+      } else {
+          pCallout = cellC.appendParagraph("");
+      }
+      
+      // On ajoute un indicateur visuel (i entouré) pour compenser l'absence de bordure gauche
+      pCallout.setText("ⓘ " + txtComment);
+      
+      // On applique le style meta (italique, gris)
+      pCallout.setAttributes(sMeta).setAlignment(DocumentApp.HorizontalAlignment.LEFT).setSpacingAfter(0);
+      
+      // Retrait de la marge pour le tableau
+      try {
+          var tAttrs = {};
+          tAttrs[DocumentApp.Attribute.MARGIN_LEFT] = INDENT_STD;
+          tableCallout.setAttributes(tAttrs);
+      } catch(e){}
+  }
+
+  // Espacement final entre chaque bloc (sauf si c'est la fin)
   addP(" ", sTxt, 'LEFT', 6, 0, true);
   
   return currentIdx;

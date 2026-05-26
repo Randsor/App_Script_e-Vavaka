@@ -44,20 +44,58 @@
 </div>
 
 <div id="menuOverlay" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; z-index:1040; cursor:default;"></div>
-<div id="insertMenu" class="dropdown-menu custom-popup" style="display:none; position:absolute; z-index:1050; width: 180px;">
-  <h6 class="dropdown-header">STRUCTURE</h6>
-  <button class="dropdown-item" onclick="insertBlock('TITRE')">Titre de section</button>
-  <div class="dropdown-divider my-1 opacity-50"></div>
-  <h6 class="dropdown-header">CONTENU</h6>
-  <button class="dropdown-item" onclick="insertBlock('CHANT')">Chant / Hira</button>
-  <button class="dropdown-item" onclick="insertBlock('INTERLUDE')">Interlude / Feonjavamaneno</button>
-  <button class="dropdown-item" onclick="insertBlock('FANEKENA')">Confession de foi</button>
-  <button class="dropdown-item" onclick="insertBlock('LECTURE')">Lecture Biblique</button>
-  <button class="dropdown-item" onclick="insertBlock('LITURGIE')">Texte Liturgique</button>
-  <button class="dropdown-item" onclick="insertBlock('PREDICATION')">Prédication</button>
-  <button class="dropdown-item" onclick="insertBlock('PRIERE')">Prière</button>
-  <button class="dropdown-item" onclick="insertBlock('ANNONCE')">Annonces</button>
-  <button class="dropdown-item" onclick="insertBlock('LIBRE')">Section libre</button>
-  <button class="dropdown-item" onclick="insertBlock('TEXTE_LIBRE')">Texte libre</button>
+<div id="insertMenu" class="dropdown-menu custom-popup shadow-lg border-0 py-2 custom-scrollbar" style="display:none; position:absolute; z-index:1050; width: 220px; border-radius: 8px; max-height: 60vh; overflow-y: auto;">
+  
+  <div class="px-3 pb-1 pt-2">
+      <h6 class="text-uppercase text-muted fw-bold mb-0" style="font-size: 10px; letter-spacing: 1px;">Structure &amp; Guides</h6>
+  </div>
+  <button class="dropdown-item d-flex align-items-center gap-2 py-2 text-dark" onclick="insertBlock('TITRE')">
+      <i class="bi bi-type-h1 text-secondary opacity-75"></i> Titre de section
+  </button>
+  <button class="dropdown-item d-flex align-items-center gap-2 py-2 text-dark" onclick="insertBlock('COMMENTAIRE')">
+      <i class="bi bi-info-square text-secondary opacity-75"></i> Commentaire / Consigne
+  </button>
+
+  <div class="dropdown-divider my-2 opacity-25"></div>
+
+  <div class="px-3 pb-1 pt-1">
+      <h6 class="text-uppercase text-muted fw-bold mb-0" style="font-size: 10px; letter-spacing: 1px;">Éléments du Culte</h6>
+  </div>
+  <button class="dropdown-item d-flex align-items-center gap-2 py-2 text-dark" onclick="insertBlock('CHANT')">
+      <i class="bi bi-music-note-list text-primary"></i> Chant (Hira)
+  </button>
+  <button class="dropdown-item d-flex align-items-center gap-2 py-2 text-dark" onclick="insertBlock('INTERLUDE')">
+      <i class="bi bi-volume-up text-secondary"></i> Interlude
+  </button>
+  <button class="dropdown-item d-flex align-items-center gap-2 py-2 text-dark" onclick="insertBlock('LECTURE')">
+      <i class="bi bi-book text-success"></i> Lecture Biblique
+  </button>
+  <button class="dropdown-item d-flex align-items-center gap-2 py-2 text-dark" onclick="insertBlock('LITURGIE')">
+      <i class="bi bi-card-text text-warning"></i> Texte Liturgique
+  </button>
+  <button class="dropdown-item d-flex align-items-center gap-2 py-2 text-dark" onclick="insertBlock('PREDICATION')">
+      <i class="bi bi-mic text-danger"></i> Prédication
+  </button>
+  <button class="dropdown-item d-flex align-items-center gap-2 py-2 text-dark" onclick="insertBlock('PRIERE')">
+      <i class="bi bi-chat-heart text-info"></i> Prière
+  </button>
+  <button class="dropdown-item d-flex align-items-center gap-2 py-2 text-dark" onclick="insertBlock('FANEKENA')">
+      <i class="bi bi-shield-check text-primary"></i> Confession de foi
+  </button>
+
+  <div class="dropdown-divider my-2 opacity-25"></div>
+
+  <div class="px-3 pb-1 pt-1">
+      <h6 class="text-uppercase text-muted fw-bold mb-0" style="font-size: 10px; letter-spacing: 1px;">Autre prise de parole</h6>
+  </div>
+  <button class="dropdown-item d-flex align-items-center gap-2 py-2 text-dark" onclick="insertBlock('ANNONCE')">
+      <i class="bi bi-megaphone text-dark"></i> Annonces
+  </button>
+  <button class="dropdown-item d-flex align-items-center gap-2 py-2 text-dark" onclick="insertBlock('LIBRE')">
+      <i class="bi bi-person-lines-fill text-secondary"></i> Section libre
+  </button>
+  <button class="dropdown-item d-flex align-items-center gap-2 py-2 text-dark" onclick="insertBlock('TEXTE_LIBRE')">
+      <i class="bi bi-justify text-secondary"></i> Texte simple
+  </button>
 </div>
 <div id="roleMenu" class="dropdown-menu custom-popup" style="display:none; position:absolute; z-index:1050; width: 180px;"></div>

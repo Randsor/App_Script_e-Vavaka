@@ -57,8 +57,8 @@ function searchChantsBackend(query, recueilFilter, historyIds) {
   var lastRow = sheet.getLastRow();
   if (lastRow < 2) return [];
 
-  // Récupération des données jusqu'à la colonne Tags (I)
-  var data = sheet.getRange(2, 1, lastRow - 1, 9).getValues(); 
+  // Récupération des données jusqu'à la colonne Notes (J / 10)
+  var data = sheet.getRange(2, 1, lastRow - 1, 10).getValues(); 
 
   // --- MODE 1 : FILTRE HISTORIQUE (IDS SPÉCIFIQUES) ---
   if (historyIds && historyIds.length > 0) {
@@ -199,7 +199,7 @@ function getChantDetails(id) {
       
       return {
         id: data[i][0], 
-        recueil: getTextFromId("recueils", data[i][1]), // Traduction pour charger l'éditeur Front
+        recueil: getTextFromId("recueils", data[i][1]), 
         numero: data[i][2],
         titre: data[i][3], 
         tonalite: data[i][4], 
@@ -207,6 +207,7 @@ function getChantDetails(id) {
         paroles_fr: fr, 
         structure: data[i][7], 
         tags: data[i][8], 
+        notes: data[i][9] ? String(data[i][9]) : "", // AJOUT DE LA COLONNE J
         transStatus: st,
         rowIndex: i + 1
       };
@@ -234,7 +235,7 @@ function saveChantBackend(form) {
     // --- MODIFICATION ---
     var row = parseInt(form.rowIndex);
     // Mise à jour cellule par cellule
-    sheet.getRange(row, 2).setValue(targetRecueilId); // Écriture de l'ID au lieu du texte
+    sheet.getRange(row, 2).setValue(targetRecueilId); 
     sheet.getRange(row, 3).setValue(form.numero);
     sheet.getRange(row, 4).setValue(form.titre);
     sheet.getRange(row, 5).setValue(form.tonalite); 
@@ -242,6 +243,7 @@ function saveChantBackend(form) {
     sheet.getRange(row, 7).setValue(frFull);
     sheet.getRange(row, 8).setValue(structure); 
     sheet.getRange(row, 9).setValue(form.tags);
+    sheet.getRange(row, 10).setValue(form.notes || ""); // ÉCRITURE DE LA NOTE (COLONNE J)
     
     return "Chant modifié avec succès !";
   } else {
@@ -252,14 +254,15 @@ function saveChantBackend(form) {
     
     sheet.appendRow([
       newId, 
-      targetRecueilId, // Écriture de l'ID
+      targetRecueilId, 
       form.numero, 
       form.titre, 
       form.tonalite, 
       mgFull, 
       frFull, 
       structure, 
-      form.tags
+      form.tags,
+      form.notes || "" // ÉCRITURE DE LA NOTE (COLONNE J)
     ]);
     
     return "Chant créé avec succès !";
