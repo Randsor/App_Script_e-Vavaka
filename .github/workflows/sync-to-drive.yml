@@ -18,19 +18,18 @@ jobs:
         run: curl https://rclone.org/install.sh | sudo bash
 
       - name: Bundle Codebase into a Single Markdown File
+        env:
+          TZ: Europe/Paris
         run: |
-          # Initialisation du fichier unique
           echo "# Codebase Complète" > codebase_total.md
           echo "Dernière synchronisation : $(date +'%Y-%m-%d %H:%M:%S')" >> codebase_total.md
           echo "" >> codebase_total.md
           
-          # Parcours des fichiers de dev en excluant les dossiers cachés (.git, .github)
           find . -type f \( -name "*.gs" -o -name "*.html" -o -name "appsscript.json" \) ! -path "*/.*" | while read -r file; do
             echo "## ========================================" >> codebase_total.md
             echo "### FICHIER : $file" >> codebase_total.md
             echo "## ========================================" >> codebase_total.md
             
-            # Détection de l'extension pour adapter la coloration dans le Markdown
             ext="${file##*.}"
             if [ "$ext" = "gs" ]; then ext="javascript"; fi
             
@@ -43,9 +42,13 @@ jobs:
 
       - name: Mirror Repository to Google Drive
         env:
+          # Configuration absolue de rclone sous ton identité applicative
           RCLONE_CONFIG_GDRIVE_TYPE: drive
+          RCLONE_CONFIG_GDRIVE_CLIENT_ID: ${{ secrets.GDRIVE_CLIENT_ID }}
+          RCLONE_CONFIG_GDRIVE_CLIENT_SECRET: ${{ secrets.GDRIVE_CLIENT_SECRET }}
           RCLONE_CONFIG_GDRIVE_TOKEN: ${{ secrets.GDRIVE_TOKEN }}
           RCLONE_CONFIG_GDRIVE_ROOT_FOLDER_ID: ${{ secrets.GDRIVE_FOLDER_ID }}
         run: |
-          # On utilise 'copy' pour envoyer uniquement le fichier bundle généré
-          rclone copy codebase_total.md gdrive: -v
+          rclone copy codebase_total.md gdrive: \
+            --drive-allow-import-name-change \
+            -v
