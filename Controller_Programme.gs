@@ -268,6 +268,7 @@ function getProgrammeDetails(id) {
       var hydratedContent = JSON.stringify(blocks);
       var pdfLink = (dataP[i].length > 9) ? dataP[i][9] : "";
       var docLink = (dataP[i].length > 10) ? dataP[i][10] : "";
+      var slidesLink = (dataP[i].length > 11) ? dataP[i][11] : ""; // COLONNE L (Index 11) POUR LES SLIDES
 
       prog = {
         id: dataP[i][0], 
@@ -281,6 +282,7 @@ function getProgrammeDetails(id) {
         validatedBy: dataP[i][8] || "", 
         pdfLink: pdfLink,
         docLink: docLink,
+        slidesLink: slidesLink, // AJOUTÉ ICI
         rowIndex: i + 1
       };
       break;

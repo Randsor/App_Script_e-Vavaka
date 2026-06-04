@@ -7,6 +7,7 @@
   let VALIDATORS_LIST = []; 
   let SECURITY_CONTEXT = "";
   let rolesListConfig = [];
+  let RECUEILS_CONFIG = []; // <--- NOUVEAU
   
   let SONG_SELECTOR_CONTEXT = {
       blockIndex: -1,
@@ -29,8 +30,8 @@
       google.script.run.withSuccessHandler(data => {
           VALIDATORS_LIST = data.valideurs || [];
           rolesListConfig = data.roles || [];
-          // CORRECTION : Appel de la bonne fonction (ou suppression si inutile au démarrage)
-          // On initialise les filtres du sélecteur de chant dès le début pour qu'ils soient prêts
+          RECUEILS_CONFIG = data.recueils || []; // <--- SAUVEGARDE EN CACHE
+          
           if(typeof renderRecueilFilters === 'function') renderRecueilFilters();
       }).getConfigData();
       
@@ -477,7 +478,7 @@
 
   function closeAllModals() { 
       // Ajout des nouvelles modales à la liste gérée
-      ['creationModal', 'securityModal', 'deleteModal', 'progCreatorOverlay', 'songSelectorModal', 'fanekenaSelectorModal', 'exportPdfModal','exportDocsModal', 'orphanAlertModal'].forEach(id => { 
+      ['creationModal', 'securityModal', 'deleteModal', 'progCreatorOverlay', 'songSelectorModal', 'fanekenaSelectorModal', 'exportPdfModal','exportDocsModal', 'exportSlidesModal', 'orphanAlertModal'].forEach(id => {
           const el = document.getElementById(id); 
           if(el) el.style.display = 'none'; 
       }); 

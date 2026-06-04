@@ -202,6 +202,10 @@
               </div>
               <div id="toolbarReadMode" class="d-none">
                    <span class="text-muted small fst-italic me-2" id="signedByText"></span>
+                   <!-- NOUVEAU BOUTON SLIDES SALLE -->
+                   <button class="btn btn-sm btn-white border shadow-sm text-warning me-2" onclick="openSlidesModal()" title="Export Slides (Salle)">
+                       <i class="bi bi-file-earmark-slides-fill"></i> Salle
+                   </button>
                    <!-- BOUTON DOCS (Uniquement ici, après validation) -->
                    <button class="btn btn-sm btn-white border shadow-sm text-primary me-2" onclick="openDocsModal()" title="Export Word/Docs">
                        <i class="bi bi-file-earmark-word-fill"></i> Word
@@ -326,6 +330,14 @@
         <i class="bi bi-x-lg text-secondary"></i>
     </div>
     <div id="docsModalContent"></div>
+  </div>
+
+  <!-- NOUVELLE MODALE SLIDES -->
+  <div id="exportSlidesModal" class="notion-dialog" style="display:none; width: 380px; padding: 25px; flex-direction: column;">
+    <div style="position: absolute; top: 15px; right: 15px; cursor: pointer;" onclick="closeCustomModal('exportSlidesModal', 'progCreatorOverlay')">
+        <i class="bi bi-x-lg text-secondary"></i>
+    </div>
+    <div id="slidesModalContent"></div>
   </div>
 
   <div id="progCreatorOverlay" style="position:fixed; inset:0; display:none;" onclick="closeAllModals()"></div>

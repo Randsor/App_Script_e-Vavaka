@@ -151,9 +151,11 @@
             <div class="section-label small fw-bold text-secondary px-3 mb-2 mt-2" style="font-size: 10px; letter-spacing: 1px;">DONNÉES</div>
             <div class="cfg-menu-item active" onclick="switchConfigTab('roles', this)"><i class="bi bi-person-badge"></i> Rôles</div>
             <div class="cfg-menu-item" onclick="switchConfigTab('participants', this)"><i class="bi bi-people"></i> Participants</div>
+            <div class="cfg-menu-item" onclick="switchConfigTab('recueils', this)"><i class="bi bi-music-note-list"></i> Recueils</div>
 
             <div class="section-label small fw-bold text-secondary px-3 mb-2 mt-4" style="font-size: 10px; letter-spacing: 1px;">SYSTÈME</div>
-            <div class="cfg-menu-item" onclick="switchConfigTab('pdf', this)"><i class="bi bi-file-earmark-pdf"></i> Export PDF</div>
+            <div class="cfg-menu-item" onclick="switchConfigTab('pdf', this)"><i class="bi bi-file-earmark-pdf"></i> Fichiers / Drive</div>
+            <div class="cfg-menu-item" onclick="switchConfigTab('slides_mapping', this)"><i class="bi bi-file-earmark-slides"></i> Slides Prédéfinis</div>
             <div class="cfg-menu-item" onclick="switchConfigTab('security', this)"><i class="bi bi-shield-lock"></i> Sécurité</div>
         </div>
 
@@ -191,6 +193,21 @@
                 </div>
             </div>
 
+            <!-- 2.BIS RECUEILS -->
+            <div id="tab-recueils" class="cfg-section">
+                <h3 class="cfg-section-title">Recueils de Chants</h3>
+                <p class="cfg-section-desc">Gérez la liste des recueils et leurs préfixes associés pour l'affichage (ex: FF pour Fihirana Fanampiny).</p>
+                <div class="role-group-card mb-4">
+                    <div class="role-group-header">
+                        <span>LISTE DES RECUEILS</span>
+                        <i class="bi bi-plus-lg cursor-pointer btn-add text-primary fs-6" onclick="addRecueil()" title="Ajouter"></i>
+                    </div>
+                    <div id="recueilsContainer">
+                        <div class="p-3"><div class="skeleton" style="height: 12px;"></div></div>
+                    </div>
+                </div>
+            </div>
+
             <!-- 3. PDF -->
             <div id="tab-pdf" class="cfg-section">
                 <h3 class="cfg-section-title">Module PDF</h3>
@@ -209,6 +226,38 @@
                             <i class="bi bi-file-word-fill text-primary me-3 fs-5"></i>
                             <input type="text" id="pdfTemplateId" class="cfg-input fw-medium" placeholder="ID du fichier Doc..." oninput="setDirty(true)">
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- NOUVELLE SECTION : SLIDES MAPPING -->
+            <div id="tab-slides_mapping" class="cfg-section">
+                <h3 class="cfg-section-title">Slides Prédéfinis (Mapping)</h3>
+                <p class="cfg-section-desc">Associez un titre exact saisi dans le programme à une diapositive spécifique du modèle. Si le système reconnaît le titre, il insérera directement la diapositive associée sans chercher à remplacer le texte.</p>
+                
+                <div class="role-group-card p-4 mb-4">
+                    <label class="small fw-bold text-dark mb-2">ID TEMPLATE SLIDES (SALLE)</label>
+                    <div class="d-flex align-items-center bg-light border rounded px-3 py-2">
+                        <i class="bi bi-file-earmark-slides-fill text-warning me-3 fs-5"></i>
+                        <input type="text" id="slidesTemplateSalleId" class="cfg-input fw-medium" placeholder="ID du fichier Slides..." oninput="setDirty(true)">
+                    </div>
+                    <div class="mt-2 text-end">
+                        <button class="btn btn-sm btn-link text-decoration-none" onclick="window.open('https://docs.google.com/presentation/d/' + document.getElementById('slidesTemplateSalleId').value, '_blank')">
+                            Ouvrir le modèle Slides <i class="bi bi-box-arrow-up-right ms-1"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="role-group-card mb-4">
+                    <div class="role-group-header">
+                        <span>CORRESPONDANCES (MAPPING)</span>
+                        <div class="d-flex gap-2 align-items-center">
+                            <input type="text" class="form-control form-control-sm border-0 bg-white" placeholder="Chercher..." style="width: 120px;" onkeyup="filterSlideMappings(this.value)">
+                            <i class="bi bi-plus-lg cursor-pointer btn-add text-warning fs-6" onclick="addSlideMappingGroup()" title="Ajouter un groupe"></i>
+                        </div>
+                    </div>
+                    <div id="slideMappingContainer">
+                        <div class="p-3"><div class="skeleton" style="height: 12px;"></div></div>
                     </div>
                 </div>
             </div>

@@ -126,6 +126,7 @@ function getDashboardData() {
                  status = dataPr[p][7] || "draft";
                  
                  var pdfLink = (dataPr[p].length > 9) ? dataPr[p][9] : "";
+                 var slidesLink = (dataPr[p].length > 11) ? dataPr[p][11] : ""; // LECTURE DE LA COLONNE L (SLIDES)
 
                  try {
                      var jsonStr = decompressString(dataPr[p][5]);
@@ -157,7 +158,8 @@ function getDashboardData() {
           theme_mg: themeMg,
           theme_fr: themeFr,
           songAlerts: songAlerts,
-          pdfLink: pdfLink
+          pdfLink: pdfLink,
+          slidesLink: slidesLink // AJOUT DU LIEN DANS L'OBJET RETOURNÉ AU DASHBOARD
       };
     }
   }

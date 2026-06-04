@@ -378,7 +378,16 @@ function cancelDocRegen() {
 // 3. UTILITAIRE GLOBAL D'ERREURS
 // ========================================================
 function showErrorState(msg, targetContext) {
-    const containerId = targetContext === 'DOCS' ? 'docsModalContent' : 'exportModalContent';
+    // 1. Cible le bon conteneur selon le contexte
+    let containerId = 'exportModalContent'; // Par défaut (PDF)
+    if (targetContext === 'DOCS') containerId = 'docsModalContent';
+    else if (targetContext === 'SLIDES') containerId = 'slidesModalContent'; // Le nouveau conteneur Slides
+    
+    // 2. Détermine la fonction de retour (Reset)
+    let resetAction = 'resetError()'; // Par défaut (PDF)
+    if (targetContext === 'DOCS') resetAction = 'renderDocsModalState()';
+    else if (targetContext === 'SLIDES') resetAction = 'renderSlidesModalState()';
+
     const container = document.getElementById(containerId);
     if(container) {
         container.innerHTML = `
@@ -388,7 +397,7 @@ function showErrorState(msg, targetContext) {
                 </div>
                 <h6 class="fw-bold text-danger mb-2">Erreur de génération</h6>
                 <p class="small text-muted mb-4 px-3" style="line-height:1.4;">${msg}</p>
-                <button class="btn btn-outline-dark px-4 btn-sm" onclick="${targetContext === 'DOCS' ? 'renderDocsModalState()' : 'resetError()'}">Retour</button>
+                <button class="btn btn-outline-dark px-4 btn-sm" onclick="${resetAction}">Retour</button>
             </div>
         `;
     }
@@ -397,5 +406,95 @@ function showErrorState(msg, targetContext) {
 function resetError() {
     EXPORT_CONTEXT.isGenerating = false;
     renderExportModalState();
+}
+
+// ========================================================
+// 4. LOGIQUE SLIDES (SALLE)
+// ========================================================
+let SLIDES_CONTEXT = {
+    slidesLink: null,
+    isGenerating: false
+};
+
+function openSlidesModal() {
+    if (!currentProgData) return;
+    
+    // Le lien Slides est récupéré depuis la DB (Colonne L)
+    SLIDES_CONTEXT.slidesLink = currentProgData.slidesLink || null;
+    SLIDES_CONTEXT.isGenerating = false;
+    
+    renderSlidesModalState();
+    
+    if(typeof openCustomModal === 'function') {
+        openCustomModal('exportSlidesModal', 'progCreatorOverlay');
+    } else {
+        document.getElementById('exportSlidesModal').style.display = 'flex';
+        document.getElementById('progCreatorOverlay').style.display = 'block';
+    }
+}
+
+function renderSlidesModalState() {
+    const container = document.getElementById('slidesModalContent');
+    const hasSlides = !!SLIDES_CONTEXT.slidesLink;
+    let html = "";
+    
+    html += `
+    <div class="text-center mb-4">
+        <div class="bg-warning bg-opacity-10 text-warning rounded-circle d-inline-flex align-items-center justify-content-center mb-2" style="width:50px; height:50px;">
+            <i class="bi bi-file-earmark-slides-fill fs-3"></i>
+        </div>
+        <h5 class="fw-bold m-0 text-dark">Google Slides (Salle)</h5>
+        <p class="small text-muted mt-1 mb-0">Génération de la présentation projetée</p>
+    </div>`;
+
+    if (SLIDES_CONTEXT.isGenerating) {
+        html += `
+        <div class="text-center py-4 bg-light border rounded">
+            <div class="spinner-border text-warning mb-3" role="status"></div>
+            <h6 class="fw-bold text-warning">Création des diapositives...</h6>
+            <p class="text-muted small px-3">Ceci peut prendre quelques secondes.</p>
+        </div>`;
+    } else if (hasSlides) {
+        html += `
+        <div class="bg-warning bg-opacity-10 border border-warning border-opacity-25 rounded p-4 text-center">
+            <button class="btn btn-warning text-dark w-100 py-2 fw-bold shadow-sm mb-3" onclick="window.open('${SLIDES_CONTEXT.slidesLink}', '_blank')">
+                <i class="bi bi-play-fill me-2"></i> Ouvrir la Présentation
+            </button>
+            <hr class="opacity-25 my-3 border-warning">
+            <button class="btn btn-link text-danger text-decoration-none btn-sm p-0 w-100" onclick="triggerSlidesGeneration()">
+                <i class="bi bi-arrow-clockwise me-1"></i> Régénérer les Slides
+            </button>
+        </div>`;
+    } else {
+        html += `
+        <button class="btn btn-warning text-dark w-100 py-2 shadow-sm fw-bold" onclick="triggerSlidesGeneration()">
+            Générer la Présentation Salle
+        </button>
+        `;
+    }
+    container.innerHTML = html;
+}
+
+function triggerSlidesGeneration() {
+    SLIDES_CONTEXT.isGenerating = true;
+    renderSlidesModalState();
+    
+    google.script.run
+        .withSuccessHandler(res => {
+            SLIDES_CONTEXT.isGenerating = false;
+            if (res.success) {
+                SLIDES_CONTEXT.slidesLink = res.url;
+                if(currentProgData) currentProgData.slidesLink = res.url;
+                renderSlidesModalState();
+                showNotionToast("Présentation Salle générée !", "success");
+            } else {
+                showErrorState(res.error, 'SLIDES');
+            }
+        })
+        .withFailureHandler(err => {
+            SLIDES_CONTEXT.isGenerating = false;
+            showErrorState(err.message, 'SLIDES');
+        })
+        .generateSlidesSalle(currentProgData.id);
 }
 </script>

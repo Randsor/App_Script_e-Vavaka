@@ -306,8 +306,17 @@ function renderSharedBlocks(containerId, blocks, context) {
                 let bgClass = isFromDB ? "bg-light" : "bg-white";
                 
                 if(isFromDB && block.data?.recueil) {
-                    let numStr = block.data.numero;
-                    let formattedNum = (block.data.recueil === 'Fihirana') ? String(numStr).padStart(3, '0') : escapeHTML(block.data.recueil.substring(0,2).toUpperCase()) + ' ' + escapeHTML(numStr);
+                    let recKey = String(block.data.recueil).trim().toLowerCase();
+                    let num3Digits = String(block.data.numero).padStart(3, '0');
+                    let formattedNum = num3Digits;
+                    
+                    if (recKey !== 'fihirana') {
+                        // On cherche le préfixe dans le cache (ou on prend une chaîne vide par défaut)
+                        let recObj = (typeof RECUEILS_CONFIG !== 'undefined') ? RECUEILS_CONFIG.find(r => r.nom.toLowerCase() === recKey) : null;
+                        let prefix = recObj ? recObj.prefixe : "";
+                        formattedNum = prefix ? escapeHTML(prefix) + ' ' + num3Digits : num3Digits;
+                    }
+
                     let tonaliteHtml = block.data.tonalite ? `<span class="ms-2 border border-secondary text-secondary rounded fw-bold px-2" style="font-size:11px !important; padding:1px 4px; background-color:#fff;">${escapeHTML(block.data.tonalite)}</span>` : '';
                     let stanzaDisplay = (block.data.sequenceSummary && block.data.sequenceSummary !== 'Tout') ? `<span class="text-danger ms-1" style="font-size:13px; font-weight:400;">: ${escapeHTML(block.data.sequenceSummary)}</span>` : '';
 

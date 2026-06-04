@@ -90,13 +90,23 @@ function renderDashboard(data) {
         alertHtml += '</div>';
     }
 
-    // Bouton PDF
+    // Boutons PDF et SLIDES (Dashboard)
     let pdfBtnHtml = "";
+    let safeTitle = (nc.titre || "").replace(/'/g, "\\'");
+    
+    // PDF
     if (nc.pdfLink && nc.pdfLink !== "") {
-        let safeTitle = (nc.titre || "").replace(/'/g, "\\'");
-        pdfBtnHtml = `<div class="pdf-status-icon active btn-pdf-hero" onclick="openDashboardPdf('${nc.progId}', '${nc.pdfLink}', '${safeTitle}')" title="Voir le PDF"><i class="bi bi-file-earmark-pdf-fill"></i></div>`;
+        pdfBtnHtml += `<div class="pdf-status-icon active btn-pdf-hero" onclick="openDashboardPdf('${nc.progId}', '${nc.pdfLink}', '${safeTitle}')" title="Voir le PDF"><i class="bi bi-file-earmark-pdf-fill"></i></div>`;
     } else {
-        pdfBtnHtml = `<div class="pdf-status-icon disabled btn-pdf-hero" title="PDF non généré"><i class="bi bi-file-earmark-pdf"></i></div>`;
+        pdfBtnHtml += `<div class="pdf-status-icon disabled btn-pdf-hero" title="PDF non généré"><i class="bi bi-file-earmark-pdf"></i></div>`;
+    }
+
+    // SLIDES (Nouveau) - Avec une couleur warning (orange/jaune)
+    if (nc.slidesLink && nc.slidesLink !== "") {
+        // J'utilise inline-style pour forcer l'orange sans devoir modifier le CSS global
+        pdfBtnHtml += `<div class="pdf-status-icon active btn-pdf-hero" style="color: #D97706; background: rgba(217, 119, 6, 0.1);" onclick="window.open('${nc.slidesLink}', '_blank')" title="Ouvrir les Slides"><i class="bi bi-file-earmark-slides-fill"></i></div>`;
+    } else {
+        pdfBtnHtml += `<div class="pdf-status-icon disabled btn-pdf-hero" title="Slides non générés"><i class="bi bi-file-earmark-slides"></i></div>`;
     }
 
     // Boutons d'Action Principaux

@@ -29,6 +29,17 @@ function generateDocumentBackend(progId, includeTrans, targetType) {
     var config = getConfigData();
     if (!config.pdfTemplateId || !config.pdfFolderId) throw new Error("Config PDF manquante.");
 
+    // Préchargement des Préfixes de Recueils pour le PDF
+    var recueilPrefixes = {};
+    if (config.recueils) {
+        config.recueils.forEach(function(r) {
+            if (r.nom) {
+               // On force la clé en minuscules et on s'assure de ne pas avoir de null
+               recueilPrefixes[String(r.nom).trim().toLowerCase()] = r.prefixe || ""; 
+            }
+        });
+    }
+
     var progData = getProgrammeDetails(progId);
     if (!progData) throw new Error("Programme introuvable.");
     
@@ -75,7 +86,8 @@ function generateDocumentBackend(progId, includeTrans, targetType) {
     try { blocks = JSON.parse(progData.contenu); } catch(e) {}
     
     blocks.forEach(function(block) {
-       var newIndex = renderBlockToDoc(body, insertionIndex, block, includeTrans, progData);
+       // AJOUT DU PARAMÈTRE recueilPrefixes
+       var newIndex = renderBlockToDoc(body, insertionIndex, block, includeTrans, progData, recueilPrefixes);
        if (insertionIndex !== null && newIndex !== null) insertionIndex = newIndex;
     });
     
@@ -170,8 +182,8 @@ function safeTxt(val) {
     return String(val).trim(); 
 }
 
-// MODIFICATION SIGNATURE : ajout de progData
-function renderBlockToDoc(body, startIdx, block, includeTrans, progData) {
+// MODIFICATION SIGNATURE : ajout de recueilPrefixes
+function renderBlockToDoc(body, startIdx, block, includeTrans, progData, recueilPrefixes) {
   var currentIdx = startIdx;
 
   // --- STYLES ---
@@ -285,7 +297,7 @@ function renderBlockToDoc(body, startIdx, block, includeTrans, progData) {
   // --- RENDU BLOCS ---
 
   // On exclut COMMENTAIRE de l'affichage des titres
-  if (block.type !== 'CHANT' && block.type !== 'TEXTE_LIBRE' && block.type !== 'TITRE' && block.type !== 'COMMENTAIRE' && block.type !== 'INTERLUDE') {
+  if (block.type !== 'CHANT' && block.type !== 'TEXTE_LIBRE' && block.type !== 'TITRE' && block.type !== 'COMMENTAIRE') {
       var label = safeTxt(block.label_mg || block.type);
       if (block.role) label += " (" + block.role + ")";
       var pLabel = addP(label.toUpperCase(), sTitle, 'LEFT', 0, 0); 
@@ -322,13 +334,19 @@ function renderBlockToDoc(body, startIdx, block, includeTrans, progData) {
               if (currentIdx !== null) { pInfo = body.insertParagraph(currentIdx, ""); currentIdx++; } 
               else { pInfo = body.appendParagraph(""); }
               
-              var rec = safeTxt(block.data.recueil);
+              var rec = safeTxt(block.data.recueil).toLowerCase().trim();
               var num = safeTxt(block.data.numero);
+              
               var badgeText = num;
-              if(rec === 'Fihirana') badgeText = ('000' + num).slice(-3);
-              else if(rec.includes('Fanampiny')) badgeText = "FF " + num;
-              else if(rec === 'Antema') badgeText = "AN " + num;
-              else if(rec === 'Tsanta') badgeText = "TS " + num;
+              // Si Fihirana : 3 digits forcé (001)
+              if (rec === 'fihirana') {
+                  badgeText = ('000' + num).slice(-3); 
+              } 
+              // Si Autre (FF, AN...) : On ajoute le préfixe, mais on ne force pas les 3 digits (FF 2)
+              else {
+                  var prefix = (recueilPrefixes && recueilPrefixes[rec] !== undefined) ? recueilPrefixes[rec] : "";
+                  badgeText = prefix ? (prefix + " " + num) : num;
+              }
               
               var t1 = pInfo.appendText(badgeText);
               t1.setAttributes(sRef); 

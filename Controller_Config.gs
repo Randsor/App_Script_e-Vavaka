@@ -6,6 +6,7 @@ var SHEET_CFG_ROLES      = "CFG_ROLES";
 var SHEET_CFG_NOMS       = "CFG_NOMS";
 var SHEET_CFG_VALIDEURS  = "CFG_VALIDEURS";
 var SHEET_CFG_PARAMS     = "CFG_PARAMS";
+var SHEET_CFG_SLIDES     = "CFG_SLIDES"; // <--- NOUVEL ONGLET
 
 /**
  * 1. CHARGEMENT DE LA CONFIGURATION
@@ -17,16 +18,23 @@ function getConfigData() {
   var roles = [];
   var noms = [];
   var valideurs = [];
+  var slideMappings = []; // <--- NOUVEAU
   var paramsMap = {};
 
-  // --- Lecture CFG_RECUEILS (Col A: ID, Col B: Nom) ---
+  // --- Lecture CFG_RECUEILS (Col A: ID, Col B: Nom, Col C: Préfixe) ---
   var sheetRec = ss.getSheetByName(SHEET_CFG_RECUEILS);
   if (sheetRec) {
     var lastRow = sheetRec.getLastRow();
     if (lastRow > 1) {
-      recueils = sheetRec.getRange(2, 2, lastRow - 1, 1).getValues()
-        .map(function(r) { return String(r[0] || "").trim(); })
-        .filter(Boolean);
+      recueils = sheetRec.getRange(2, 1, lastRow - 1, 3).getValues()
+        .map(function(r) { 
+            return { 
+                id: String(r[0] || "").trim(), 
+                nom: String(r[1] || "").trim(),
+                prefixe: String(r[2] || "").trim()
+            }; 
+        })
+        .filter(function(r) { return r.nom !== ""; });
     }
   }
 
@@ -55,12 +63,9 @@ function getConfigData() {
   if (sheetNom) {
     var lastRow = sheetNom.getLastRow();
     if (lastRow > 1) {
-      noms = sheetNom.getRange(2, 1, lastRow - 1, 2).getValues() // On lit les colonnes A et B
+      noms = sheetNom.getRange(2, 1, lastRow - 1, 2).getValues()
         .map(function(r) { 
-            return { 
-                id: String(r[0] || "").trim(), 
-                nom: String(r[1] || "").trim() 
-            }; 
+            return { id: String(r[0] || "").trim(), nom: String(r[1] || "").trim() }; 
         })
         .filter(function(r) { return r.nom !== ""; });
     }
@@ -86,7 +91,31 @@ function getConfigData() {
     }
   }
 
-  // --- Lecture CFG_PARAMS (Col A: Clé, Col B: Valeur) ---
+  // --- Lecture CFG_SLIDES (Col A: ID, Col B: TitreMG, Col C: TitreFR, Col D: Tag) ---
+  var sheetSld = ss.getSheetByName(SHEET_CFG_SLIDES);
+  if (sheetSld) {
+    var lastRow = sheetSld.getLastRow();
+    if (lastRow > 1) {
+      slideMappings = sheetSld.getRange(2, 1, lastRow - 1, 4).getValues()
+        .map(function(r) {
+          var id = String(r[0] || "").trim();
+          var tMg = String(r[1] || "").trim();
+          var tFr = String(r[2] || "").trim();
+          var tTag = String(r[3] || "").trim();
+          
+          // AUCUN NETTOYAGE, AUCUN REPLACE DE "TPL_". On renvoie la donnée pure.
+          return { 
+            id: id,
+            titre_mg: tMg,
+            titre_fr: tFr,
+            tag: tTag
+          };
+        })
+        .filter(function(r) { return r.titre_mg !== "" || r.titre_fr !== ""; });
+    }
+  }
+
+  // --- Lecture CFG_PARAMS (Clés/Valeurs) ---
   var sheetPar = ss.getSheetByName(SHEET_CFG_PARAMS);
   if (sheetPar) {
     var lastRow = sheetPar.getLastRow();
@@ -105,9 +134,11 @@ function getConfigData() {
     roles: roles,
     noms: noms,
     valideurs: valideurs, 
+    slideMappings: slideMappings, // <--- NOUVEAU
     respCode: paramsMap["responsable_code"] || "",
     pdfFolderId: paramsMap["pdf_folder_id"] || "",
-    pdfTemplateId: paramsMap["pdf_template_id"] || ""
+    pdfTemplateId: paramsMap["pdf_template_id"] || "",
+    slidesTemplateSalleId: paramsMap["slides_template_salle_id"] || "" // Pour le lien dans la config
   };
 }
 
@@ -122,19 +153,23 @@ function saveConfigFull(adminCode, data) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
 
   try {
-    // A. Récupération des IDs existants pour ne pas les écraser
-    var dicts = getDictionaries(); // Utilisation de notre helper !
+    var dicts = getDictionaries();
 
     // --- 2.1 Écriture CFG_RECUEILS ---
     var sheetRec = ss.getSheetByName(SHEET_CFG_RECUEILS);
-    if (sheetRec && data.recueils && data.recueils.length > 0) {
+    if (sheetRec && data.recueils !== undefined) {
       clearSheetData(sheetRec, 1);
-      var rows = data.recueils.map(function(r) { 
-        var nom = String(r).trim();
-        var id = dicts.recueils.textToId[nom.toLowerCase()] || "REC_" + Utilities.getUuid().substring(0,6).toUpperCase();
-        return [id, nom]; 
-      });
-      sheetRec.getRange(2, 1, rows.length, 2).setValues(rows);
+      if (data.recueils.length > 0) {
+        var rows = data.recueils.map(function(r) { 
+          var nom = String(r.nom).trim();
+          var prefixe = String(r.prefixe || "").trim();
+          var id = String(r.id || "").trim();
+          if (!id) id = dicts.recueils.textToId[nom.toLowerCase()];
+          if (!id) id = "REC_" + Utilities.getUuid().substring(0,6).toUpperCase();
+          return [id, nom, prefixe]; 
+        });
+        sheetRec.getRange(2, 1, rows.length, 3).setValues(rows);
+      }
     }
 
     // --- 2.2 Écriture CFG_ROLES ---
@@ -145,15 +180,11 @@ function saveConfigFull(adminCode, data) {
         var rows = data.roles.map(function(r) {
           var roleName = String(r.nom || r.role || r.name || r.Nom_Role || "").trim();
           var roleType = String(r.type || r.Type_Role || r.categorie || "").trim();
-          
-          // 1. On prend l'ID envoyé par le Front. 2. Sinon on cherche par nom. 3. Sinon on génère.
           var id = String(r.id || "").trim();
           if (!id) id = dicts.roles.textToId[roleName.toLowerCase()];
           if (!id) id = "ROL_" + Utilities.getUuid().substring(0,6).toUpperCase();
-          
           return [id, roleName, roleType];
         }).filter(function(r) { return r[1] !== ""; });
-        
         if (rows.length > 0) sheetRol.getRange(2, 1, rows.length, 3).setValues(rows);
       }
     }
@@ -164,13 +195,10 @@ function saveConfigFull(adminCode, data) {
       clearSheetData(sheetNom, 1);
       if (data.noms.length > 0) {
         var rows = data.noms.map(function(n) { 
-          var nom = String(n.nom || n).trim(); // Supporte objet {id, nom} ou string simple
-          
-          // 1. On prend l'ID envoyé par le Front. 2. Sinon on cherche par nom. 3. Sinon on génère.
+          var nom = String(n.nom || n).trim(); 
           var id = String(n.id || "").trim();
           if (!id) id = dicts.noms.textToId[nom.toLowerCase()];
           if (!id) id = "PRT_" + Utilities.getUuid().substring(0,6).toUpperCase();
-          
           return [id, nom]; 
         });
         sheetNom.getRange(2, 1, rows.length, 2).setValues(rows);
@@ -185,16 +213,27 @@ function saveConfigFull(adminCode, data) {
         var rows = data.valideurs.map(function(v) {
           var valName = String(v.nom || v.name || v.Nom_Valideur || v.valideur || "").trim();
           var valCode = String(v.code || v.Code_Valideur || "").trim();
-          
-          // 1. On prend l'ID envoyé par le Front. 2. Sinon on cherche par nom. 3. Sinon on génère.
           var id = String(v.id || "").trim();
           if (!id) id = dicts.valideurs.textToId[valName.toLowerCase()];
           if (!id) id = "VAL_" + Utilities.getUuid().substring(0,6).toUpperCase();
-          
           return [id, valName, valCode];
         }).filter(function(r) { return r[1] !== ""; });
-
         if (rows.length > 0) sheetVal.getRange(2, 1, rows.length, 3).setValues(rows);
+      }
+    }
+
+    // --- 2.4.bis Écriture CFG_SLIDES (Mappings Prédéfinis) ---
+    var sheetSld = ss.getSheetByName(SHEET_CFG_SLIDES);
+    if (sheetSld && data.slideMappings !== undefined) {
+      clearSheetData(sheetSld, 1);
+      if (data.slideMappings.length > 0) {
+        var rows = data.slideMappings.map(function(m) {
+          var id = String(m.id || "").trim();
+          if (!id) id = "MAP_" + Utilities.getUuid().substring(0,6).toUpperCase();
+          return [id, String(m.titre_mg).trim(), String(m.titre_fr).trim(), String(m.tag).trim()];
+        }).filter(function(r) { return r[1] !== "" || r[2] !== ""; }); // Doit avoir au moins un titre
+        
+        if (rows.length > 0) sheetSld.getRange(2, 1, rows.length, 4).setValues(rows);
       }
     }
 
@@ -213,6 +252,9 @@ function saveConfigFull(adminCode, data) {
       var finalResp  = (data.respCode !== undefined) ? data.respCode : (currentParams["responsable_code"] || "");
       var finalFolder = (data.pdfFolderId !== undefined) ? data.pdfFolderId : (currentParams["pdf_folder_id"] || "");
       var finalTemplate = (data.pdfTemplateId !== undefined) ? data.pdfTemplateId : (currentParams["pdf_template_id"] || "");
+      // Conservation du paramètre slides_template s'il existe
+      var finalSlidesTpl = currentParams["slides_template_salle_id"] || "";
+      if (data.slidesTemplateSalleId !== undefined) finalSlidesTpl = data.slidesTemplateSalleId;
 
       clearSheetData(sheetPar, 1);
       
@@ -220,12 +262,12 @@ function saveConfigFull(adminCode, data) {
         ["admin_code", String(finalAdmin).trim()],
         ["responsable_code", String(finalResp).trim()],
         ["pdf_folder_id", String(finalFolder).trim()],
-        ["pdf_template_id", String(finalTemplate).trim()]
+        ["pdf_template_id", String(finalTemplate).trim()],
+        ["slides_template_salle_id", String(finalSlidesTpl).trim()]
       ];
       sheetPar.getRange(2, 1, paramsRows.length, 2).setValues(paramsRows);
     }
 
-    // On force le rechargement du dictionnaire avec les nouveaux IDs
     DICT_CACHE = null;
 
     return { success: true, msg: "Configuration sauvegardée avec succès." };
@@ -264,7 +306,6 @@ function verifyValidatorCode(name, inputCode) {
   var lastRow = sheet.getLastRow();
   if (lastRow < 2) return false;
 
-  // On lit Col A(ID), B(Nom) et C(Code)
   var data = sheet.getRange(2, 1, lastRow - 1, 3).getValues();
   var cleanName = String(name).trim().toLowerCase();
   var cleanInput = String(inputCode).trim();
@@ -273,7 +314,6 @@ function verifyValidatorCode(name, inputCode) {
     var rowId = String(data[i][0]).toLowerCase().trim();
     var rowName = String(data[i][1]).toLowerCase().trim();
     
-    // Si le nom passé par le Front correspond à l'ID OU au Nom dans la base
     if (rowName === cleanName || rowId === cleanName) {
       return String(data[i][2] || "").trim() === cleanInput;
     }

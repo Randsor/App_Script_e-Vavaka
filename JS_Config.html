@@ -32,8 +32,20 @@
   function renderAll(data) {
       renderRolesByGroup(data.roles);
       
-      const cNoms = document.getElementById('nomsContainer');
-      if(cNoms) {
+// CHARGEMENT RECUEILS
+      const cRec = document.getElementById('recueilsContainer');
+      if(cRec) {
+          cRec.innerHTML = "";
+          if(!data.recueils || data.recueils.length === 0) {
+              cRec.innerHTML = '<div class="text-center py-4 text-muted small">Aucun recueil</div>';
+          } else {
+              data.recueils.forEach(r => {
+                  cRec.innerHTML += buildRecueilHtml(r.id, r.nom, r.prefixe);
+              });
+          }
+      }
+
+      const cNoms = document.getElementById('nomsContainer');      if(cNoms) {
           cNoms.innerHTML = "";
           if(!data.noms || data.noms.length === 0) {
               cNoms.innerHTML = '<div class="text-center py-4 text-muted small">Vide</div>';
@@ -52,10 +64,31 @@
           }
       }
 
-      safeSetValue('pdfFolderId', data.pdfFolderId);
+     safeSetValue('pdfFolderId', data.pdfFolderId);
       safeSetValue('pdfTemplateId', data.pdfTemplateId);
+      safeSetValue('slidesTemplateSalleId', data.slidesTemplateSalleId); // <--- NOUVEAU
       safeSetValue('respCodeInput', data.respCode);
       
+      // CHARGEMENT DES SLIDES MAPPINGS
+      const cMap = document.getElementById('slideMappingContainer');
+      if(cMap) {
+          cMap.innerHTML = "";
+          if(!data.slideMappings || data.slideMappings.length === 0) {
+              cMap.innerHTML = '<div class="text-center py-4 text-muted small fst-italic">Aucune règle définie</div>';
+          } else {
+              const groups = {};
+              data.slideMappings.forEach(m => {
+                  const key = (m.titre_mg + "|" + m.titre_fr).toLowerCase();
+                  if (!groups[key]) groups[key] = { id: m.id, mg: m.titre_mg, fr: m.titre_fr, tags: [] };
+                  groups[key].tags.push(m.tag);
+              });
+              
+              Object.values(groups).forEach(g => {
+                  cMap.innerHTML += buildSlideMappingGroupHtml(g.id, g.mg, g.fr, g.tags);
+              });
+          }
+      }
+
       const cVal = document.getElementById('valideursContainer');
       if(cVal) {
           cVal.innerHTML = "";
@@ -163,6 +196,28 @@
         </div>`;
   }
 
+  function buildRecueilHtml(id, nom, prefixe) {
+      return `
+        <div class="cfg-item recueil-item">
+            <input type="hidden" class="rec-id" value="${id || ""}">
+            <i class="bi bi-book-half text-primary opacity-50 ms-2"></i>
+            <input type="text" class="cfg-input fw-medium rec-nom flex-grow-1 ms-2" value="${nom || ""}" placeholder="Nom du recueil" oninput="setDirty(true)">
+            <input type="text" class="cfg-input text-secondary text-center rec-prefixe border rounded bg-light" style="width: 70px;" value="${prefixe || ""}" placeholder="Préfixe" oninput="setDirty(true)">
+            <i class="bi bi-trash3 text-muted opacity-25 btn-action-danger ms-2" onclick="confirmRemoveItem(this)"></i>
+        </div>`;
+  }
+
+  function addRecueil() {
+      if (!IS_ADMIN_MODE) return;
+      const container = document.getElementById('recueilsContainer');
+      if (container.querySelector('.text-center')) container.innerHTML = "";
+      const div = document.createElement('div'); 
+      div.className = "animation-fade-in";
+      div.innerHTML = buildRecueilHtml("", "", "");
+      container.appendChild(div);
+      setDirty(true);
+  }
+
   function getInitials(name) { return name ? name.substring(0, 2).toUpperCase() : ".."; }
   
   function togglePassVisibility(icon, inputId) {
@@ -252,6 +307,96 @@
       const inp = div.querySelector('input');
       if(inp) inp.focus();
       setDirty(true);
+  }
+
+  // --- RECHERCHE SLIDES MAPPING ---
+  function filterSlideMappings(query) {
+      const q = query.toLowerCase().trim();
+      document.querySelectorAll('.slide-map-parent').forEach(el => {
+          const mg = (el.querySelector('.map-mg').value || "").toLowerCase();
+          const fr = (el.querySelector('.map-fr').value || "").toLowerCase();
+          if (mg.includes(q) || fr.includes(q)) el.style.display = 'block';
+          else el.style.display = 'none';
+      });
+  }
+
+  // --- UI : SLIDES MAPPING (GROUPÉ) ---
+  function buildSlideTagHtml(tagValue) {
+      return `
+      <div class="d-flex align-items-center gap-2 mb-1 slide-map-tag-row">
+          <i class="bi bi-grip-vertical text-muted opacity-25 cursor-pointer"></i>
+          <div class="input-group input-group-sm flex-grow-1">
+              <span class="input-group-text bg-light text-muted fw-bold border-secondary border-opacity-25">[</span>
+              <input type="text" class="form-control form-control-sm map-tag fw-bold text-dark border-secondary border-opacity-25" placeholder="SLD_EXEMPLE" value="${(tagValue || "").replace(/^\[|\]$/g, '')}" oninput="setDirty(true)">
+              <span class="input-group-text bg-light text-muted fw-bold border-secondary border-opacity-25">]</span>
+          </div>
+          <i class="bi bi-x-circle text-danger opacity-50 hover-opacity-100 cursor-pointer" onclick="removeSlideTag(this)"></i>
+      </div>`;
+  }
+
+  function removeSlideTag(btn) {
+      if (!IS_ADMIN_MODE) return;
+      const row = btn.closest('.slide-map-tag-row');
+      const parent = row.closest('.slide-map-parent');
+      row.remove();
+      setDirty(true);
+      if (parent.querySelectorAll('.slide-map-tag-row').length === 0) {
+          addSlideTag(parent.querySelector('.btn-add-tag'));
+      }
+  }
+
+  function addSlideTag(btnElement) {
+      if (!IS_ADMIN_MODE) return;
+      const container = btnElement.closest('.slide-map-parent').querySelector('.slide-tags-container');
+      const div = document.createElement('div');
+      div.innerHTML = buildSlideTagHtml("");
+      container.appendChild(div.firstElementChild);
+      setDirty(true);
+  }
+
+  function buildSlideMappingGroupHtml(id, titreMg, titreFr, tagsArray) {
+      let tagsHtml = "";
+      if (tagsArray && tagsArray.length > 0) {
+          tagsArray.forEach(t => tagsHtml += buildSlideTagHtml(t));
+      } else {
+          tagsHtml = buildSlideTagHtml("");
+      }
+
+      return `
+      <div class="cfg-item mb-3 border rounded slide-map-parent p-3 flex-column align-items-stretch bg-white shadow-sm">
+          <input type="hidden" class="map-id" value="${id || ""}">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+              <label class="small text-primary fw-bold text-uppercase" style="font-size:10px; letter-spacing: 0.5px;">
+                 <i class="bi bi-lightning-charge-fill me-1"></i> Déclencheur
+              </label>
+              <i class="bi bi-trash3 text-muted opacity-25 btn-action-danger cursor-pointer" onclick="confirmRemoveItem(this)" title="Supprimer tout le groupe"></i>
+          </div>
+          <div class="row g-2 mb-3 pb-3 border-bottom">
+              <div class="col-6"><input type="text" class="form-control form-control-sm map-mg fw-bold" placeholder="Titre MG Exact..." value="${titreMg || ""}" oninput="setDirty(true)"></div>
+              <div class="col-6"><input type="text" class="form-control form-control-sm map-fr text-secondary fst-italic" placeholder="Titre FR Exact..." value="${titreFr || ""}" oninput="setDirty(true)"></div>
+          </div>
+          <div class="d-flex justify-content-between align-items-center mb-2">
+              <label class="small text-muted fw-bold text-uppercase" style="font-size:10px;">Générer ces Slides :</label>
+              <button class="btn btn-sm btn-light border py-0 px-2 text-secondary btn-add-tag" style="font-size:10px;" onclick="addSlideTag(this)">+ Ajouter Slide</button>
+          </div>
+          <div class="slide-tags-container ps-2 border-start border-2 border-secondary border-opacity-25">
+              ${tagsHtml}
+          </div>
+      </div>`;
+  }
+
+  function addSlideMappingGroup() {
+      if (!IS_ADMIN_MODE) return;
+      const container = document.getElementById('slideMappingContainer');
+      if (container.querySelector('.text-center')) container.innerHTML = ""; 
+      
+      const div = document.createElement('div');
+      div.className = "animation-fade-in";
+      div.innerHTML = buildSlideMappingGroupHtml("", "", "", []);
+      
+      container.prepend(div.firstElementChild);
+      setDirty(true);
+      setTimeout(() => { container.querySelector('.map-mg').focus(); }, 50);
   }
 
   // --- MODALS ---
@@ -381,12 +526,16 @@
       IS_ADMIN_MODE = isAdmin;
       const grid = document.getElementById('configGrid');
       const status = document.getElementById('lockStatusText');
+      
       if (isAdmin) {
           grid.classList.remove('is-locked');
           status.innerHTML = `<span class="text-success fw-bold"><i class="bi bi-unlock-fill me-1"></i>MODE ÉDITION</span>`;
           document.getElementById('btnUnlock').classList.add('hidden');
           document.getElementById('btnLock').classList.remove('hidden');
           document.getElementById('btnSaveAll').classList.remove('hidden');
+          
+          // Déverrouille les boutons spécifiques
+          document.querySelectorAll('.btn-add-tag').forEach(b => b.style.display = 'block');
       } else {
           grid.classList.add('is-locked');
           status.innerHTML = `<i class="bi bi-lock-fill me-1"></i>Lecture seule`;
@@ -396,6 +545,9 @@
           ADMIN_CODE_SESSION = ""; 
           const respInp = document.getElementById('respCodeInput');
           if(respInp) { respInp.type = "password"; }
+          
+          // Verrouille les boutons spécifiques
+          document.querySelectorAll('.btn-add-tag').forEach(b => b.style.display = 'none');
       }
   }
 
@@ -434,9 +586,21 @@
   // --- SAUVEGARDE ROBUSTE ---
   function saveAllConfig(lockAfter = false) {
       if(!IS_ADMIN_MODE || !ADMIN_CODE_SESSION) return;
+      
       const btn = document.getElementById('btnSaveAll');
-      const originalText = btn.innerHTML;
-      btn.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span>...`; btn.disabled = true;
+      const originalText = btn.innerHTML; // Déclaré une seule fois !
+      
+      btn.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span>...`; 
+      btn.disabled = true;
+
+      // 0. Recueils
+      const recueils = [];
+      document.querySelectorAll('.recueil-item').forEach(el => {
+          const rId = el.querySelector('.rec-id').value;
+          const rNom = el.querySelector('.rec-nom').value.trim();
+          const rPref = el.querySelector('.rec-prefixe').value.trim();
+          if (rNom) recueils.push({ id: rId, nom: rNom, prefixe: rPref });
+      });
 
       // 1. Roles
       const roles = [];
@@ -483,13 +647,35 @@
           });
       }
 
+      // 4. Slides Mapping (Aplatissement pour la BDD)
+      const slideMappings = [];
+      document.querySelectorAll('.slide-map-parent').forEach(el => {
+          const mId = el.querySelector('.map-id').value;
+          const mMg = el.querySelector('.map-mg').value.trim();
+          const mFr = el.querySelector('.map-fr').value.trim();
+          
+          if (mMg !== "" || mFr !== "") {
+              el.querySelectorAll('.map-tag').forEach(tagEl => {
+                  let mTag = tagEl.value.trim();
+                  if (mTag !== "") {
+                      if (!mTag.startsWith('[')) mTag = '[' + mTag;
+                      if (!mTag.endsWith(']')) mTag = mTag + ']';
+                      slideMappings.push({ id: mId, titre_mg: mMg, titre_fr: mFr, tag: mTag.toUpperCase() });
+                  }
+              });
+          }
+      });
+
       const payload = {
+          recueils: recueils, // <--- BIEN PRÉSENT !
           roles: roles,
           noms: noms,
           valideurs: valideurs,
+          slideMappings: slideMappings,
           respCode: document.getElementById('respCodeInput').value,
           pdfFolderId: document.getElementById('pdfFolderId').value,
-          pdfTemplateId: document.getElementById('pdfTemplateId').value
+          pdfTemplateId: document.getElementById('pdfTemplateId').value,
+          slidesTemplateSalleId: document.getElementById('slidesTemplateSalleId').value
       };
 
       google.script.run.withSuccessHandler(msg => {
