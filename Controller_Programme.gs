@@ -156,7 +156,7 @@ function getProgrammeDetails(id) {
               var dbId = String(dataC[c][0]).trim();
               
               songMap[dbId] = {
-                  recueil: dataC[c][1], 
+                  recueil: getTextFromId("recueils", dataC[c][1]), 
                   numero: dataC[c][2], 
                   titre: dataC[c][3], 
                   tonalite: dataC[c][4],

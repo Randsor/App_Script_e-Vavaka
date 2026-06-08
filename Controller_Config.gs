@@ -138,7 +138,8 @@ function getConfigData() {
     respCode: paramsMap["responsable_code"] || "",
     pdfFolderId: paramsMap["pdf_folder_id"] || "",
     pdfTemplateId: paramsMap["pdf_template_id"] || "",
-    slidesTemplateSalleId: paramsMap["slides_template_salle_id"] || "" // Pour le lien dans la config
+    slidesTemplateSalleId: paramsMap["slides_template_salle_id"] || "",
+    slidesFolderId: paramsMap["slides_folder_id"] || ""
   };
 }
 
@@ -250,11 +251,19 @@ function saveConfigFull(adminCode, data) {
 
       var finalAdmin = (data.adminCode !== undefined) ? data.adminCode : (currentParams["admin_code"] || adminCode);
       var finalResp  = (data.respCode !== undefined) ? data.respCode : (currentParams["responsable_code"] || "");
-      var finalFolder = (data.pdfFolderId !== undefined) ? data.pdfFolderId : (currentParams["pdf_folder_id"] || "");
-      var finalTemplate = (data.pdfTemplateId !== undefined) ? data.pdfTemplateId : (currentParams["pdf_template_id"] || "");
-      // Conservation du paramètre slides_template s'il existe
-      var finalSlidesTpl = currentParams["slides_template_salle_id"] || "";
-      if (data.slidesTemplateSalleId !== undefined) finalSlidesTpl = data.slidesTemplateSalleId;
+      
+      // Extraction automatique de l'ID si l'utilisateur a collé une URL complète
+      function cleanDriveId(input) {
+          if (!input) return "";
+          var str = String(input).trim();
+          var match = str.match(/[-\w]{25,}/);
+          return match ? match[0] : str;
+      }
+
+      var finalFolder = cleanDriveId((data.pdfFolderId !== undefined) ? data.pdfFolderId : (currentParams["pdf_folder_id"] || ""));
+      var finalTemplate = cleanDriveId((data.pdfTemplateId !== undefined) ? data.pdfTemplateId : (currentParams["pdf_template_id"] || ""));
+      var finalSlidesTpl = cleanDriveId((data.slidesTemplateSalleId !== undefined) ? data.slidesTemplateSalleId : (currentParams["slides_template_salle_id"] || ""));
+      var finalSlidesFolder = cleanDriveId((data.slidesFolderId !== undefined) ? data.slidesFolderId : (currentParams["slides_folder_id"] || ""));
 
       clearSheetData(sheetPar, 1);
       
@@ -263,7 +272,8 @@ function saveConfigFull(adminCode, data) {
         ["responsable_code", String(finalResp).trim()],
         ["pdf_folder_id", String(finalFolder).trim()],
         ["pdf_template_id", String(finalTemplate).trim()],
-        ["slides_template_salle_id", String(finalSlidesTpl).trim()]
+        ["slides_template_salle_id", String(finalSlidesTpl).trim()],
+        ["slides_folder_id", String(finalSlidesFolder).trim()]
       ];
       sheetPar.getRange(2, 1, paramsRows.length, 2).setValues(paramsRows);
     }
@@ -345,4 +355,34 @@ function clearSheetData(sheet, startCol) {
   if (lastRow > 1 && maxCols >= startCol) {
     sheet.getRange(2, startCol, lastRow - 1, (maxCols - startCol) + 1).clearContent();
   }
+}
+
+/**
+ * Vérifie si le code correspond à l'Admin OU à l'un des Valideurs (Pasteurs)
+ * Utilisé spécifiquement pour déverrouiller l'export Word/Docs
+ */
+function verifyPastorOrAdminCode(inputCode) {
+  if (!inputCode) return false;
+  var cleanInput = String(inputCode).trim();
+  
+  // 1. Vérification Code Admin
+  if (cleanInput === getParamValueByKey("admin_code")) return true;
+  
+  // 2. Vérification Liste des Valideurs
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(SHEET_CFG_VALIDEURS);
+  if (!sheet) return false;
+
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return false;
+
+  var data = sheet.getRange(2, 1, lastRow - 1, 3).getValues();
+  for (var i = 0; i < data.length; i++) {
+    // Colonne C (Index 2) contient le code du valideur
+    if (String(data[i][2] || "").trim() === cleanInput) {
+      return true; 
+    }
+  }
+  
+  return false;
 }

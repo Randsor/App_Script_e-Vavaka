@@ -64,9 +64,10 @@
           }
       }
 
-     safeSetValue('pdfFolderId', data.pdfFolderId);
+      safeSetValue('pdfFolderId', data.pdfFolderId);
       safeSetValue('pdfTemplateId', data.pdfTemplateId);
-      safeSetValue('slidesTemplateSalleId', data.slidesTemplateSalleId); // <--- NOUVEAU
+      safeSetValue('slidesTemplateSalleId', data.slidesTemplateSalleId);
+      safeSetValue('slidesFolderId', data.slidesFolderId);
       safeSetValue('respCodeInput', data.respCode);
       
       // CHARGEMENT DES SLIDES MAPPINGS
@@ -667,7 +668,7 @@
       });
 
       const payload = {
-          recueils: recueils, // <--- BIEN PRÉSENT !
+          recueils: recueils,
           roles: roles,
           noms: noms,
           valideurs: valideurs,
@@ -675,9 +676,10 @@
           respCode: document.getElementById('respCodeInput').value,
           pdfFolderId: document.getElementById('pdfFolderId').value,
           pdfTemplateId: document.getElementById('pdfTemplateId').value,
-          slidesTemplateSalleId: document.getElementById('slidesTemplateSalleId').value
+          slidesTemplateSalleId: document.getElementById('slidesTemplateSalleId').value,
+          slidesFolderId: document.getElementById('slidesFolderId').value
       };
-
+      
       google.script.run.withSuccessHandler(msg => {
           btn.innerHTML = `<i class="bi bi-check-lg me-2"></i>OK`;
           setTimeout(() => { 

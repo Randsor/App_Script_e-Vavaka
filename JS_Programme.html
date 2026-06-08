@@ -857,19 +857,15 @@
                   
                   // --- RÈGLES DE BADGE & NUMÉROTATION ---
                   let recueilClean = (song.recueil || "").toLowerCase().trim();
-                  let displayBadge = "";
+                  let rawNum = String(song.numero).trim();
+                  let displayBadge = rawNum;
                   
                   if(recueilClean === 'fihirana') {
-                      // Règle a: Fihirana -> 3 digits (001)
-                      displayBadge = String(song.numero).padStart(3, '0');
+                      displayBadge = rawNum.padStart(3, '0');
                   } else {
-                      // Règles b, c, d : Préfixe + Numéro
-                      let prefix = "XX";
-                      if(recueilClean.includes('fanampiny')) prefix = "FF";
-                      else if(recueilClean.includes('antema')) prefix = "AN";
-                      else if(recueilClean.includes('tsanta')) prefix = "TS";
-                      
-                      displayBadge = `${prefix} ${song.numero}`;
+                      let recObj = (typeof RECUEILS_CONFIG !== 'undefined') ? RECUEILS_CONFIG.find(r => r.nom.toLowerCase() === recueilClean) : null;
+                      let prefix = recObj ? recObj.prefixe : "";
+                      displayBadge = prefix ? `${prefix} ${rawNum}` : rawNum;
                   }
                   
                   // Construction HTML du Badge
@@ -926,20 +922,17 @@
       document.getElementById('ssStanzasList').classList.add('hidden');
       document.getElementById('ssSkeletonDetails').classList.remove('hidden');
       
-      // --- 3. FORMATAGE STRICT DU BADGE (Comme demandé) ---
+      // --- 3. FORMATAGE STRICT DU BADGE ---
       let recueilClean = (songStub.recueil || "").toLowerCase().trim();
-      let displayBadge = "";
+      let rawNum = String(songStub.numero).trim();
+      let displayBadge = rawNum;
       
       if(recueilClean === 'fihirana') {
-          // Règle: Fihirana 002
-          displayBadge = "Fihirana " + String(songStub.numero).padStart(3, '0');
+          displayBadge = "Fihirana " + rawNum.padStart(3, '0');
       } else {
-          // Règles: FF 8, AN 2...
-          let prefix = "XX";
-          if(recueilClean.includes('fanampiny')) prefix = "FF";
-          else if(recueilClean.includes('antema')) prefix = "AN";
-          else if(recueilClean.includes('tsanta')) prefix = "TS";
-          displayBadge = `${prefix} ${songStub.numero}`;
+          let recObj = (typeof RECUEILS_CONFIG !== 'undefined') ? RECUEILS_CONFIG.find(r => r.nom.toLowerCase() === recueilClean) : null;
+          let prefix = recObj ? recObj.prefixe : "";
+          displayBadge = prefix ? `${prefix} ${rawNum}` : rawNum;
       }
 
       document.getElementById('ssDetailTitle').innerText = songStub.titre;

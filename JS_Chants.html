@@ -9,6 +9,7 @@ let IGNORE_DIRTY_FLAG = false;
 let modalInstance = null;
 let FORCE_CLOSE_FLAG = false;
 let IS_CHANT_EDITABLE = false;
+let CHANTS_RECUEILS_CONFIG = []; // Cache local des recueils
 
 // VARIABLES DE MÉMORISATION DES FILTRES DE MAINTENANCE
 let CURRENT_SPECIAL_FILTER = null; 
@@ -56,6 +57,9 @@ function loadChantsData() {
     input.style.borderColor = "";
 
     google.script.run.withSuccessHandler(updateKPIs).getRepoStats();
+    
+    // Chargement dynamique des préfixes
+    google.script.run.withSuccessHandler(data => { CHANTS_RECUEILS_CONFIG = data.recueils || []; }).getConfigData();
 
     showLoader(true);
     google.script.run.withSuccessHandler(results => {
@@ -166,15 +170,16 @@ function renderGrid(chants) {
         card.className = "chant-card";
         card.onclick = () => openChantModal(c.id);
 
-        let displayRef = "";
-        if (c.recueil === 'Fihirana') {
-            displayRef = String(c.numero).padStart(3, '0');
+        let recueilClean = (c.recueil || "").toLowerCase().trim();
+        let rawNum = String(c.numero).trim();
+        let displayRef = rawNum;
+        
+        if (recueilClean === 'fihirana') {
+            displayRef = rawNum.padStart(3, '0');
         } else {
-            let code = "XX";
-            if (c.recueil === 'Fihirana Fanampiny') code = "FF";
-            else if (c.recueil === 'Antema') code = "AN";
-            else if (c.recueil === 'Tsanta') code = "TS";
-            displayRef = code + " " + c.numero;
+            let recObj = CHANTS_RECUEILS_CONFIG.find(r => r.nom.toLowerCase() === recueilClean);
+            let prefix = recObj ? recObj.prefixe : "";
+            displayRef = prefix ? `${prefix} ${rawNum}` : rawNum;
         }
 
         let titleHtml = highlightText(c.titre, searchQuery);

@@ -8,10 +8,11 @@ function generateSlidesSalle(progId) {
     
     // 1. Récupération de la Configuration de base
     var templateId = getParamValueByKey("slides_template_salle_id");
-    var folderId = getParamValueByKey("pdf_folder_id"); 
+    // On cherche le dossier Slides, s'il est vide on prend celui du PDF en fallback (sécurité)
+    var folderId = getParamValueByKey("slides_folder_id") || getParamValueByKey("pdf_folder_id"); 
     
     if (!templateId || !folderId) {
-      throw new Error("Configuration manquante : Vérifiez 'slides_template_salle_id' et 'pdf_folder_id'.");
+      throw new Error("Configuration manquante : Vérifiez l'ID du modèle Slides et l'ID du dossier de destination dans l'Admin.");
     }
 
     var progData = getProgrammeDetails(progId);
@@ -38,8 +39,19 @@ function generateSlidesSalle(progId) {
     console.log("MAPPING CHARGÉ DEPUIS CFG_SLIDES : " + slideMappings.length + " règles trouvées.");
 
     // 3. Duplication du Modèle
-    var folder = DriveApp.getFolderById(folderId);
-    var templateFile = DriveApp.getFileById(templateId);
+    var folder, templateFile;
+    try {
+        folder = DriveApp.getFolderById(folderId);
+    } catch(e) {
+        throw new Error("Le dossier Drive est introuvable. Vérifiez son ID dans la configuration : " + folderId);
+    }
+    
+    try {
+        templateFile = DriveApp.getFileById(templateId);
+    } catch(e) {
+        throw new Error("Le modèle Google Slides est introuvable. Vérifiez l'ID dans la configuration : " + templateId);
+    }
+    
     var newFile = templateFile.makeCopy(fileName, folder);
     
     // 4. Ouverture de la présentation
@@ -372,11 +384,11 @@ function generateSlidesSalle(progId) {
       }
 
       // ========================================================
-      // RÈGLES : BLOCS LIBRES (Intervention & Texte Simple)
+      // RÈGLES : PRIÈRE & BLOCS LIBRES (Intervention & Texte Simple)
       // ========================================================
-      else if (block.type === 'LIBRE' || block.type === 'TEXTE_LIBRE') {
+      else if (block.type === 'LIBRE' || block.type === 'TEXTE_LIBRE' || block.type === 'PRIERE') {
         var hasTranslation = (block.data && block.data.texte_fr && block.data.texte_fr.trim() !== "");
-        var baseKey = (block.type === 'LIBRE') ? 'TPL_LIBRE' : 'TPL_TEXTE_LIBRE';
+        var baseKey = 'TPL_' + block.type; // Génère auto : TPL_LIBRE, TPL_TEXTE_LIBRE, TPL_PRIERE
         var tplKey = hasTranslation ? (baseKey + '_FR') : (baseKey + '_MG');
         var tplSlide = templateMap[tplKey];
         

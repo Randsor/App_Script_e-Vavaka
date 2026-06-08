@@ -236,10 +236,19 @@
                 <p class="cfg-section-desc">Associez un titre exact saisi dans le programme à une diapositive spécifique du modèle. Si le système reconnaît le titre, il insérera directement la diapositive associée sans chercher à remplacer le texte.</p>
                 
                 <div class="role-group-card p-4 mb-4">
-                    <label class="small fw-bold text-dark mb-2">ID TEMPLATE SLIDES (SALLE)</label>
-                    <div class="d-flex align-items-center bg-light border rounded px-3 py-2">
-                        <i class="bi bi-file-earmark-slides-fill text-warning me-3 fs-5"></i>
-                        <input type="text" id="slidesTemplateSalleId" class="cfg-input fw-medium" placeholder="ID du fichier Slides..." oninput="setDirty(true)">
+                    <div class="mb-4">
+                        <label class="small fw-bold text-dark mb-2">ID DOSSIER DRIVE (STOCKAGE SLIDES)</label>
+                        <div class="d-flex align-items-center bg-light border rounded px-3 py-2">
+                            <i class="bi bi-folder-fill text-warning me-3 fs-5"></i>
+                            <input type="text" id="slidesFolderId" class="cfg-input fw-medium" placeholder="ID du dossier..." oninput="setDirty(true)">
+                        </div>
+                    </div>
+                    <div class="mb-2">
+                        <label class="small fw-bold text-dark mb-2">ID TEMPLATE SLIDES (SALLE)</label>
+                        <div class="d-flex align-items-center bg-light border rounded px-3 py-2">
+                            <i class="bi bi-file-earmark-slides-fill text-warning me-3 fs-5"></i>
+                            <input type="text" id="slidesTemplateSalleId" class="cfg-input fw-medium" placeholder="ID du fichier Slides..." oninput="setDirty(true)">
+                        </div>
                     </div>
                     <div class="mt-2 text-end">
                         <button class="btn btn-sm btn-link text-decoration-none" onclick="window.open('https://docs.google.com/presentation/d/' + document.getElementById('slidesTemplateSalleId').value, '_blank')">

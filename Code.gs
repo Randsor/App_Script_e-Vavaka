@@ -15,10 +15,14 @@ function include(filename) {
 
 // Fonction utilitaire à lancer UNE FOIS manuellement depuis l'éditeur
 function forceAuthGlobale() {
-  DriveApp.getFiles().hasNext(); // Force l'accès Drive global
-  var doc = DocumentApp.create('Temp Auth Doc'); // Force l'accès Docs
-  DriveApp.getFileById(doc.getId()).setTrashed(true); // Passe par Drive pour jeter le fichier
-  SpreadsheetApp.getActiveSpreadsheet(); // Force l'accès Sheets
+  DriveApp.getFiles().hasNext(); 
+  var doc = DocumentApp.create('Temp Auth Doc'); 
+  DriveApp.getFileById(doc.getId()).setTrashed(true); 
+  SpreadsheetApp.getActiveSpreadsheet(); 
+  
+  // Force l'autorisation pour Google Slides
+  var slide = SlidesApp.create('Temp Auth Slide');
+  DriveApp.getFileById(slide.getId()).setTrashed(true);
 }
 
 /**

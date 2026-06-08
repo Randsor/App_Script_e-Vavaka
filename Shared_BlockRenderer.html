@@ -307,14 +307,16 @@ function renderSharedBlocks(containerId, blocks, context) {
                 
                 if(isFromDB && block.data?.recueil) {
                     let recKey = String(block.data.recueil).trim().toLowerCase();
-                    let num3Digits = String(block.data.numero).padStart(3, '0');
-                    let formattedNum = num3Digits;
+                    let rawNum = String(block.data.numero).trim();
+                    let formattedNum = rawNum;
                     
-                    if (recKey !== 'fihirana') {
+                    if (recKey === 'fihirana') {
+                        formattedNum = rawNum.padStart(3, '0');
+                    } else {
                         // On cherche le préfixe dans le cache (ou on prend une chaîne vide par défaut)
                         let recObj = (typeof RECUEILS_CONFIG !== 'undefined') ? RECUEILS_CONFIG.find(r => r.nom.toLowerCase() === recKey) : null;
                         let prefix = recObj ? recObj.prefixe : "";
-                        formattedNum = prefix ? escapeHTML(prefix) + ' ' + num3Digits : num3Digits;
+                        formattedNum = prefix ? escapeHTML(prefix) + ' ' + rawNum : rawNum;
                     }
 
                     let tonaliteHtml = block.data.tonalite ? `<span class="ms-2 border border-secondary text-secondary rounded fw-bold px-2" style="font-size:11px !important; padding:1px 4px; background-color:#fff;">${escapeHTML(block.data.tonalite)}</span>` : '';
