@@ -39,15 +39,13 @@ jobs:
 
       - name: Send Bundle to Google Drive API
         run: |
-          # 1. jq lit le fichier directement depuis le disque (-Rs) et génère un fichier JSON physique (payload.json)
-          # Cela évite d'injecter le texte dans la ligne de commande.
+          # 1. Génération du flux JSON applicatif sur le disque
           jq -Rs '{content: .}' codebase_total.md > payload.json
           
-          # 2. curl prend le fichier payload.json directement sur le disque via le préfixe '@'
-          # L'option --data-binary est critique pour préserver les sauts de ligne du code.
-          curl -L -X POST "${{ secrets.GAS_WEBAPP_URL }}?token=${{ secrets.GAS_DEPLOY_TOKEN }}" \
+          # 2. Transmission avec routage dynamique du dossier cible
+          curl -L -X POST "${{ secrets.GAS_WEBAPP_URL }}?token=${{ secrets.GAS_DEPLOY_TOKEN }}&folder_id=${{ secrets.GDRIVE_FOLDER_ID }}" \
             -H "Content-Type: application/json" \
             --data-binary @payload.json
             
-          # 3. Nettoyage du fichier temporaire
+          # 3. Nettoyage du runner
           rm payload.json
